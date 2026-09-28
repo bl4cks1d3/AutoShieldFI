@@ -1,0 +1,17 @@
+.anchor
+.DS_Store
+target/*
+!target/types
+!target/idl
+**/*.rs.bk
+node_modules
+test-ledger
+.yarn
+*.log
+.env
+.env.local
+app/.next
+app/out
+app/node_modules
+app/next-env.d.ts
+app/tsconfig.tsbuildinfo

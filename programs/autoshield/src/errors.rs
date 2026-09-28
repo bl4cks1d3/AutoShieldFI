@@ -1,0 +1,59 @@
+use anchor_lang::prelude::*;
+
+#[error_code]
+pub enum AutoShieldError {
+    #[msg("Parametro invalido")]
+    InvalidParameter,
+    #[msg("O protocolo esta pausado")]
+    Paused,
+    #[msg("Operacao nao autorizada")]
+    Unauthorized,
+    #[msg("Overflow aritmetico")]
+    MathOverflow,
+    #[msg("Duracao da apolice fora do intervalo permitido (30 a 365 dias)")]
+    InvalidDuration,
+    #[msg("Valor do veiculo invalido")]
+    InvalidVehicleValue,
+    #[msg("Texto excede o tamanho maximo")]
+    StringTooLong,
+    #[msg("Plano de cobertura invalido")]
+    InvalidTier,
+    #[msg("Liquidez insuficiente no pool para garantir a cobertura")]
+    InsufficientPoolCapital,
+    #[msg("A apolice nao esta ativa")]
+    PolicyNotActive,
+    #[msg("A apolice esta fora do periodo de vigencia")]
+    OutsideCoveragePeriod,
+    #[msg("Ja existe um sinistro em aberto para esta apolice")]
+    ClaimAlreadyOpen,
+    #[msg("O plano contratado nao cobre este tipo de sinistro")]
+    ClaimTypeNotCovered,
+    #[msg("Valor solicitado excede o limite de cobertura restante")]
+    ClaimExceedsCoverage,
+    #[msg("O sinistro nao esta pendente")]
+    ClaimNotPending,
+    #[msg("O sinistro nao esta aprovado")]
+    ClaimNotApproved,
+    #[msg("Avaliador ja votou neste sinistro")]
+    AlreadyVoted,
+    #[msg("Assinante nao e um avaliador do pool")]
+    NotAssessor,
+    #[msg("A apolice ainda esta vigente")]
+    PolicyStillActive,
+    #[msg("Sinistro em aberto impede a liquidacao da apolice")]
+    OpenClaimBlocksSettlement,
+    #[msg("Saldo de cotas insuficiente")]
+    InsufficientShares,
+    #[msg("Periodo de carencia de saque ainda nao terminou")]
+    WithdrawCooldown,
+    #[msg("Saque deixaria o pool abaixo do colateral minimo")]
+    WithdrawBreaksSolvency,
+    #[msg("Valor acima do limite do faucet")]
+    FaucetLimit,
+    #[msg("Quantidade deve ser maior que zero")]
+    ZeroAmount,
+    #[msg("Periodo de votacao encerrado")]
+    VotingClosed,
+    #[msg("Periodo de votacao ainda em andamento")]
+    VotingStillOpen,
+}
