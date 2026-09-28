@@ -66,6 +66,8 @@ Além disso, o modelo econômico inclui um mecanismo de staking que possibilita 
 
 ## Como rodar
 
+> Guia completo (WSL, ferramentas, localnet, devnet, variáveis e solução de problemas): [docs/INSTALACAO.md](docs/INSTALACAO.md)
+
 ### Frontend (modo demonstração — não precisa de carteira)
 
 ```bash
