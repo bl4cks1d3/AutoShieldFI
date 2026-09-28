@@ -3,6 +3,7 @@
 import { Loader2, Wallet } from "lucide-react";
 import dynamic from "next/dynamic";
 import type { ReactNode } from "react";
+import { CLUSTER_LABEL, DEMO_ENABLED } from "@/lib/config";
 import { STATUS_LABEL } from "@/lib/format";
 import type { ClaimStatus } from "@/lib/types";
 import { useApp } from "./Providers";
@@ -96,7 +97,7 @@ export function WalletGate({ children }: { children: ReactNode }) {
   if (client.wallet) return <>{children}</>;
   return (
     <Empty icon={<Wallet className="size-6" />} title="Conecte sua carteira">
-      <p>Use Phantom, Solflare ou Backpack na rede {client.mode === "chain" ? "Devnet" : ""} para continuar.</p>
+      <p>Use Phantom, Solflare ou Backpack na rede {CLUSTER_LABEL} para continuar.</p>
       <div className="mt-4 flex justify-center">
         <WalletButton />
       </div>
@@ -108,8 +109,12 @@ export function PoolMissing() {
   return (
     <Empty icon={<Wallet className="size-6" />} title="Pool não encontrado nesta rede">
       <p>
-        O programa ainda não foi inicializado neste cluster. Rode <code>yarn bootstrap</code> (veja o README) ou
-        alterne para o <b>modo demonstração</b> no topo da página.
+        O programa ainda não foi inicializado neste cluster.
+        {DEMO_ENABLED ? (
+          <> Rode <code>anchor run bootstrap</code> (veja o README) ou alterne para o <b>modo demonstração</b> no topo da página.</>
+        ) : (
+          <> Tente novamente em alguns minutos.</>
+        )}
       </p>
     </Empty>
   );

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { advanceDemoTime, resetDemo } from "@/lib/client/demo";
-import { CLUSTER_LABEL, STABLE_SYMBOL } from "@/lib/config";
+import { CLUSTER_LABEL, DEMO_ENABLED, STABLE_SYMBOL } from "@/lib/config";
 import { fmtMoney } from "@/lib/format";
 import { UNIT } from "@/lib/pricing";
 import { useAction, useApp, useData } from "./Providers";
@@ -57,6 +57,10 @@ export function Header() {
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
+          {!DEMO_ENABLED && (
+            <span className="chip hidden bg-[var(--accent-soft)] text-[var(--accent)] sm:inline-flex">{CLUSTER_LABEL}</span>
+          )}
+          {DEMO_ENABLED && (
           <div className="hidden items-center rounded-xl border border-[var(--border)] p-0.5 text-xs font-semibold sm:flex">
             <button
               onClick={() => setMode("demo")}
@@ -71,6 +75,7 @@ export function Header() {
               {CLUSTER_LABEL}
             </button>
           </div>
+          )}
           {mode === "chain" && <WalletButton />}
           <button className="btn btn-ghost !p-2 lg:hidden" onClick={() => setOpen(!open)} aria-label="Menu">
             {open ? <X className="size-5" /> : <Menu className="size-5" />}
@@ -90,7 +95,7 @@ export function Header() {
                 Faucet {STABLE_SYMBOL}
               </button>
             )}
-            {mode === "demo" && (
+            {DEMO_ENABLED && mode === "demo" && (
               <>
                 <span className="text-[var(--muted)]">Modo demonstração — dados simulados no navegador</span>
                 <div className="ml-auto flex items-center gap-3">
@@ -144,6 +149,7 @@ export function Header() {
               {n.label}
             </Link>
           ))}
+          {DEMO_ENABLED && (
           <div className="mt-3 flex items-center rounded-xl border border-[var(--border)] p-0.5 text-sm font-semibold sm:hidden">
             <button
               onClick={() => setMode("demo")}
@@ -158,6 +164,7 @@ export function Header() {
               {CLUSTER_LABEL}
             </button>
           </div>
+          )}
         </nav>
       )}
     </header>

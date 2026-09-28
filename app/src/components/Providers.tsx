@@ -3,7 +3,7 @@
 import { ConnectionProvider, WalletProvider, useAnchorWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { DEFAULT_MODE, RPC_URL } from "@/lib/config";
+import { DEFAULT_MODE, DEMO_ENABLED, RPC_URL } from "@/lib/config";
 import { DemoClient } from "@/lib/client/demo";
 import { OnChainClient } from "@/lib/client/onchain";
 import type { AutoShieldClient } from "@/lib/types";
@@ -32,6 +32,7 @@ function AppStateProvider({ children }: { children: ReactNode }) {
   const [version, setVersion] = useState(0);
 
   useEffect(() => {
+    if (!DEMO_ENABLED) return;
     try {
       const saved = window.localStorage.getItem(MODE_KEY);
       if (saved === "demo" || saved === "chain") setModeState(saved);
@@ -41,6 +42,7 @@ function AppStateProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setMode = useCallback((m: Mode) => {
+    if (!DEMO_ENABLED && m === "demo") return;
     setModeState(m);
     try {
       window.localStorage.setItem(MODE_KEY, m);

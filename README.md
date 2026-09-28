@@ -107,6 +107,18 @@ cp .env.example .env.local            # ajuste NEXT_PUBLIC_PROGRAM_ID
 npm run dev                           # selecione "Devnet" no topo e conecte a Phantom/Solflare
 ```
 
+**Deploy público na rede de teste (somente on-chain).** Para publicar o app sem o modo demonstração
+(sem seletor Demo, sem simulação local e sem os botões de avanço de tempo), use as variáveis de
+`app/.env.devnet.example`:
+
+```bash
+cd app
+cp .env.devnet.example .env.production.local   # ou configure as mesmas variáveis na Vercel
+npm run build && npm start
+```
+
+`NEXT_PUBLIC_ENABLE_DEMO=false` força o modo on-chain e ignora qualquer preferência salva no navegador.
+
 Teste de fumaça do cliente do frontend contra um cluster real:
 
 ```bash
