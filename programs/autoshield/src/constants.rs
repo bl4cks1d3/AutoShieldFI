@@ -3,6 +3,7 @@ pub const VAULT_SEED: &[u8] = b"vault";
 pub const POLICY_SEED: &[u8] = b"policy";
 pub const CLAIM_SEED: &[u8] = b"claim";
 pub const STAKE_SEED: &[u8] = b"stake";
+pub const VEHICLE_SEED: &[u8] = b"vehicle";
 pub const TEST_MINT_SEED: &[u8] = b"test_mint";
 pub const MINT_AUTH_SEED: &[u8] = b"mint_auth";
 

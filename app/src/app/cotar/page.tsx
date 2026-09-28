@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { useAction, useApp, useData } from "@/components/Providers";
 import { Loading, PageHeader, PoolMissing, Row, Spinner, WalletGate } from "@/components/ui";
 import { fipe, parseFipeValue, PRESETS, type FipeItem } from "@/lib/fipe";
-import { fmtMoney, KIND_LABEL, TIER_DESC, TIER_LABEL, toBase } from "@/lib/format";
+import { fmtDuration, fmtMoney, KIND_LABEL, TIER_DESC, TIER_LABEL, toBase } from "@/lib/format";
 import { MAX_DAYS, MIN_DAYS, quote, TIER_COVERS, TIER_MULTIPLIER } from "@/lib/pricing";
 import type { Tier } from "@/lib/types";
 
@@ -250,6 +250,10 @@ export default function CotarPage() {
                     </p>
                   )}
                   <p>O prêmio é transferido para o cofre do pool de risco e a apólice é registrada on-chain.</p>
+                  <p>
+                    Antes de cobrir sinistros, a apólice passa por vistoria de um avaliador (recusada = prêmio devolvido)
+                    e por carência de {fmtDuration(pool.params.claimWaitingSecs)}. Cada placa só pode ter uma apólice ativa.
+                  </p>
                 </div>
               </WalletGate>
             </div>

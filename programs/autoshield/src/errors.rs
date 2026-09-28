@@ -56,4 +56,16 @@ pub enum AutoShieldError {
     VotingClosed,
     #[msg("Periodo de votacao ainda em andamento")]
     VotingStillOpen,
+    #[msg("Este veiculo ja possui uma apolice ativa")]
+    VehicleAlreadyInsured,
+    #[msg("Hash da placa nao confere com a placa informada")]
+    PlateHashMismatch,
+    #[msg("Sinistro dentro do periodo de carencia da apolice")]
+    ClaimWaitingPeriod,
+    #[msg("Avaliador nao pode votar ou vistoriar a propria apolice")]
+    AssessorConflict,
+    #[msg("A apolice ainda nao passou pela vistoria")]
+    PolicyNotInspected,
+    #[msg("A vistoria desta apolice ja foi realizada")]
+    AlreadyInspected,
 }

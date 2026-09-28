@@ -7,12 +7,13 @@ import type {
   PurchaseInput,
   StakeInfo,
 } from "../types";
+import { normalizePlate } from "../plate";
 import { FAUCET_MAX, MAX_DAYS, MIN_DAYS, TIER_COVERS, UNIT, expectedPayout, quote } from "../pricing";
 
 // Simulacao local (localStorage) que replica as regras do programa on-chain.
 // Permite demonstrar o fluxo completo sem carteira, SOL ou deploy.
 
-const KEY = "autoshield-demo-v1";
+const KEY = "autoshield-demo-v2";
 export const DEMO_WALLET = "DemoMotorista1111111111111111111111111111111";
 export const DEMO_ASSESSORS = [
   "Avaliador1Demo11111111111111111111111111111",
@@ -28,6 +29,8 @@ interface DemoState {
   policies: PolicyInfo[];
   claims: ClaimInfo[];
   stakes: Record<string, StakeInfo>;
+  /** Registro unico por veiculo: placa normalizada -> apolice ativa. */
+  vehicles: Record<string, string>;
 }
 
 function initialState(): DemoState {
@@ -58,6 +61,7 @@ function initialState(): DemoState {
         withdrawCooldownSecs: 7 * 86400,
         claimVotingSecs: 3 * 86400,
         secondsPerDay: 86400,
+        claimWaitingSecs: 7 * 86400,
         faucetEnabled: true,
       },
       assessors: DEMO_ASSESSORS,
@@ -68,6 +72,7 @@ function initialState(): DemoState {
     policies: [],
     claims: [],
     stakes: {},
+    vehicles: {},
   };
 }
 
@@ -223,7 +228,9 @@ export class DemoClient implements AutoShieldClient {
     if (input.durationDays < MIN_DAYS || input.durationDays > MAX_DAYS)
       fail("Duração da apólice fora do intervalo permitido (30 a 365 dias)");
     if (input.vehicleValue <= 0) fail("Valor do veículo inválido");
-    if (!input.plate || input.plate.length > 10) fail("Placa inválida");
+    const plate = normalizePlate(input.plate);
+    if (!plate || plate.length > 10) fail("Placa inválida");
+    if (s.vehicles[plate]) fail("Este veículo já possui uma apólice ativa");
     const q = quote(s.pool.params, input.vehicleValue, input.tier, input.durationDays);
     if (q.premium <= 0) fail("Valor do veículo inválido");
     if (q.premium > input.maxPremium) fail("Prêmio acima do máximo aceito");
@@ -234,12 +241,14 @@ export class DemoClient implements AutoShieldClient {
     this.debit(s, this.wallet, q.premium);
     const now = this.clock(s);
     const id = s.pool.policyCount;
+    const address = `PolicyDemo${String(id).padStart(4, "0")}${Math.random().toString(36).slice(2, 10)}`;
+    s.vehicles[plate] = address;
     s.policies.push({
-      address: `PolicyDemo${String(id).padStart(4, "0")}${Math.random().toString(36).slice(2, 10)}`,
+      address,
       owner: this.wallet,
       id,
       nonce: String(Date.now()),
-      plate: input.plate.toUpperCase(),
+      plate,
       model: input.model,
       year: input.year,
       vehicleValue: input.vehicleValue,
@@ -257,6 +266,9 @@ export class DemoClient implements AutoShieldClient {
       hadPaidClaim: false,
       totalPaidOut: 0,
       cashbackRedeemed: false,
+      inspected: false,
+      inspector: "",
+      claimsAllowedFrom: now + s.pool.params.claimWaitingSecs,
     });
     s.pool.vaultBalance += q.premium;
     s.pool.reservedCashback += q.cashback;
@@ -275,6 +287,8 @@ export class DemoClient implements AutoShieldClient {
     const now = this.clock(s);
     if (p.status !== "active") fail("A apólice não está ativa");
     if (now < p.startTs || now > p.endTs) fail("A apólice está fora do período de vigência");
+    if (!p.inspected) fail("A apólice ainda não passou pela vistoria");
+    if (now < p.claimsAllowedFrom) fail("Sinistro dentro do período de carência da apólice");
     if (p.hasOpenClaim) fail("Já existe um sinistro em aberto para esta apólice");
     if (!TIER_COVERS[p.tier].includes(input.kind)) fail("O plano contratado não cobre este tipo de sinistro");
     if (input.amount <= 0) fail("Quantidade deve ser maior que zero");
@@ -317,6 +331,7 @@ export class DemoClient implements AutoShieldClient {
     if (c.status !== "pending") fail("O sinistro não está pendente");
     const now = this.clock(s);
     if (now > c.votingDeadline) fail("Período de votação encerrado");
+    if (c.claimant === voter) fail("Avaliador não pode votar ou vistoriar a própria apólice");
     if (c.voters.includes(voter)) fail("Avaliador já votou neste sinistro");
     c.voters.push(voter);
     if (approve) c.approvals += 1;
@@ -331,6 +346,33 @@ export class DemoClient implements AutoShieldClient {
       s.pool.pendingClaims -= c.amountRequested;
       const p = s.policies.find((x) => x.address === c.policy);
       if (p) p.hasOpenClaim = false;
+    }
+    return this.tx(s);
+  }
+
+  async inspect(policyAddr: string, approve: boolean, as?: string) {
+    await delay();
+    const s = load();
+    const inspector = as ?? DEMO_ASSESSORS[0];
+    if (!s.pool.assessors.includes(inspector)) fail("Assinante não é um avaliador do pool");
+    const p = s.policies.find((x) => x.address === policyAddr);
+    if (!p || p.status !== "active") fail("A apólice não está ativa");
+    if (p.owner === inspector) fail("Avaliador não pode votar ou vistoriar a própria apólice");
+    if (p.inspected) fail("A vistoria desta apólice já foi realizada");
+    if (p.hasOpenClaim) fail("Já existe um sinistro em aberto para esta apólice");
+    p.inspector = inspector;
+    if (approve) {
+      p.inspected = true;
+    } else {
+      // vistoria recusada: premio devolvido integralmente e placa liberada
+      s.pool.vaultBalance -= p.premiumPaid;
+      this.credit(s, p.owner, p.premiumPaid);
+      s.pool.totalActiveCoverage -= p.coverageLimit - p.totalPaidOut;
+      s.pool.reservedCashback -= p.cashbackAmount;
+      s.pool.totalPremiums -= p.premiumPaid;
+      s.pool.activePolicies -= 1;
+      p.status = "cancelled";
+      if (s.vehicles[p.plate] === p.address) delete s.vehicles[p.plate];
     }
     return this.tx(s);
   }
@@ -392,6 +434,7 @@ export class DemoClient implements AutoShieldClient {
     s.pool.activePolicies -= 1;
     p.status = "settled";
     p.cashbackRedeemed = pay;
+    if (s.vehicles[p.plate] === p.address) delete s.vehicles[p.plate];
     return this.tx(s);
   }
 }

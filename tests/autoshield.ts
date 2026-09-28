@@ -5,6 +5,7 @@ import {
   getAssociatedTokenAddressSync,
 } from "@solana/spl-token";
 import { Keypair, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
+import { createHash } from "crypto";
 import { expect } from "chai";
 import { Autoshield } from "../target/types/autoshield";
 
@@ -20,6 +21,7 @@ const PARAMS = {
   withdrawCooldownSecs: new BN(0),
   claimVotingSecs: new BN(15),
   secondsPerDay: new BN(1),
+  claimWaitingSecs: new BN(4),
   faucetEnabled: true,
 };
 
@@ -30,6 +32,9 @@ function quotePremium(value: BN, tierMult: number, days: number): BN {
     .mul(new BN(days))
     .div(new BN(10_000 * 100 * 365));
 }
+
+const normalizePlate = (p: string) => p.toUpperCase().replace(/[^A-Z0-9]/g, "");
+const plateHash = (p: string) => [...createHash("sha256").update(normalizePlate(p)).digest()];
 
 async function expectError(p: Promise<unknown>, code: string) {
   try {
@@ -74,6 +79,11 @@ describe("autoshield", () => {
       [Buffer.from("policy"), owner.toBuffer(), nonce.toArrayLike(Buffer, "le", 8)],
       pid,
     )[0];
+  const vehiclePda = (plate: string) =>
+    PublicKey.findProgramAddressSync(
+      [Buffer.from("vehicle"), Buffer.from(plateHash(plate))],
+      pid,
+    )[0];
   const claimPda = (policy: PublicKey, index: number) =>
     PublicKey.findProgramAddressSync(
       [Buffer.from("claim"), policy.toBuffer(), Buffer.from([index])],
@@ -98,6 +108,7 @@ describe("autoshield", () => {
       .purchasePolicy({
         nonce,
         plate,
+        plateHash: plateHash(plate),
         model: "VW Gol 1.0",
         year: 2020,
         vehicleValue: value,
@@ -112,10 +123,36 @@ describe("autoshield", () => {
         vault: vaultPda,
         ownerToken: ata(driver.publicKey),
         policy,
+        vehicle: vehiclePda(plate),
       })
       .signers([driver])
       .rpc();
     return policy;
+  }
+
+  async function inspect(assessor: Keypair, policy: PublicKey, approve: boolean) {
+    const p = await program.account.policy.fetch(policy);
+    await program.methods
+      .inspectPolicy(approve)
+      .accountsPartial({
+        assessor: assessor.publicKey,
+        pool: poolPda,
+        stableMint: mintPda,
+        vault: vaultPda,
+        policy,
+        vehicle: vehiclePda(p.plate),
+        owner: p.owner,
+      })
+      .signers([assessor])
+      .rpc();
+  }
+
+  async function waitClusterTime(ts: number) {
+    for (;;) {
+      const now = await provider.connection.getBlockTime(await provider.connection.getSlot());
+      if (now && now > ts) return;
+      await sleep(500);
+    }
   }
 
   async function fileClaim(driver: Keypair, policy: PublicKey, index: number, kind: object, amount: BN) {
@@ -165,7 +202,7 @@ describe("autoshield", () => {
   });
 
   it("faucet distribui tBRL e respeita o limite", async () => {
-    for (const k of [lp, driver1, driver2, driver3]) {
+    for (const k of [lp, driver1, driver2, driver3, assessors[2]]) {
       await program.methods.faucet(brl(150_000)).accounts({ user: k.publicKey }).signers([k]).rpc();
     }
     expect((await balance(lp.publicKey)).eq(brl(150_000))).to.be.true;
@@ -216,8 +253,78 @@ describe("autoshield", () => {
     expect(pool.activePolicies.toNumber()).to.eq(1);
   });
 
+  it("recusa segunda apolice para o mesmo veiculo (placa normalizada)", async () => {
+    await expectError(
+      buy(driver2, new BN(5), brl(50_000), { premium: {} }, 30, "abc-1d23"),
+      "VehicleAlreadyInsured",
+    );
+  });
+
+  it("recusa hash de placa que nao confere", async () => {
+    const policy = policyPda(driver2.publicKey, new BN(6));
+    await expectError(
+      program.methods
+        .purchasePolicy({
+          nonce: new BN(6),
+          plate: "ZZZ1Z11",
+          plateHash: plateHash("AAA1A11"),
+          model: "Fraude",
+          year: 2020,
+          vehicleValue: brl(10_000),
+          tier: { basic: {} } as any,
+          durationDays: 30,
+          maxPremium: brl(10_000),
+        })
+        .accountsPartial({
+          owner: driver2.publicKey,
+          pool: poolPda,
+          stableMint: mintPda,
+          vault: vaultPda,
+          ownerToken: ata(driver2.publicKey),
+          policy,
+          vehicle: vehiclePda("AAA1A11"),
+        })
+        .signers([driver2])
+        .rpc(),
+      "PlateHashMismatch",
+    );
+  });
+
+  it("sinistro exige vistoria e respeita a carencia", async () => {
+    await expectError(fileClaim(driver1, policy1, 0, { collision: {} }, brl(1_000)), "PolicyNotInspected");
+    await expectError(inspect(outsider, policy1, true), "NotAssessor");
+    await inspect(assessors[0], policy1, true);
+    await expectError(inspect(assessors[1], policy1, true), "AlreadyInspected");
+    const p = await program.account.policy.fetch(policy1);
+    expect(p.inspected).to.be.true;
+    expect(p.inspector.toBase58()).to.eq(assessors[0].publicKey.toBase58());
+    await expectError(fileClaim(driver1, policy1, 0, { collision: {} }, brl(1_000)), "ClaimWaitingPeriod");
+    await waitClusterTime(p.claimsAllowedFrom.toNumber());
+  });
+
+  it("vistoria recusada devolve o premio e libera a placa", async () => {
+    const before = await balance(driver3.publicKey);
+    const inflated = await buy(driver3, new BN(3), brl(150_000), { standard: {} }, 30, "FRD0A00");
+    const p = await program.account.policy.fetch(inflated);
+    const poolBefore = await program.account.pool.fetch(poolPda);
+    await inspect(assessors[1], inflated, false);
+    expect((await balance(driver3.publicKey)).eq(before)).to.be.true;
+    const cancelled = await program.account.policy.fetch(inflated);
+    expect(cancelled.status).to.have.property("cancelled");
+    const pool = await program.account.pool.fetch(poolPda);
+    expect(pool.totalActiveCoverage.eq(poolBefore.totalActiveCoverage.sub(p.coverageLimit))).to.be.true;
+    expect(pool.reservedCashback.eq(poolBefore.reservedCashback.sub(p.cashbackAmount))).to.be.true;
+    const vehicle = await program.account.vehicleRecord.fetch(vehiclePda("FRD0A00"));
+    expect(vehicle.activePolicy.toBase58()).to.eq(PublicKey.default.toBase58());
+    // placa liberada: pode contratar de novo com o valor correto
+    const fixed = await buy(driver3, new BN(4), brl(30_000), { basic: {} }, 30, "FRD0A00");
+    await inspect(assessors[1], fixed, false);
+  });
+
   it("plano basico nao cobre colisao", async () => {
     policy2 = await buy(driver2, new BN(1), brl(40_000), { basic: {} }, 30, "XYZ9A87");
+    await inspect(assessors[0], policy2, true);
+    await waitClusterTime((await program.account.policy.fetch(policy2)).claimsAllowedFrom.toNumber());
     await expectError(fileClaim(driver2, policy2, 0, { collision: {} }, brl(1_000)), "ClaimTypeNotCovered");
   });
 
@@ -264,6 +371,8 @@ describe("autoshield", () => {
 
   it("sinistro rejeitado pelos avaliadores libera a apolice", async () => {
     policy3 = await buy(driver3, new BN(7), brl(30_000), { premium: {} }, 30, "QWE4R56");
+    await inspect(assessors[2], policy3, true);
+    await waitClusterTime((await program.account.policy.fetch(policy3)).claimsAllowedFrom.toNumber());
     const claim = await fileClaim(driver3, policy3, 0, { thirdParty: {} }, brl(5_000));
     await vote(assessors[0], policy3, claim, false);
     await vote(assessors[2], policy3, claim, false);
@@ -289,6 +398,20 @@ describe("autoshield", () => {
     );
   });
 
+  it("avaliador nao vota nem vistoria a propria apolice", async () => {
+    const own = await buy(assessors[2], new BN(1), brl(20_000), { premium: {} }, 30, "AVL1A11");
+    await expectError(inspect(assessors[2], own, true), "AssessorConflict");
+    await inspect(assessors[0], own, true);
+    await waitClusterTime((await program.account.policy.fetch(own)).claimsAllowedFrom.toNumber());
+    const claim = await fileClaim(assessors[2], own, 0, { theft: {} }, brl(20_000));
+    await expectError(vote(assessors[2], own, claim, true), "AssessorConflict");
+    await vote(assessors[0], own, claim, false);
+    await vote(assessors[1], own, claim, false);
+    ownPolicy = own;
+  });
+
+  let ownPolicy: PublicKey;
+
   it("nao permite liquidar apolice vigente nem sacar abaixo do colateral", async () => {
     await expectError(
       program.methods
@@ -299,6 +422,7 @@ describe("autoshield", () => {
           stableMint: mintPda,
           vault: vaultPda,
           policy: policy2,
+          vehicle: vehiclePda("XYZ9A87"),
           owner: driver2.publicKey,
         })
         .signers([driver2])
@@ -331,7 +455,8 @@ describe("autoshield", () => {
     const p2 = await program.account.policy.fetch(policy2);
     const p3 = await program.account.policy.fetch(policy3);
     // espera o relogio do cluster passar do fim da apolice mais recente
-    const latestEnd = Math.max(p2.endTs.toNumber(), p3.endTs.toNumber());
+    const pOwn = await program.account.policy.fetch(ownPolicy);
+    const latestEnd = Math.max(p2.endTs.toNumber(), p3.endTs.toNumber(), pOwn.endTs.toNumber());
     for (;;) {
       const slot = await provider.connection.getSlot();
       const now = await provider.connection.getBlockTime(slot);
@@ -340,7 +465,7 @@ describe("autoshield", () => {
     }
 
     const before = await balance(driver2.publicKey);
-    const settle = (policy: PublicKey, owner: PublicKey) =>
+    const settle = async (policy: PublicKey, owner: PublicKey) =>
       program.methods
         .settlePolicy()
         .accountsPartial({
@@ -349,6 +474,7 @@ describe("autoshield", () => {
           stableMint: mintPda,
           vault: vaultPda,
           policy,
+          vehicle: vehiclePda((await program.account.policy.fetch(policy)).plate),
           owner,
         })
         .signers([outsider])
@@ -364,6 +490,10 @@ describe("autoshield", () => {
     expect((await balance(driver1.publicKey)).eq(before1)).to.be.true;
 
     await settle(policy3, driver3.publicKey);
+    await settle(ownPolicy, assessors[2].publicKey);
+    const freed = await program.account.vehicleRecord.fetch(vehiclePda("ABC1D23"));
+    expect(freed.activePolicy.toBase58()).to.eq(PublicKey.default.toBase58());
+    expect(freed.policiesCount).to.eq(1);
 
     const pool = await program.account.pool.fetch(poolPda);
     expect(pool.activePolicies.toNumber()).to.eq(0);

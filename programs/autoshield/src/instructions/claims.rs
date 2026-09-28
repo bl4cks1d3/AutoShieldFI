@@ -53,6 +53,11 @@ pub fn file_claim(ctx: Context<FileClaim>, args: FileClaimArgs) -> Result<()> {
         now >= policy.start_ts && now <= policy.end_ts,
         AutoShieldError::OutsideCoveragePeriod
     );
+    require!(policy.inspected, AutoShieldError::PolicyNotInspected);
+    require!(
+        now >= policy.claims_allowed_from,
+        AutoShieldError::ClaimWaitingPeriod
+    );
     require!(!policy.has_open_claim, AutoShieldError::ClaimAlreadyOpen);
     require!(policy.claims_filed < u8::MAX, AutoShieldError::InvalidParameter);
     require!(
@@ -139,6 +144,10 @@ pub fn vote_claim(ctx: Context<VoteClaim>, approve: bool) -> Result<()> {
     let assessor = ctx.accounts.assessor.key();
     let pool = &ctx.accounts.pool;
     require!(pool.is_assessor(&assessor), AutoShieldError::NotAssessor);
+    require!(
+        ctx.accounts.claim.claimant != assessor,
+        AutoShieldError::AssessorConflict
+    );
 
     let claim = &mut ctx.accounts.claim;
     require!(

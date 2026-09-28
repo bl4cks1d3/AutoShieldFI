@@ -4,10 +4,12 @@
  * -> liquidacao) contra um cluster com o pool ja inicializado (yarn bootstrap).
  *
  * Uso: RPC_URL=http://127.0.0.1:8899 KEYPAIR=~/.config/solana/id.json npx tsx scripts/smoke-onchain.ts
- * A carteira precisa ser avaliadora do pool (o admin do bootstrap e).
+ * A carteira (KEYPAIR) precisa ser avaliadora do pool (o admin do bootstrap e);
+ * um motorista novo e criado e financiado por ela, pois avaliador nao vistoria a propria apolice.
+ * Rode o bootstrap com CLAIM_WAITING_SECS pequeno (ex.: 2) e SECONDS_PER_DAY=1.
  */
 import { Wallet } from "@coral-xyz/anchor";
-import { Connection, Keypair } from "@solana/web3.js";
+import { Connection, Keypair, LAMPORTS_PER_SOL, SystemProgram, Transaction, sendAndConfirmTransaction } from "@solana/web3.js";
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { OnChainClient } from "../src/lib/client/onchain";
@@ -19,7 +21,17 @@ const kp = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(kpPath,
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function main() {
-  const client = new OnChainClient(new Connection(rpc, "confirmed"), new Wallet(kp));
+  const connection = new Connection(rpc, "confirmed");
+  const assessor = new OnChainClient(connection, new Wallet(kp));
+  const driverKp = Keypair.generate();
+  await sendAndConfirmTransaction(
+    connection,
+    new Transaction().add(
+      SystemProgram.transfer({ fromPubkey: kp.publicKey, toPubkey: driverKp.publicKey, lamports: LAMPORTS_PER_SOL }),
+    ),
+    [kp],
+  );
+  const client = new OnChainClient(connection, new Wallet(driverKp));
   const me = client.wallet!;
   const pool = await client.getPool();
   if (!pool) throw new Error("Pool nao inicializado — rode yarn bootstrap");
@@ -44,6 +56,19 @@ async function main() {
   if (policy.premiumPaid !== q.premium) throw new Error("premio divergente do calculo do frontend");
   console.log("apolice", policy.id, "premio", policy.premiumPaid / UNIT, "== cotacao do frontend");
 
+  try {
+    await client.purchase({ plate: "smk-1e23", model: "Duplicata", year: 2022, vehicleValue: 10_000 * UNIT, tier: "basic", durationDays: 30, maxPremium: 10_000 * UNIT });
+    throw new Error("placa duplicada deveria ser recusada");
+  } catch (e) {
+    if (!String(e).includes("VehicleAlreadyInsured")) throw e;
+    console.log("placa duplicada recusada: ok");
+  }
+
+  await assessor.inspect(policy.address, true);
+  const inspected = (await client.getPolicies(me))[0];
+  console.log("vistoria aprovada:", inspected.inspected);
+  while ((await client.now()) < inspected.claimsAllowedFrom) await sleep(1000);
+
   await client.fileClaim(policy.address, {
     kind: "collision",
     amount: 5_000 * UNIT,
@@ -54,7 +79,7 @@ async function main() {
   const claim = claims[0];
   console.log("sinistro", claim.id, claim.status);
 
-  await client.vote(claim.address, true);
+  await assessor.vote(claim.address, true);
   claims = await client.getClaims(me);
   console.log("apos voto:", claims[0].status);
 
@@ -71,7 +96,7 @@ async function main() {
   const final = (await client.getPolicies(me))[0];
   console.log("apolice encerrada:", final.status, "cashback resgatado:", final.cashbackRedeemed);
 
-  const stake = await client.getStake(me);
+  const stake = await assessor.getStake(assessor.wallet!);
   console.log("posicao LP (cotas):", (stake?.shares ?? 0) / UNIT);
   console.log("SMOKE OK");
 }

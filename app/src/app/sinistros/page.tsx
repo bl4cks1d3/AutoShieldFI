@@ -8,6 +8,7 @@ import { useAction, useApp, useData } from "@/components/Providers";
 import { ClaimStatusChip, Empty, Loading, PageHeader, Row, Spinner, WalletGate } from "@/components/ui";
 import { fmtDate, fmtDuration, fmtMoney, KIND_LABEL, shortAddr, toBase } from "@/lib/format";
 import { expectedPayout, TIER_COVERS } from "@/lib/pricing";
+import { policyPhase } from "@/lib/plate";
 import type { ClaimInfo, ClaimKind, PolicyInfo } from "@/lib/types";
 
 export default function SinistrosPage() {
@@ -39,13 +40,28 @@ function ClaimsView() {
   if (!data) return null;
 
   const eligible = data.policies.filter(
-    (p) => p.status === "active" && !p.hasOpenClaim && data.now <= p.endTs && p.coverageLimit > p.totalPaidOut,
+    (p) => policyPhase(p, data.now) === "covered" && !p.hasOpenClaim && p.coverageLimit > p.totalPaidOut,
   );
+  const blocked = data.policies.filter((p) => ["inspection", "waiting"].includes(policyPhase(p, data.now)));
   const policyById = new Map(data.policies.map((p) => [p.address, p]));
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_1.1fr]">
-      <ClaimForm policies={eligible} />
+      <div className="flex flex-col gap-4">
+        <ClaimForm policies={eligible} />
+        {blocked.length > 0 && (
+          <div className="card p-4 text-sm text-[var(--muted)]">
+            {blocked.map((p) => (
+              <p key={p.address}>
+                <b className="text-[var(--fg)]">{p.plate}</b> ·{" "}
+                {p.inspected
+                  ? `em carência até ${fmtDate(p.claimsAllowedFrom)}`
+                  : "aguardando vistoria de um avaliador"}
+              </p>
+            ))}
+          </div>
+        )}
+      </div>
       <section>
         <h2 className="mb-3 font-semibold">Meus sinistros</h2>
         {data.claims.length === 0 ? (
@@ -149,7 +165,9 @@ function ClaimForm({ policies }: { policies: PolicyInfo[] }) {
   if (!policies.length)
     return (
       <Empty icon={<FileWarning className="size-6" />} title="Nenhuma apólice apta">
-        <p>É preciso ter uma apólice vigente e sem sinistro em aberto para registrar uma ocorrência.</p>
+        <p>
+          É preciso ter uma apólice vistoriada, fora da carência e sem sinistro em aberto para registrar uma ocorrência.
+        </p>
         <Link href="/cotar" className="btn btn-primary mt-4">
           Contratar proteção
         </Link>

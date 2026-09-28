@@ -4,7 +4,7 @@
 export type Tier = "basic" | "standard" | "premium";
 export type ClaimKind = "theft" | "collision" | "thirdParty" | "naturalEvent" | "other";
 export type ClaimStatus = "pending" | "approved" | "rejected" | "paid";
-export type PolicyStatus = "active" | "settled";
+export type PolicyStatus = "active" | "settled" | "cancelled";
 
 export interface PoolParams {
   baseRateBps: number;
@@ -13,6 +13,7 @@ export interface PoolParams {
   withdrawCooldownSecs: number;
   claimVotingSecs: number;
   secondsPerDay: number;
+  claimWaitingSecs: number;
   faucetEnabled: boolean;
 }
 
@@ -61,6 +62,9 @@ export interface PolicyInfo {
   hadPaidClaim: boolean;
   totalPaidOut: number;
   cashbackRedeemed: boolean;
+  inspected: boolean;
+  inspector: string;
+  claimsAllowedFrom: number;
 }
 
 export interface ClaimInfo {
@@ -127,6 +131,7 @@ export interface AutoShieldClient {
   purchase(input: PurchaseInput): Promise<string>;
   fileClaim(policy: string, input: ClaimInput): Promise<string>;
   vote(claim: string, approve: boolean, as?: string): Promise<string>;
+  inspect(policy: string, approve: boolean, as?: string): Promise<string>;
   payClaim(claim: string): Promise<string>;
   expireClaim(claim: string): Promise<string>;
   settle(policy: string): Promise<string>;

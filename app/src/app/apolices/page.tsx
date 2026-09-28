@@ -1,11 +1,12 @@
 "use client";
 
-import { AlertTriangle, Coins, ExternalLink, FileWarning, ShieldCheck, ShieldOff } from "lucide-react";
+import { AlertTriangle, ClipboardCheck, Coins, ExternalLink, FileWarning, Hourglass, ShieldCheck, ShieldOff, Undo2 } from "lucide-react";
 import Link from "next/link";
 import { useAction, useApp, useData } from "@/components/Providers";
 import { Chip, Empty, Loading, PageHeader, Progress, Row, Spinner, WalletGate } from "@/components/ui";
 import { explorerAddr } from "@/lib/config";
 import { fmtDate, fmtDuration, fmtMoney, TIER_LABEL } from "@/lib/format";
+import { policyPhase } from "@/lib/plate";
 import type { PolicyInfo } from "@/lib/types";
 
 export default function ApolicesPage() {
@@ -61,12 +62,16 @@ function PolicyCard({ p, now }: { p: PolicyInfo; now: number }) {
   const elapsed = Math.min(Math.max(now - p.startTs, 0), total);
   const expired = now > p.endTs;
   const active = p.status === "active";
+  const phase = policyPhase(p, now);
 
   let status: { label: string; tone: "ok" | "warn" | "bad" | "info" | "neutral" };
-  if (!active) status = { label: "Encerrada", tone: "neutral" };
+  if (phase === "cancelled") status = { label: "Recusada na vistoria", tone: "bad" };
+  else if (phase === "settled") status = { label: "Encerrada", tone: "neutral" };
   else if (p.hasOpenClaim) status = { label: "Sinistro em andamento", tone: "warn" };
-  else if (expired) status = { label: "Vencida — liquidar", tone: "info" };
-  else status = { label: "Vigente", tone: "ok" };
+  else if (phase === "expired") status = { label: "Vencida — liquidar", tone: "info" };
+  else if (phase === "inspection") status = { label: "Aguardando vistoria", tone: "warn" };
+  else if (phase === "waiting") status = { label: "Em carência", tone: "info" };
+  else status = { label: "Coberta", tone: "ok" };
 
   const settle = () =>
     run(
@@ -120,6 +125,25 @@ function PolicyCard({ p, now }: { p: PolicyInfo; now: number }) {
         />
       </div>
 
+      {phase === "inspection" && (
+        <p className="mt-3 flex items-start gap-1.5 text-xs text-[var(--muted)]">
+          <ClipboardCheck className="mt-0.5 size-3.5 shrink-0" /> Um avaliador precisa confirmar o veículo e o valor FIPE.
+          Se a vistoria for recusada, o prêmio volta integralmente.
+        </p>
+      )}
+      {phase === "waiting" && (
+        <p className="mt-3 flex items-start gap-1.5 text-xs text-[var(--muted)]">
+          <Hourglass className="mt-0.5 size-3.5 shrink-0" /> Vistoria aprovada. Sinistros aceitos a partir de{" "}
+          {fmtDate(p.claimsAllowedFrom)} (carência de {fmtDuration(p.claimsAllowedFrom - p.startTs)}).
+        </p>
+      )}
+      {phase === "cancelled" && (
+        <p className="mt-3 flex items-start gap-1.5 text-xs text-[var(--muted)]">
+          <Undo2 className="mt-0.5 size-3.5 shrink-0" /> Vistoria recusada: {fmtMoney(p.premiumPaid)} devolvidos e placa
+          liberada para nova contratação.
+        </p>
+      )}
+
       {p.hadPaidClaim && active && (
         <p className="mt-3 flex items-center gap-1.5 text-xs text-[var(--muted)]">
           <AlertTriangle className="size-3.5" /> Sinistro indenizado: o cashback volta para o pool.
@@ -127,7 +151,7 @@ function PolicyCard({ p, now }: { p: PolicyInfo; now: number }) {
       )}
 
       <div className="mt-auto flex flex-wrap gap-2 pt-5">
-        {active && !expired && !p.hasOpenClaim && (
+        {phase === "covered" && !p.hasOpenClaim && (
           <Link href={`/sinistros?policy=${p.address}`} className="btn btn-ghost">
             <FileWarning className="size-4" /> Acionar sinistro
           </Link>
@@ -143,7 +167,7 @@ function PolicyCard({ p, now }: { p: PolicyInfo; now: number }) {
             {!p.hadPaidClaim && p.cashbackAmount > 0 ? `Resgatar ${fmtMoney(p.cashbackAmount)}` : "Encerrar apólice"}
           </button>
         )}
-        {!active && (
+        {p.status === "settled" && (
           <span className="inline-flex items-center gap-1.5 text-sm text-[var(--muted)]">
             <ShieldCheck className="size-4" /> Ciclo concluído
           </span>

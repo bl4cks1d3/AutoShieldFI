@@ -574,6 +574,202 @@ export type Autoshield = {
       ]
     },
     {
+      "name": "inspectPolicy",
+      "discriminator": [
+        165,
+        69,
+        69,
+        189,
+        3,
+        151,
+        24,
+        26
+      ],
+      "accounts": [
+        {
+          "name": "assessor",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          },
+          "relations": [
+            "policy"
+          ]
+        },
+        {
+          "name": "stableMint",
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "policy",
+          "writable": true
+        },
+        {
+          "name": "vehicle",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  101,
+                  104,
+                  105,
+                  99,
+                  108,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "policy.plate_hash",
+                "account": "policy"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner",
+          "relations": [
+            "policy"
+          ]
+        },
+        {
+          "name": "ownerToken",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "stableMint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "tokenProgram",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associatedTokenProgram",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "approve",
+          "type": "bool"
+        }
+      ]
+    },
+    {
       "name": "payClaim",
       "discriminator": [
         73,
@@ -827,6 +1023,30 @@ export type Autoshield = {
           }
         },
         {
+          "name": "vehicle",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  101,
+                  104,
+                  105,
+                  99,
+                  108,
+                  101
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "args.plate_hash"
+              }
+            ]
+          }
+        },
+        {
           "name": "tokenProgram",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         },
@@ -996,6 +1216,31 @@ export type Autoshield = {
         {
           "name": "policy",
           "writable": true
+        },
+        {
+          "name": "vehicle",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  101,
+                  104,
+                  105,
+                  99,
+                  108,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "policy.plate_hash",
+                "account": "policy"
+              }
+            ]
+          }
         },
         {
           "name": "owner",
@@ -1405,6 +1650,19 @@ export type Autoshield = {
         11,
         220
       ]
+    },
+    {
+      "name": "vehicleRecord",
+      "discriminator": [
+        193,
+        90,
+        97,
+        158,
+        129,
+        151,
+        10,
+        189
+      ]
     }
   ],
   "events": [
@@ -1471,6 +1729,19 @@ export type Autoshield = {
         31,
         218,
         68
+      ]
+    },
+    {
+      "name": "policyInspected",
+      "discriminator": [
+        190,
+        1,
+        2,
+        207,
+        153,
+        166,
+        215,
+        6
       ]
     },
     {
@@ -1648,6 +1919,36 @@ export type Autoshield = {
       "code": 6026,
       "name": "votingStillOpen",
       "msg": "Periodo de votacao ainda em andamento"
+    },
+    {
+      "code": 6027,
+      "name": "vehicleAlreadyInsured",
+      "msg": "Este veiculo ja possui uma apolice ativa"
+    },
+    {
+      "code": 6028,
+      "name": "plateHashMismatch",
+      "msg": "Hash da placa nao confere com a placa informada"
+    },
+    {
+      "code": 6029,
+      "name": "claimWaitingPeriod",
+      "msg": "Sinistro dentro do periodo de carencia da apolice"
+    },
+    {
+      "code": 6030,
+      "name": "assessorConflict",
+      "msg": "Avaliador nao pode votar ou vistoriar a propria apolice"
+    },
+    {
+      "code": 6031,
+      "name": "policyNotInspected",
+      "msg": "A apolice ainda nao passou pela vistoria"
+    },
+    {
+      "code": 6032,
+      "name": "alreadyInspected",
+      "msg": "A vistoria desta apolice ja foi realizada"
     }
   ],
   "types": [
@@ -1978,6 +2279,18 @@ export type Autoshield = {
             "type": "string"
           },
           {
+            "name": "plateHash",
+            "docs": [
+              "sha256 da placa normalizada: chave do registro unico do veiculo."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
             "name": "model",
             "type": "string"
           },
@@ -2060,8 +2373,46 @@ export type Autoshield = {
             "type": "bool"
           },
           {
+            "name": "inspected",
+            "docs": [
+              "Vistoria previa feita por um avaliador (exigida antes de sinistros)."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "inspector",
+            "type": "pubkey"
+          },
+          {
+            "name": "claimsAllowedFrom",
+            "docs": [
+              "Primeiro instante em que um sinistro e aceito (inicio + carencia)."
+            ],
+            "type": "i64"
+          },
+          {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "policyInspected",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "policy",
+            "type": "pubkey"
+          },
+          {
+            "name": "inspector",
+            "type": "pubkey"
+          },
+          {
+            "name": "approved",
+            "type": "bool"
           }
         ]
       }
@@ -2136,6 +2487,9 @@ export type Autoshield = {
           },
           {
             "name": "settled"
+          },
+          {
+            "name": "cancelled"
           }
         ]
       }
@@ -2315,6 +2669,14 @@ export type Autoshield = {
             "type": "i64"
           },
           {
+            "name": "claimWaitingSecs",
+            "docs": [
+              "Carencia entre a contratacao e o primeiro sinistro aceito (segundos).",
+              "Evita contratar a apolice depois que o evento ja aconteceu."
+            ],
+            "type": "i64"
+          },
+          {
             "name": "faucetEnabled",
             "docs": [
               "Habilita o faucet de token de teste (somente devnet/localnet)."
@@ -2339,6 +2701,18 @@ export type Autoshield = {
           {
             "name": "plate",
             "type": "string"
+          },
+          {
+            "name": "plateHash",
+            "docs": [
+              "sha256 da placa normalizada (maiusculas, so letras e digitos)."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
           },
           {
             "name": "model",
@@ -2405,6 +2779,42 @@ export type Autoshield = {
           {
             "name": "lastDepositTs",
             "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "vehicleRecord",
+      "docs": [
+        "Registro unico por veiculo (placa): garante no maximo uma apolice ativa,",
+        "impedindo segurar o mesmo carro varias vezes para multiplicar a indenizacao."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "plateHash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "activePolicy",
+            "docs": [
+              "Apolice ativa atual; `Pubkey::default()` quando livre."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "policiesCount",
+            "type": "u32"
           },
           {
             "name": "bump",

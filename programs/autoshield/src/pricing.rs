@@ -57,6 +57,7 @@ mod tests {
             withdraw_cooldown_secs: 0,
             claim_voting_secs: 3_600,
             seconds_per_day: 86_400,
+            claim_waiting_secs: 0,
             faucet_enabled: true,
         }
     }

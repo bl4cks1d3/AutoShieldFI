@@ -35,6 +35,13 @@ pub struct PolicyPurchased {
 }
 
 #[event]
+pub struct PolicyInspected {
+    pub policy: Pubkey,
+    pub inspector: Pubkey,
+    pub approved: bool,
+}
+
+#[event]
 pub struct ClaimFiled {
     pub claim: Pubkey,
     pub policy: Pubkey,

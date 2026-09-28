@@ -10,6 +10,7 @@
  *   ASSESSORS         chaves publicas extras de avaliadores, separadas por virgula
  *   THRESHOLD         quorum de aprovacao (padrao: min(2, nº de avaliadores))
  *   SEED_LIQUIDITY    liquidez inicial em tBRL (padrao 500000)
+ *   CLAIM_WAITING_SECS carencia para sinistros apos a contratacao (padrao 7 dias)
  */
 import * as anchor from "@coral-xyz/anchor";
 import { BN, Program } from "@coral-xyz/anchor";
@@ -58,6 +59,7 @@ async function main() {
           withdrawCooldownSecs: new BN(Number(process.env.WITHDRAW_COOLDOWN ?? 0)),
           claimVotingSecs: new BN(Number(process.env.CLAIM_VOTING_SECS ?? 3 * 86400)),
           secondsPerDay: new BN(Number(process.env.SECONDS_PER_DAY ?? 86400)),
+          claimWaitingSecs: new BN(Number(process.env.CLAIM_WAITING_SECS ?? 7 * 86400)),
           faucetEnabled: true,
         },
         assessors,

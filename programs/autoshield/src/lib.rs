@@ -84,6 +84,10 @@ pub mod autoshield {
         instructions::policy::purchase_policy(ctx, args)
     }
 
+    pub fn inspect_policy(ctx: Context<InspectPolicy>, approve: bool) -> Result<()> {
+        instructions::policy::inspect_policy(ctx, approve)
+    }
+
     pub fn settle_policy(ctx: Context<SettlePolicy>) -> Result<()> {
         instructions::policy::settle_policy(ctx)
     }

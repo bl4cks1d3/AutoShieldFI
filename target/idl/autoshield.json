@@ -568,6 +568,202 @@
       ]
     },
     {
+      "name": "inspect_policy",
+      "discriminator": [
+        165,
+        69,
+        69,
+        189,
+        3,
+        151,
+        24,
+        26
+      ],
+      "accounts": [
+        {
+          "name": "assessor",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          },
+          "relations": [
+            "policy"
+          ]
+        },
+        {
+          "name": "stable_mint",
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "policy",
+          "writable": true
+        },
+        {
+          "name": "vehicle",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  101,
+                  104,
+                  105,
+                  99,
+                  108,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "policy.plate_hash",
+                "account": "Policy"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner",
+          "relations": [
+            "policy"
+          ]
+        },
+        {
+          "name": "owner_token",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "stable_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "approve",
+          "type": "bool"
+        }
+      ]
+    },
+    {
       "name": "pay_claim",
       "discriminator": [
         73,
@@ -821,6 +1017,30 @@
           }
         },
         {
+          "name": "vehicle",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  101,
+                  104,
+                  105,
+                  99,
+                  108,
+                  101
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "args.plate_hash"
+              }
+            ]
+          }
+        },
+        {
           "name": "token_program",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         },
@@ -990,6 +1210,31 @@
         {
           "name": "policy",
           "writable": true
+        },
+        {
+          "name": "vehicle",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  101,
+                  104,
+                  105,
+                  99,
+                  108,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "policy.plate_hash",
+                "account": "Policy"
+              }
+            ]
+          }
         },
         {
           "name": "owner",
@@ -1399,6 +1644,19 @@
         11,
         220
       ]
+    },
+    {
+      "name": "VehicleRecord",
+      "discriminator": [
+        193,
+        90,
+        97,
+        158,
+        129,
+        151,
+        10,
+        189
+      ]
     }
   ],
   "events": [
@@ -1465,6 +1723,19 @@
         31,
         218,
         68
+      ]
+    },
+    {
+      "name": "PolicyInspected",
+      "discriminator": [
+        190,
+        1,
+        2,
+        207,
+        153,
+        166,
+        215,
+        6
       ]
     },
     {
@@ -1642,6 +1913,36 @@
       "code": 6026,
       "name": "VotingStillOpen",
       "msg": "Periodo de votacao ainda em andamento"
+    },
+    {
+      "code": 6027,
+      "name": "VehicleAlreadyInsured",
+      "msg": "Este veiculo ja possui uma apolice ativa"
+    },
+    {
+      "code": 6028,
+      "name": "PlateHashMismatch",
+      "msg": "Hash da placa nao confere com a placa informada"
+    },
+    {
+      "code": 6029,
+      "name": "ClaimWaitingPeriod",
+      "msg": "Sinistro dentro do periodo de carencia da apolice"
+    },
+    {
+      "code": 6030,
+      "name": "AssessorConflict",
+      "msg": "Avaliador nao pode votar ou vistoriar a propria apolice"
+    },
+    {
+      "code": 6031,
+      "name": "PolicyNotInspected",
+      "msg": "A apolice ainda nao passou pela vistoria"
+    },
+    {
+      "code": 6032,
+      "name": "AlreadyInspected",
+      "msg": "A vistoria desta apolice ja foi realizada"
     }
   ],
   "types": [
@@ -1972,6 +2273,18 @@
             "type": "string"
           },
           {
+            "name": "plate_hash",
+            "docs": [
+              "sha256 da placa normalizada: chave do registro unico do veiculo."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
             "name": "model",
             "type": "string"
           },
@@ -2054,8 +2367,46 @@
             "type": "bool"
           },
           {
+            "name": "inspected",
+            "docs": [
+              "Vistoria previa feita por um avaliador (exigida antes de sinistros)."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "inspector",
+            "type": "pubkey"
+          },
+          {
+            "name": "claims_allowed_from",
+            "docs": [
+              "Primeiro instante em que um sinistro e aceito (inicio + carencia)."
+            ],
+            "type": "i64"
+          },
+          {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PolicyInspected",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "policy",
+            "type": "pubkey"
+          },
+          {
+            "name": "inspector",
+            "type": "pubkey"
+          },
+          {
+            "name": "approved",
+            "type": "bool"
           }
         ]
       }
@@ -2130,6 +2481,9 @@
           },
           {
             "name": "Settled"
+          },
+          {
+            "name": "Cancelled"
           }
         ]
       }
@@ -2309,6 +2663,14 @@
             "type": "i64"
           },
           {
+            "name": "claim_waiting_secs",
+            "docs": [
+              "Carencia entre a contratacao e o primeiro sinistro aceito (segundos).",
+              "Evita contratar a apolice depois que o evento ja aconteceu."
+            ],
+            "type": "i64"
+          },
+          {
             "name": "faucet_enabled",
             "docs": [
               "Habilita o faucet de token de teste (somente devnet/localnet)."
@@ -2333,6 +2695,18 @@
           {
             "name": "plate",
             "type": "string"
+          },
+          {
+            "name": "plate_hash",
+            "docs": [
+              "sha256 da placa normalizada (maiusculas, so letras e digitos)."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
           },
           {
             "name": "model",
@@ -2399,6 +2773,42 @@
           {
             "name": "last_deposit_ts",
             "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "VehicleRecord",
+      "docs": [
+        "Registro unico por veiculo (placa): garante no maximo uma apolice ativa,",
+        "impedindo segurar o mesmo carro varias vezes para multiplicar a indenizacao."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "plate_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "active_policy",
+            "docs": [
+              "Apolice ativa atual; `Pubkey::default()` quando livre."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "policies_count",
+            "type": "u32"
           },
           {
             "name": "bump",

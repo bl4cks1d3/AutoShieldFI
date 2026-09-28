@@ -14,6 +14,7 @@ import type {
   StakeInfo,
 } from "../types";
 import { PROGRAM_ID } from "../config";
+import { plateHash } from "../plate";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -41,6 +42,10 @@ export class OnChainClient implements AutoShieldClient {
   private poolPda: PublicKey;
   private vaultPda: PublicKey;
   private mintCache: PublicKey | null = null;
+
+  private vehiclePda(hash: number[] | Uint8Array): PublicKey {
+    return PublicKey.findProgramAddressSync([Buffer.from("vehicle"), Buffer.from(hash)], this.programId)[0];
+  }
 
   constructor(
     private connection: Connection,
@@ -116,6 +121,7 @@ export class OnChainClient implements AutoShieldClient {
         withdrawCooldownSecs: n(p.params.withdrawCooldownSecs),
         claimVotingSecs: n(p.params.claimVotingSecs),
         secondsPerDay: n(p.params.secondsPerDay),
+        claimWaitingSecs: n(p.params.claimWaitingSecs),
         faucetEnabled: p.params.faucetEnabled,
       },
       assessors: p.assessors.map((a) => a.toBase58()),
@@ -157,6 +163,9 @@ export class OnChainClient implements AutoShieldClient {
       hadPaidClaim: p.hadPaidClaim,
       totalPaidOut: n(p.totalPaidOut),
       cashbackRedeemed: p.cashbackRedeemed,
+      inspected: p.inspected,
+      inspector: p.inspector.toBase58(),
+      claimsAllowedFrom: n(p.claimsAllowedFrom),
     };
   }
 
@@ -253,6 +262,7 @@ export class OnChainClient implements AutoShieldClient {
       .purchasePolicy({
         nonce,
         plate: input.plate,
+        plateHash: plateHash(input.plate),
         model: input.model,
         year: input.year,
         vehicleValue: new BN(input.vehicleValue),
@@ -260,7 +270,12 @@ export class OnChainClient implements AutoShieldClient {
         durationDays: input.durationDays,
         maxPremium: new BN(input.maxPremium),
       })
-      .accountsPartial({ owner: me, ...this.tokenAccounts(me, mint), policy })
+      .accountsPartial({
+        owner: me,
+        ...this.tokenAccounts(me, mint),
+        policy,
+        vehicle: this.vehiclePda(plateHash(input.plate)),
+      })
       .rpc();
   }
 
@@ -289,6 +304,24 @@ export class OnChainClient implements AutoShieldClient {
     return this.program.methods
       .voteClaim(approve)
       .accountsPartial({ assessor: this.me(), pool: this.poolPda, policy: c.policy, claim })
+      .rpc();
+  }
+
+  async inspect(policyAddr: string, approve: boolean): Promise<string> {
+    const policy = new PublicKey(policyAddr);
+    const p = await this.program.account.policy.fetch(policy);
+    const mint = await this.mint();
+    return this.program.methods
+      .inspectPolicy(approve)
+      .accountsPartial({
+        assessor: this.me(),
+        pool: this.poolPda,
+        stableMint: mint,
+        vault: this.vaultPda,
+        policy,
+        vehicle: this.vehiclePda(p.plateHash),
+        owner: p.owner,
+      })
       .rpc();
   }
 
@@ -331,6 +364,7 @@ export class OnChainClient implements AutoShieldClient {
         stableMint: mint,
         vault: this.vaultPda,
         policy,
+        vehicle: this.vehiclePda(p.plateHash),
         owner: p.owner,
       })
       .rpc();

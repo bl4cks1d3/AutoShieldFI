@@ -48,6 +48,9 @@ pub struct PoolParams {
     /// Duracao de um "dia" de apolice em segundos. 86400 em producao;
     /// valores menores permitem demonstrar o ciclo completo em devnet.
     pub seconds_per_day: i64,
+    /// Carencia entre a contratacao e o primeiro sinistro aceito (segundos).
+    /// Evita contratar a apolice depois que o evento ja aconteceu.
+    pub claim_waiting_secs: i64,
     /// Habilita o faucet de token de teste (somente devnet/localnet).
     pub faucet_enabled: bool,
 }
@@ -63,6 +66,7 @@ impl PoolParams {
             && self.claim_voting_secs > 0
             && self.seconds_per_day > 0
             && self.seconds_per_day <= 86_400
+            && self.claim_waiting_secs >= 0
     }
 }
 
@@ -122,6 +126,8 @@ pub enum PolicyStatus {
     Active,
     /// Encerrada apos a vigencia (com ou sem sinistro pago).
     Settled,
+    /// Recusada na vistoria: premio devolvido integralmente.
+    Cancelled,
 }
 
 #[account]
@@ -133,6 +139,8 @@ pub struct Policy {
     pub nonce: u64,
     #[max_len(MAX_PLATE_LEN)]
     pub plate: String,
+    /// sha256 da placa normalizada: chave do registro unico do veiculo.
+    pub plate_hash: [u8; 32],
     #[max_len(MAX_MODEL_LEN)]
     pub model: String,
     pub year: u16,
@@ -153,6 +161,11 @@ pub struct Policy {
     pub had_paid_claim: bool,
     pub total_paid_out: u64,
     pub cashback_redeemed: bool,
+    /// Vistoria previa feita por um avaliador (exigida antes de sinistros).
+    pub inspected: bool,
+    pub inspector: Pubkey,
+    /// Primeiro instante em que um sinistro e aceito (inicio + carencia).
+    pub claims_allowed_from: i64,
     pub bump: u8,
 }
 
@@ -206,6 +219,27 @@ pub struct Claim {
     pub bump: u8,
 }
 
+/// Registro unico por veiculo (placa): garante no maximo uma apolice ativa,
+/// impedindo segurar o mesmo carro varias vezes para multiplicar a indenizacao.
+#[account]
+#[derive(InitSpace)]
+pub struct VehicleRecord {
+    pub plate_hash: [u8; 32],
+    /// Apolice ativa atual; `Pubkey::default()` quando livre.
+    pub active_policy: Pubkey,
+    pub policies_count: u32,
+    pub bump: u8,
+}
+
+/// Normaliza a placa: maiusculas, apenas letras e digitos ASCII.
+pub fn normalize_plate(plate: &str) -> String {
+    plate
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .map(|c| c.to_ascii_uppercase())
+        .collect()
+}
+
 /// Posicao de um provedor de liquidez (staker) no pool.
 #[account]
 #[derive(InitSpace)]
@@ -217,4 +251,16 @@ pub struct StakePosition {
     pub total_withdrawn: u64,
     pub last_deposit_ts: i64,
     pub bump: u8,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalize_plate;
+
+    #[test]
+    fn plate_normalization_blocks_trivial_duplicates() {
+        assert_eq!(normalize_plate("abc-1d23"), "ABC1D23");
+        assert_eq!(normalize_plate(" ABC 1D23 "), "ABC1D23");
+        assert_eq!(normalize_plate("abc1d23"), normalize_plate("ABC-1D23"));
+    }
 }
