@@ -25,3 +25,13 @@ pub const DEDUCTIBLE_BPS: u64 = 500;
 /// Limite do faucet de tokens de teste por chamada (6 casas decimais).
 pub const FAUCET_MAX_PER_CALL: u64 = 200_000 * 1_000_000;
 pub const TEST_MINT_DECIMALS: u8 = 6;
+
+/// Parcelamento: ate 12 parcelas, cada uma cobrindo ao menos 30 dias.
+pub const MAX_INSTALLMENTS: u8 = 12;
+pub const MIN_DAYS_PER_INSTALLMENT: u16 = 30;
+
+/// Cotas "mortas" emitidas no primeiro aporte e nunca resgataveis: tornam o
+/// ataque de inflacao de cotas (doacao direta ao cofre) inviavel.
+pub const DEAD_SHARES: u64 = 1_000_000;
+/// Primeiro aporte minimo do pool (100 tokens com 6 casas).
+pub const MIN_FIRST_DEPOSIT: u64 = 100 * 1_000_000;

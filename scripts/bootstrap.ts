@@ -11,6 +11,15 @@
  *   THRESHOLD         quorum de aprovacao (padrao: min(2, nº de avaliadores))
  *   SEED_LIQUIDITY    liquidez inicial em tBRL (padrao 500000)
  *   CLAIM_WAITING_SECS carencia para sinistros apos a contratacao (padrao 7 dias)
+ *   PROTOCOL_FEE_BPS  taxa do protocolo sobre o premio (padrao 500 = 5%)
+ *   INSPECTION_FEE    taxa de vistoria em tBRL, paga ao avaliador (padrao 50)
+ *   VOTE_REWARD       remuneracao por voto em tBRL (padrao 10)
+ *   MIN_VEHICLE_VALUE valor FIPE minimo em tBRL (padrao 5000)
+ *   GOVERNANCE_DELAY_SECS timelock de governanca (padrao 1 dia)
+ *   INSTALLMENT_GRACE_SECS tolerancia de atraso da parcela (padrao 5 dias)
+ *
+ * O pool so pode ser criado pela autoridade de upgrade do programa. Se ele ja
+ * existir com outra autoridade, o script aborta sem depositar nada.
  */
 import * as anchor from "@coral-xyz/anchor";
 import { BN, Program } from "@coral-xyz/anchor";
@@ -18,6 +27,8 @@ import { PublicKey } from "@solana/web3.js";
 import { Autoshield } from "../target/types/autoshield";
 
 const UNIT = 1_000_000;
+const UPGRADEABLE_LOADER = new PublicKey("BPFLoaderUpgradeab1e11111111111111111111111");
+const env = (k: string, d: number) => Number(process.env[k] ?? d);
 const FAUCET_MAX = 200_000;
 
 async function main() {
@@ -55,21 +66,38 @@ async function main() {
         {
           baseRateBps: 350,
           cashbackBps: 2000,
+          protocolFeeBps: env("PROTOCOL_FEE_BPS", 500),
           minCollateralBps: 1000,
           withdrawCooldownSecs: new BN(Number(process.env.WITHDRAW_COOLDOWN ?? 0)),
           claimVotingSecs: new BN(Number(process.env.CLAIM_VOTING_SECS ?? 3 * 86400)),
           secondsPerDay: new BN(Number(process.env.SECONDS_PER_DAY ?? 86400)),
           claimWaitingSecs: new BN(Number(process.env.CLAIM_WAITING_SECS ?? 7 * 86400)),
+          installmentGraceSecs: new BN(env("INSTALLMENT_GRACE_SECS", 5 * 86400)),
+          governanceDelaySecs: new BN(env("GOVERNANCE_DELAY_SECS", 86400)),
+          inspectionFee: new BN(env("INSPECTION_FEE", 50) * UNIT),
+          voteReward: new BN(env("VOTE_REWARD", 10) * UNIT),
+          minVehicleValue: new BN(env("MIN_VEHICLE_VALUE", 5000) * UNIT),
           faucetEnabled: true,
         },
         assessors,
         threshold,
       )
-      .accountsPartial({ authority: admin, stableMint: mintPda })
+      .accountsPartial({
+        authority: admin,
+        stableMint: mintPda,
+        program: pid,
+        programData: PublicKey.findProgramAddressSync([pid.toBuffer()], UPGRADEABLE_LOADER)[0],
+      })
       .rpc();
     console.log(`Pool criado: ${poolPda.toBase58()} (avaliadores: ${assessors.length}, quorum ${threshold})`);
   } else {
-    console.log("Pool ja existe:", poolPda.toBase58());
+    const existing = await program.account.pool.fetch(poolPda);
+    if (!existing.authority.equals(admin)) {
+      throw new Error(
+        `Pool ${poolPda.toBase58()} pertence a ${existing.authority.toBase58()}, nao a esta carteira. Abortando sem depositar.`,
+      );
+    }
+    console.log("Pool ja existe (autoridade confere):", poolPda.toBase58());
   }
 
   const seed = Number(process.env.SEED_LIQUIDITY ?? 500_000);

@@ -14,6 +14,157 @@ export type Autoshield = {
   },
   "instructions": [
     {
+      "name": "acceptAuthority",
+      "discriminator": [
+        107,
+        86,
+        198,
+        91,
+        33,
+        12,
+        107,
+        160
+      ],
+      "accounts": [
+        {
+          "name": "newAuthority",
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "applyAssessors",
+      "discriminator": [
+        71,
+        183,
+        123,
+        156,
+        211,
+        109,
+        24,
+        179
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "applyParams",
+      "discriminator": [
+        188,
+        203,
+        86,
+        124,
+        178,
+        34,
+        133,
+        116
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "cancelPending",
+      "discriminator": [
+        74,
+        87,
+        109,
+        242,
+        64,
+        192,
+        151,
+        71
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "depositLiquidity",
       "discriminator": [
         245,
@@ -544,6 +695,13 @@ export type Autoshield = {
           }
         },
         {
+          "name": "program",
+          "address": "GPnGSA7KH3vqnF1KfzHGzQNvnEBVD3XRfCayEBhQsuRC"
+        },
+        {
+          "name": "programData"
+        },
+        {
           "name": "tokenProgram",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         },
@@ -667,6 +825,96 @@ export type Autoshield = {
               {
                 "kind": "account",
                 "path": "owner"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "stableMint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "assessorToken",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "assessor"
               },
               {
                 "kind": "const",
@@ -944,6 +1192,223 @@ export type Autoshield = {
       "args": []
     },
     {
+      "name": "payInstallment",
+      "discriminator": [
+        214,
+        118,
+        104,
+        215,
+        242,
+        93,
+        33,
+        60
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "policy"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          },
+          "relations": [
+            "policy"
+          ]
+        },
+        {
+          "name": "stableMint",
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "ownerToken",
+          "writable": true
+        },
+        {
+          "name": "policy",
+          "writable": true
+        },
+        {
+          "name": "tokenProgram",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "proposeAssessors",
+      "discriminator": [
+        170,
+        44,
+        47,
+        63,
+        216,
+        123,
+        239,
+        31
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "assessors",
+          "type": {
+            "vec": "pubkey"
+          }
+        },
+        {
+          "name": "approvalThreshold",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "proposeAuthority",
+      "discriminator": [
+        20,
+        148,
+        236,
+        198,
+        76,
+        119,
+        99,
+        142
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "newAuthority",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "proposeParams",
+      "docs": [
+        "Governanca com timelock: propor, aguardar `governance_delay_secs`, aplicar."
+      ],
+      "discriminator": [
+        94,
+        141,
+        220,
+        182,
+        171,
+        53,
+        52,
+        182
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "params",
+          "type": {
+            "defined": {
+              "name": "poolParams"
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "purchasePolicy",
       "discriminator": [
         246,
@@ -1063,57 +1528,6 @@ export type Autoshield = {
               "name": "purchasePolicyArgs"
             }
           }
-        }
-      ]
-    },
-    {
-      "name": "setAssessors",
-      "discriminator": [
-        120,
-        68,
-        133,
-        43,
-        98,
-        114,
-        242,
-        173
-      ],
-      "accounts": [
-        {
-          "name": "authority",
-          "signer": true,
-          "relations": [
-            "pool"
-          ]
-        },
-        {
-          "name": "pool",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  111,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        }
-      ],
-      "args": [
-        {
-          "name": "assessors",
-          "type": {
-            "vec": "pubkey"
-          }
-        },
-        {
-          "name": "approvalThreshold",
-          "type": "u8"
         }
       ]
     },
@@ -1354,100 +1768,6 @@ export type Autoshield = {
       "args": []
     },
     {
-      "name": "transferAuthority",
-      "discriminator": [
-        48,
-        169,
-        76,
-        72,
-        229,
-        180,
-        55,
-        161
-      ],
-      "accounts": [
-        {
-          "name": "authority",
-          "signer": true,
-          "relations": [
-            "pool"
-          ]
-        },
-        {
-          "name": "pool",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  111,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        }
-      ],
-      "args": [
-        {
-          "name": "newAuthority",
-          "type": "pubkey"
-        }
-      ]
-    },
-    {
-      "name": "updateParams",
-      "discriminator": [
-        108,
-        178,
-        190,
-        95,
-        94,
-        203,
-        116,
-        20
-      ],
-      "accounts": [
-        {
-          "name": "authority",
-          "signer": true,
-          "relations": [
-            "pool"
-          ]
-        },
-        {
-          "name": "pool",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  111,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        }
-      ],
-      "args": [
-        {
-          "name": "params",
-          "type": {
-            "defined": {
-              "name": "poolParams"
-            }
-          }
-        }
-      ]
-    },
-    {
       "name": "voteClaim",
       "discriminator": [
         119,
@@ -1462,6 +1782,7 @@ export type Autoshield = {
       "accounts": [
         {
           "name": "assessor",
+          "writable": true,
           "signer": true
         },
         {
@@ -1486,6 +1807,19 @@ export type Autoshield = {
           ]
         },
         {
+          "name": "stableMint",
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
           "name": "policy",
           "writable": true,
           "relations": [
@@ -1495,6 +1829,111 @@ export type Autoshield = {
         {
           "name": "claim",
           "writable": true
+        },
+        {
+          "name": "assessorToken",
+          "docs": [
+            "Recebe a remuneracao pelo voto (paga da tesouraria do protocolo)."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "assessor"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "stableMint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "tokenProgram",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associatedTokenProgram",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
@@ -1596,6 +2035,72 @@ export type Autoshield = {
           "type": "u64"
         }
       ]
+    },
+    {
+      "name": "withdrawTreasury",
+      "discriminator": [
+        40,
+        63,
+        122,
+        158,
+        144,
+        216,
+        83,
+        96
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "stableMint",
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "destination",
+          "writable": true
+        },
+        {
+          "name": "tokenProgram",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
     }
   ],
   "accounts": [
@@ -1667,6 +2172,19 @@ export type Autoshield = {
   ],
   "events": [
     {
+      "name": "assessorPaid",
+      "discriminator": [
+        150,
+        79,
+        217,
+        28,
+        187,
+        106,
+        147,
+        3
+      ]
+    },
+    {
       "name": "claimFiled",
       "discriminator": [
         78,
@@ -1703,6 +2221,45 @@ export type Autoshield = {
         12,
         66,
         9
+      ]
+    },
+    {
+      "name": "governanceChangeApplied",
+      "discriminator": [
+        36,
+        17,
+        46,
+        195,
+        7,
+        15,
+        140,
+        117
+      ]
+    },
+    {
+      "name": "governanceChangeProposed",
+      "discriminator": [
+        83,
+        12,
+        252,
+        70,
+        81,
+        10,
+        135,
+        101
+      ]
+    },
+    {
+      "name": "installmentPaid",
+      "discriminator": [
+        247,
+        32,
+        44,
+        43,
+        84,
+        76,
+        215,
+        84
       ]
     },
     {
@@ -1781,6 +2338,19 @@ export type Autoshield = {
         198,
         254,
         229
+      ]
+    },
+    {
+      "name": "treasuryWithdrawn",
+      "discriminator": [
+        143,
+        181,
+        157,
+        169,
+        87,
+        155,
+        170,
+        46
       ]
     }
   ],
@@ -1949,14 +2519,86 @@ export type Autoshield = {
       "code": 6032,
       "name": "alreadyInspected",
       "msg": "A vistoria desta apolice ja foi realizada"
+    },
+    {
+      "code": 6033,
+      "name": "invalidInstallments",
+      "msg": "Numero de parcelas invalido para a vigencia escolhida"
+    },
+    {
+      "code": 6034,
+      "name": "alreadyFullyPaid",
+      "msg": "Todas as parcelas desta apolice ja foram pagas"
+    },
+    {
+      "code": 6035,
+      "name": "policyLapsed",
+      "msg": "Apolice caducada por parcela em atraso"
+    },
+    {
+      "code": 6036,
+      "name": "noPendingChange",
+      "msg": "Nao ha mudanca de governanca pendente"
+    },
+    {
+      "code": 6037,
+      "name": "timelockActive",
+      "msg": "Timelock de governanca ainda nao expirou"
+    },
+    {
+      "code": 6038,
+      "name": "notPendingAuthority",
+      "msg": "Assinante nao e a autoridade proposta"
+    },
+    {
+      "code": 6039,
+      "name": "insufficientTreasury",
+      "msg": "Saldo insuficiente na tesouraria do protocolo"
+    },
+    {
+      "code": 6040,
+      "name": "firstDepositTooSmall",
+      "msg": "Primeiro aporte abaixo do minimo"
+    },
+    {
+      "code": 6041,
+      "name": "insufficientLiquidityForClaim",
+      "msg": "Liquidez livre insuficiente para pagar o sinistro agora"
     }
   ],
   "types": [
+    {
+      "name": "assessorPaid",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "assessor",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "kind",
+            "docs": [
+              "0 = vistoria, 1 = voto em sinistro."
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
     {
       "name": "claim",
       "type": {
         "kind": "struct",
         "fields": [
+          {
+            "name": "version",
+            "type": "u8"
+          },
           {
             "name": "policy",
             "type": "pubkey"
@@ -2041,6 +2683,15 @@ export type Autoshield = {
           {
             "name": "bump",
             "type": "u8"
+          },
+          {
+            "name": "reserved",
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
           }
         ]
       }
@@ -2214,6 +2865,65 @@ export type Autoshield = {
       }
     },
     {
+      "name": "governanceChangeApplied",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "kind",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "governanceChangeProposed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "kind",
+            "docs": [
+              "0 = parametros, 1 = avaliadores."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "eta",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "installmentPaid",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "policy",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "number",
+            "type": "u8"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "paidUntil",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
       "name": "liquidityDeposited",
       "type": {
         "kind": "struct",
@@ -2258,6 +2968,10 @@ export type Autoshield = {
       "type": {
         "kind": "struct",
         "fields": [
+          {
+            "name": "version",
+            "type": "u8"
+          },
           {
             "name": "owner",
             "type": "pubkey"
@@ -2318,8 +3032,33 @@ export type Autoshield = {
             "type": "u16"
           },
           {
-            "name": "premiumPaid",
+            "name": "premiumTotal",
+            "docs": [
+              "Premio total da vigencia (soma de todas as parcelas)."
+            ],
             "type": "u64"
+          },
+          {
+            "name": "premiumPaid",
+            "docs": [
+              "Quanto do premio ja foi pago."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "installments",
+            "type": "u8"
+          },
+          {
+            "name": "installmentsPaid",
+            "type": "u8"
+          },
+          {
+            "name": "installmentPeriod",
+            "docs": [
+              "Intervalo entre parcelas (segundos)."
+            ],
+            "type": "i64"
           },
           {
             "name": "coverageLimit",
@@ -2331,6 +3070,20 @@ export type Autoshield = {
           },
           {
             "name": "cashbackAmount",
+            "docs": [
+              "Cashback reservado ate agora (cresce a cada parcela paga)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "protocolFeesPaid",
+            "docs": [
+              "Taxa do protocolo ja cobrada desta apolice (estornada se a vistoria for recusada)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "inspectionFee",
             "type": "u64"
           },
           {
@@ -2393,6 +3146,15 @@ export type Autoshield = {
           {
             "name": "bump",
             "type": "u8"
+          },
+          {
+            "name": "reserved",
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
           }
         ]
       }
@@ -2504,6 +3266,10 @@ export type Autoshield = {
         "kind": "struct",
         "fields": [
           {
+            "name": "version",
+            "type": "u8"
+          },
+          {
             "name": "authority",
             "type": "pubkey"
           },
@@ -2518,14 +3284,14 @@ export type Autoshield = {
           {
             "name": "totalShares",
             "docs": [
-              "Total de cotas emitidas aos provedores de liquidez."
+              "Total de cotas emitidas (inclui as cotas \"mortas\" do primeiro aporte)."
             ],
             "type": "u64"
           },
           {
             "name": "totalActiveCoverage",
             "docs": [
-              "Soma dos limites de cobertura das apolices ativas."
+              "Soma das coberturas restantes das apolices ativas."
             ],
             "type": "u64"
           },
@@ -2544,6 +3310,20 @@ export type Autoshield = {
             "type": "u64"
           },
           {
+            "name": "treasuryAccrued",
+            "docs": [
+              "Taxa do protocolo acumulada no cofre (receita, fora do patrimonio dos LPs)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "pendingInspectionFees",
+            "docs": [
+              "Taxas de vistoria pagas pelos motoristas e ainda nao repassadas ao avaliador."
+            ],
+            "type": "u64"
+          },
+          {
             "name": "totalPremiums",
             "type": "u64"
           },
@@ -2553,6 +3333,14 @@ export type Autoshield = {
           },
           {
             "name": "totalCashbackPaid",
+            "type": "u64"
+          },
+          {
+            "name": "totalProtocolFees",
+            "type": "u64"
+          },
+          {
+            "name": "totalAssessorRewards",
             "type": "u64"
           },
           {
@@ -2590,12 +3378,59 @@ export type Autoshield = {
             "type": "bool"
           },
           {
+            "name": "pendingParams",
+            "docs": [
+              "Governanca com timelock: mudancas propostas so valem apos `*_eta`."
+            ],
+            "type": {
+              "option": {
+                "defined": {
+                  "name": "poolParams"
+                }
+              }
+            }
+          },
+          {
+            "name": "pendingParamsEta",
+            "type": "i64"
+          },
+          {
+            "name": "pendingAssessors",
+            "type": {
+              "vec": "pubkey"
+            }
+          },
+          {
+            "name": "pendingThreshold",
+            "type": "u8"
+          },
+          {
+            "name": "pendingAssessorsEta",
+            "type": "i64"
+          },
+          {
+            "name": "pendingAuthority",
+            "docs": [
+              "Transferencia de autoridade em dois passos (proposta + aceite)."
+            ],
+            "type": "pubkey"
+          },
+          {
             "name": "bump",
             "type": "u8"
           },
           {
             "name": "vaultBump",
             "type": "u8"
+          },
+          {
+            "name": "reserved",
+            "type": {
+              "array": [
+                "u8",
+                128
+              ]
+            }
           }
         ]
       }
@@ -2640,6 +3475,13 @@ export type Autoshield = {
             "type": "u16"
           },
           {
+            "name": "protocolFeeBps",
+            "docs": [
+              "Parte do premio que fica com o protocolo (bps)."
+            ],
+            "type": "u16"
+          },
+          {
             "name": "minCollateralBps",
             "docs": [
               "Colateral minimo exigido sobre a cobertura ativa total (bps)."
@@ -2671,10 +3513,45 @@ export type Autoshield = {
           {
             "name": "claimWaitingSecs",
             "docs": [
-              "Carencia entre a contratacao e o primeiro sinistro aceito (segundos).",
-              "Evita contratar a apolice depois que o evento ja aconteceu."
+              "Carencia entre a contratacao e o primeiro sinistro aceito (segundos)."
             ],
             "type": "i64"
+          },
+          {
+            "name": "installmentGraceSecs",
+            "docs": [
+              "Tolerancia para pagar uma parcela vencida antes da apolice caducar (segundos)."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "governanceDelaySecs",
+            "docs": [
+              "Atraso minimo entre propor e aplicar mudancas de governanca (segundos)."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "inspectionFee",
+            "docs": [
+              "Taxa de vistoria paga pelo motorista na contratacao; vai para o avaliador,",
+              "mesmo se a vistoria for recusada (desestimula contratacoes abusivas)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "voteReward",
+            "docs": [
+              "Remuneracao por voto em sinistro, paga da tesouraria do protocolo."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "minVehicleValue",
+            "docs": [
+              "Valor FIPE minimo aceito."
+            ],
+            "type": "u64"
           },
           {
             "name": "faucetEnabled",
@@ -2739,9 +3616,16 @@ export type Autoshield = {
             "type": "u16"
           },
           {
+            "name": "installments",
+            "docs": [
+              "1 = a vista; ate 12 parcelas, cada uma cobrindo ao menos 30 dias."
+            ],
+            "type": "u8"
+          },
+          {
             "name": "maxPremium",
             "docs": [
-              "Protecao contra slippage: premio maximo aceito pelo usuario."
+              "Protecao contra slippage: premio total maximo aceito pelo usuario."
             ],
             "type": "u64"
           }
@@ -2756,6 +3640,10 @@ export type Autoshield = {
       "type": {
         "kind": "struct",
         "fields": [
+          {
+            "name": "version",
+            "type": "u8"
+          },
           {
             "name": "owner",
             "type": "pubkey"
@@ -2783,6 +3671,31 @@ export type Autoshield = {
           {
             "name": "bump",
             "type": "u8"
+          },
+          {
+            "name": "reserved",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "treasuryWithdrawn",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "destination",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
           }
         ]
       }
@@ -2790,12 +3703,16 @@ export type Autoshield = {
     {
       "name": "vehicleRecord",
       "docs": [
-        "Registro unico por veiculo (placa): garante no maximo uma apolice ativa,",
-        "impedindo segurar o mesmo carro varias vezes para multiplicar a indenizacao."
+        "Registro unico por veiculo (placa): garante no maximo uma apolice ativa e",
+        "vistoriada, impedindo segurar o mesmo carro varias vezes."
       ],
       "type": {
         "kind": "struct",
         "fields": [
+          {
+            "name": "version",
+            "type": "u8"
+          },
           {
             "name": "plateHash",
             "type": {
@@ -2808,7 +3725,7 @@ export type Autoshield = {
           {
             "name": "activePolicy",
             "docs": [
-              "Apolice ativa atual; `Pubkey::default()` quando livre."
+              "Apolice vistoriada e ativa; `Pubkey::default()` quando livre."
             ],
             "type": "pubkey"
           },
@@ -2819,6 +3736,15 @@ export type Autoshield = {
           {
             "name": "bump",
             "type": "u8"
+          },
+          {
+            "name": "reserved",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
           }
         ]
       }

@@ -53,11 +53,17 @@ mod tests {
         PoolParams {
             base_rate_bps: 350,
             cashback_bps: 2_000,
+            protocol_fee_bps: 500,
             min_collateral_bps: 1_000,
             withdraw_cooldown_secs: 0,
             claim_voting_secs: 3_600,
             seconds_per_day: 86_400,
             claim_waiting_secs: 0,
+            installment_grace_secs: 0,
+            governance_delay_secs: 0,
+            inspection_fee: 0,
+            vote_reward: 0,
+            min_vehicle_value: 1,
             faucet_enabled: true,
         }
     }

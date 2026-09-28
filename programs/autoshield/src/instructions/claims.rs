@@ -4,8 +4,8 @@ use anchor_spl::token::{self, Mint, Token, TokenAccount, TransferChecked};
 
 use crate::constants::*;
 use crate::errors::AutoShieldError;
-use crate::events::{ClaimFiled, ClaimPaid, ClaimVoted};
-use crate::state::{Claim, ClaimKind, ClaimStatus, Policy, PolicyStatus, Pool};
+use crate::events::{AssessorPaid, ClaimFiled, ClaimPaid, ClaimVoted};
+use crate::state::{Claim, ClaimKind, ClaimStatus, Policy, PolicyStatus, Pool, ACCOUNT_VERSION};
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct FileClaimArgs {
@@ -58,6 +58,8 @@ pub fn file_claim(ctx: Context<FileClaim>, args: FileClaimArgs) -> Result<()> {
         now >= policy.claims_allowed_from,
         AutoShieldError::ClaimWaitingPeriod
     );
+    // Parcelado: so ha cobertura enquanto as parcelas estiverem em dia.
+    require!(now <= policy.paid_until(), AutoShieldError::PolicyLapsed);
     require!(!policy.has_open_claim, AutoShieldError::ClaimAlreadyOpen);
     require!(policy.claims_filed < u8::MAX, AutoShieldError::InvalidParameter);
     require!(
@@ -96,6 +98,7 @@ pub fn file_claim(ctx: Context<FileClaim>, args: FileClaimArgs) -> Result<()> {
     policy.has_open_claim = true;
 
     let claim = &mut ctx.accounts.claim;
+    claim.version = ACCOUNT_VERSION;
     claim.policy = policy.key();
     claim.claimant = policy.owner;
     claim.pool = pool_key;
@@ -127,16 +130,35 @@ pub fn file_claim(ctx: Context<FileClaim>, args: FileClaimArgs) -> Result<()> {
 
 #[derive(Accounts)]
 pub struct VoteClaim<'info> {
+    #[account(mut)]
     pub assessor: Signer<'info>,
 
-    #[account(mut, seeds = [POOL_SEED], bump = pool.bump)]
+    #[account(mut, seeds = [POOL_SEED], bump = pool.bump, has_one = vault, has_one = stable_mint)]
     pub pool: Account<'info, Pool>,
+
+    pub stable_mint: Account<'info, Mint>,
+
+    #[account(mut)]
+    pub vault: Account<'info, TokenAccount>,
 
     #[account(mut, has_one = pool, address = claim.policy)]
     pub policy: Account<'info, Policy>,
 
     #[account(mut, has_one = pool, has_one = policy)]
     pub claim: Account<'info, Claim>,
+
+    /// Recebe a remuneracao pelo voto (paga da tesouraria do protocolo).
+    #[account(
+        init_if_needed,
+        payer = assessor,
+        associated_token::mint = stable_mint,
+        associated_token::authority = assessor,
+    )]
+    pub assessor_token: Account<'info, TokenAccount>,
+
+    pub token_program: Program<'info, Token>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
+    pub system_program: Program<'info, System>,
 }
 
 pub fn vote_claim(ctx: Context<VoteClaim>, approve: bool) -> Result<()> {
@@ -183,6 +205,40 @@ pub fn vote_claim(ctx: Context<VoteClaim>, approve: bool) -> Result<()> {
         let pool = &mut ctx.accounts.pool;
         pool.pending_claims = pool.pending_claims.saturating_sub(amount);
         ctx.accounts.policy.has_open_claim = false;
+    }
+
+    // Remuneracao por voto, limitada ao saldo da tesouraria do protocolo.
+    let reward = ctx
+        .accounts
+        .pool
+        .params
+        .vote_reward
+        .min(ctx.accounts.pool.treasury_accrued);
+    if reward > 0 {
+        let bump = ctx.accounts.pool.bump;
+        let signer_seeds: &[&[&[u8]]] = &[&[POOL_SEED, &[bump]]];
+        token::transfer_checked(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                TransferChecked {
+                    from: ctx.accounts.vault.to_account_info(),
+                    mint: ctx.accounts.stable_mint.to_account_info(),
+                    to: ctx.accounts.assessor_token.to_account_info(),
+                    authority: ctx.accounts.pool.to_account_info(),
+                },
+                signer_seeds,
+            ),
+            reward,
+            ctx.accounts.stable_mint.decimals,
+        )?;
+        let pool = &mut ctx.accounts.pool;
+        pool.treasury_accrued -= reward;
+        pool.total_assessor_rewards = pool.total_assessor_rewards.saturating_add(reward);
+        emit!(AssessorPaid {
+            assessor,
+            amount: reward,
+            kind: 1,
+        });
     }
 
     emit!(ClaimVoted {
@@ -280,8 +336,14 @@ pub fn pay_claim(ctx: Context<PayClaim>) -> Result<()> {
     let payout = claim
         .amount_requested
         .saturating_sub(deductible)
-        .min(policy.remaining_coverage())
-        .min(ctx.accounts.vault.amount);
+        .min(policy.remaining_coverage());
+    // Paga somente com o patrimonio dos LPs: nunca com cashback reservado,
+    // taxas de vistoria ou receita do protocolo. Sem liquidez, a transacao
+    // falha e o sinistro continua Aprovado ate haver saldo (sem pagar pela metade).
+    require!(
+        payout <= ctx.accounts.pool.net_assets(ctx.accounts.vault.amount),
+        AutoShieldError::InsufficientLiquidityForClaim
+    );
     let requested = claim.amount_requested;
 
     if payout > 0 {
@@ -316,6 +378,9 @@ pub fn pay_claim(ctx: Context<PayClaim>) -> Result<()> {
     if forfeit_cashback {
         // O cashback nao utilizado volta a pertencer aos provedores de liquidez.
         pool.reserved_cashback = pool.reserved_cashback.saturating_sub(cashback);
+    }
+    if forfeit_cashback {
+        ctx.accounts.policy.cashback_amount = 0;
     }
 
     let policy = &mut ctx.accounts.policy;

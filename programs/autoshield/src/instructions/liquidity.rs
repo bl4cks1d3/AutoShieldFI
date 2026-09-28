@@ -4,7 +4,7 @@ use anchor_spl::token::{self, Mint, Token, TokenAccount, TransferChecked};
 use crate::constants::*;
 use crate::errors::AutoShieldError;
 use crate::events::{LiquidityDeposited, LiquidityWithdrawn};
-use crate::state::{Pool, StakePosition};
+use crate::state::{Pool, StakePosition, ACCOUNT_VERSION};
 
 #[derive(Accounts)]
 pub struct DepositLiquidity<'info> {
@@ -45,8 +45,12 @@ pub fn deposit_liquidity(ctx: Context<DepositLiquidity>, amount: u64) -> Result<
     require!(!pool.paused, AutoShieldError::Paused);
 
     let nav = pool.net_assets(ctx.accounts.vault.amount);
-    let shares = if pool.total_shares == 0 {
-        amount
+    let first = pool.total_shares == 0;
+    // No primeiro aporte, DEAD_SHARES ficam sem dono para sempre: a cota nunca
+    // mais parte de zero e doacoes diretas ao cofre nao distorcem o preco.
+    let shares = if first {
+        require!(amount >= MIN_FIRST_DEPOSIT, AutoShieldError::FirstDepositTooSmall);
+        amount - DEAD_SHARES
     } else {
         require!(nav > 0, AutoShieldError::InsufficientPoolCapital);
         u64::try_from(
@@ -76,6 +80,7 @@ pub fn deposit_liquidity(ctx: Context<DepositLiquidity>, amount: u64) -> Result<
     let now = Clock::get()?.unix_timestamp;
     let position = &mut ctx.accounts.position;
     if position.owner == Pubkey::default() {
+        position.version = ACCOUNT_VERSION;
         position.owner = ctx.accounts.owner.key();
         position.pool = ctx.accounts.pool.key();
         position.bump = ctx.bumps.position;
@@ -91,9 +96,10 @@ pub fn deposit_liquidity(ctx: Context<DepositLiquidity>, amount: u64) -> Result<
     position.last_deposit_ts = now;
 
     let pool = &mut ctx.accounts.pool;
+    let minted_total = if first { amount } else { shares };
     pool.total_shares = pool
         .total_shares
-        .checked_add(shares)
+        .checked_add(minted_total)
         .ok_or(AutoShieldError::MathOverflow)?;
 
     emit!(LiquidityDeposited {

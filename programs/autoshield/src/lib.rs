@@ -38,24 +38,45 @@ pub mod autoshield {
         instructions::admin::initialize_pool(ctx, params, assessors, approval_threshold)
     }
 
-    pub fn update_params(ctx: Context<AdminAction>, params: PoolParams) -> Result<()> {
-        instructions::admin::update_params(ctx, params)
+    /// Governanca com timelock: propor, aguardar `governance_delay_secs`, aplicar.
+    pub fn propose_params(ctx: Context<AdminAction>, params: PoolParams) -> Result<()> {
+        instructions::admin::propose_params(ctx, params)
     }
 
-    pub fn set_assessors(
+    pub fn apply_params(ctx: Context<ApplyGovernance>) -> Result<()> {
+        instructions::admin::apply_params(ctx)
+    }
+
+    pub fn propose_assessors(
         ctx: Context<AdminAction>,
         assessors: Vec<Pubkey>,
         approval_threshold: u8,
     ) -> Result<()> {
-        instructions::admin::set_assessors(ctx, assessors, approval_threshold)
+        instructions::admin::propose_assessors(ctx, assessors, approval_threshold)
+    }
+
+    pub fn apply_assessors(ctx: Context<ApplyGovernance>) -> Result<()> {
+        instructions::admin::apply_assessors(ctx)
+    }
+
+    pub fn cancel_pending(ctx: Context<AdminAction>) -> Result<()> {
+        instructions::admin::cancel_pending(ctx)
     }
 
     pub fn set_paused(ctx: Context<AdminAction>, paused: bool) -> Result<()> {
         instructions::admin::set_paused(ctx, paused)
     }
 
-    pub fn transfer_authority(ctx: Context<AdminAction>, new_authority: Pubkey) -> Result<()> {
-        instructions::admin::transfer_authority(ctx, new_authority)
+    pub fn propose_authority(ctx: Context<AdminAction>, new_authority: Pubkey) -> Result<()> {
+        instructions::admin::propose_authority(ctx, new_authority)
+    }
+
+    pub fn accept_authority(ctx: Context<AcceptAuthority>) -> Result<()> {
+        instructions::admin::accept_authority(ctx)
+    }
+
+    pub fn withdraw_treasury(ctx: Context<WithdrawTreasury>, amount: u64) -> Result<()> {
+        instructions::admin::withdraw_treasury(ctx, amount)
     }
 
     // ---------- token de teste ----------
@@ -82,6 +103,10 @@ pub mod autoshield {
 
     pub fn purchase_policy(ctx: Context<PurchasePolicy>, args: PurchasePolicyArgs) -> Result<()> {
         instructions::policy::purchase_policy(ctx, args)
+    }
+
+    pub fn pay_installment(ctx: Context<PayInstallment>) -> Result<()> {
+        instructions::policy::pay_installment(ctx)
     }
 
     pub fn inspect_policy(ctx: Context<InspectPolicy>, approve: bool) -> Result<()> {

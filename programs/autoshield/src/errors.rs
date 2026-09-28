@@ -68,4 +68,22 @@ pub enum AutoShieldError {
     PolicyNotInspected,
     #[msg("A vistoria desta apolice ja foi realizada")]
     AlreadyInspected,
+    #[msg("Numero de parcelas invalido para a vigencia escolhida")]
+    InvalidInstallments,
+    #[msg("Todas as parcelas desta apolice ja foram pagas")]
+    AlreadyFullyPaid,
+    #[msg("Apolice caducada por parcela em atraso")]
+    PolicyLapsed,
+    #[msg("Nao ha mudanca de governanca pendente")]
+    NoPendingChange,
+    #[msg("Timelock de governanca ainda nao expirou")]
+    TimelockActive,
+    #[msg("Assinante nao e a autoridade proposta")]
+    NotPendingAuthority,
+    #[msg("Saldo insuficiente na tesouraria do protocolo")]
+    InsufficientTreasury,
+    #[msg("Primeiro aporte abaixo do minimo")]
+    FirstDepositTooSmall,
+    #[msg("Liquidez livre insuficiente para pagar o sinistro agora")]
+    InsufficientLiquidityForClaim,
 }
