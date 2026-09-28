@@ -8,6 +8,157 @@
   },
   "instructions": [
     {
+      "name": "accept_authority",
+      "discriminator": [
+        107,
+        86,
+        198,
+        91,
+        33,
+        12,
+        107,
+        160
+      ],
+      "accounts": [
+        {
+          "name": "new_authority",
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "apply_assessors",
+      "discriminator": [
+        71,
+        183,
+        123,
+        156,
+        211,
+        109,
+        24,
+        179
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "apply_params",
+      "discriminator": [
+        188,
+        203,
+        86,
+        124,
+        178,
+        34,
+        133,
+        116
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "cancel_pending",
+      "discriminator": [
+        74,
+        87,
+        109,
+        242,
+        64,
+        192,
+        151,
+        71
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "deposit_liquidity",
       "discriminator": [
         245,
@@ -538,6 +689,13 @@
           }
         },
         {
+          "name": "program",
+          "address": "GPnGSA7KH3vqnF1KfzHGzQNvnEBVD3XRfCayEBhQsuRC"
+        },
+        {
+          "name": "program_data"
+        },
+        {
           "name": "token_program",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         },
@@ -661,6 +819,96 @@
               {
                 "kind": "account",
                 "path": "owner"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "stable_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "assessor_token",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "assessor"
               },
               {
                 "kind": "const",
@@ -938,6 +1186,223 @@
       "args": []
     },
     {
+      "name": "pay_installment",
+      "discriminator": [
+        214,
+        118,
+        104,
+        215,
+        242,
+        93,
+        33,
+        60
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "policy"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          },
+          "relations": [
+            "policy"
+          ]
+        },
+        {
+          "name": "stable_mint",
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "owner_token",
+          "writable": true
+        },
+        {
+          "name": "policy",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "propose_assessors",
+      "discriminator": [
+        170,
+        44,
+        47,
+        63,
+        216,
+        123,
+        239,
+        31
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "assessors",
+          "type": {
+            "vec": "pubkey"
+          }
+        },
+        {
+          "name": "approval_threshold",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "propose_authority",
+      "discriminator": [
+        20,
+        148,
+        236,
+        198,
+        76,
+        119,
+        99,
+        142
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "new_authority",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "propose_params",
+      "docs": [
+        "Governanca com timelock: propor, aguardar `governance_delay_secs`, aplicar."
+      ],
+      "discriminator": [
+        94,
+        141,
+        220,
+        182,
+        171,
+        53,
+        52,
+        182
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "params",
+          "type": {
+            "defined": {
+              "name": "PoolParams"
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "purchase_policy",
       "discriminator": [
         246,
@@ -1057,57 +1522,6 @@
               "name": "PurchasePolicyArgs"
             }
           }
-        }
-      ]
-    },
-    {
-      "name": "set_assessors",
-      "discriminator": [
-        120,
-        68,
-        133,
-        43,
-        98,
-        114,
-        242,
-        173
-      ],
-      "accounts": [
-        {
-          "name": "authority",
-          "signer": true,
-          "relations": [
-            "pool"
-          ]
-        },
-        {
-          "name": "pool",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  111,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        }
-      ],
-      "args": [
-        {
-          "name": "assessors",
-          "type": {
-            "vec": "pubkey"
-          }
-        },
-        {
-          "name": "approval_threshold",
-          "type": "u8"
         }
       ]
     },
@@ -1348,100 +1762,6 @@
       "args": []
     },
     {
-      "name": "transfer_authority",
-      "discriminator": [
-        48,
-        169,
-        76,
-        72,
-        229,
-        180,
-        55,
-        161
-      ],
-      "accounts": [
-        {
-          "name": "authority",
-          "signer": true,
-          "relations": [
-            "pool"
-          ]
-        },
-        {
-          "name": "pool",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  111,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        }
-      ],
-      "args": [
-        {
-          "name": "new_authority",
-          "type": "pubkey"
-        }
-      ]
-    },
-    {
-      "name": "update_params",
-      "discriminator": [
-        108,
-        178,
-        190,
-        95,
-        94,
-        203,
-        116,
-        20
-      ],
-      "accounts": [
-        {
-          "name": "authority",
-          "signer": true,
-          "relations": [
-            "pool"
-          ]
-        },
-        {
-          "name": "pool",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  111,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        }
-      ],
-      "args": [
-        {
-          "name": "params",
-          "type": {
-            "defined": {
-              "name": "PoolParams"
-            }
-          }
-        }
-      ]
-    },
-    {
       "name": "vote_claim",
       "discriminator": [
         119,
@@ -1456,6 +1776,7 @@
       "accounts": [
         {
           "name": "assessor",
+          "writable": true,
           "signer": true
         },
         {
@@ -1480,6 +1801,19 @@
           ]
         },
         {
+          "name": "stable_mint",
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
           "name": "policy",
           "writable": true,
           "relations": [
@@ -1489,6 +1823,111 @@
         {
           "name": "claim",
           "writable": true
+        },
+        {
+          "name": "assessor_token",
+          "docs": [
+            "Recebe a remuneracao pelo voto (paga da tesouraria do protocolo)."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "assessor"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "stable_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
@@ -1590,6 +2029,72 @@
           "type": "u64"
         }
       ]
+    },
+    {
+      "name": "withdraw_treasury",
+      "discriminator": [
+        40,
+        63,
+        122,
+        158,
+        144,
+        216,
+        83,
+        96
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "stable_mint",
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "destination",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
     }
   ],
   "accounts": [
@@ -1661,6 +2166,19 @@
   ],
   "events": [
     {
+      "name": "AssessorPaid",
+      "discriminator": [
+        150,
+        79,
+        217,
+        28,
+        187,
+        106,
+        147,
+        3
+      ]
+    },
+    {
       "name": "ClaimFiled",
       "discriminator": [
         78,
@@ -1697,6 +2215,45 @@
         12,
         66,
         9
+      ]
+    },
+    {
+      "name": "GovernanceChangeApplied",
+      "discriminator": [
+        36,
+        17,
+        46,
+        195,
+        7,
+        15,
+        140,
+        117
+      ]
+    },
+    {
+      "name": "GovernanceChangeProposed",
+      "discriminator": [
+        83,
+        12,
+        252,
+        70,
+        81,
+        10,
+        135,
+        101
+      ]
+    },
+    {
+      "name": "InstallmentPaid",
+      "discriminator": [
+        247,
+        32,
+        44,
+        43,
+        84,
+        76,
+        215,
+        84
       ]
     },
     {
@@ -1775,6 +2332,19 @@
         198,
         254,
         229
+      ]
+    },
+    {
+      "name": "TreasuryWithdrawn",
+      "discriminator": [
+        143,
+        181,
+        157,
+        169,
+        87,
+        155,
+        170,
+        46
       ]
     }
   ],
@@ -1943,14 +2513,86 @@
       "code": 6032,
       "name": "AlreadyInspected",
       "msg": "A vistoria desta apolice ja foi realizada"
+    },
+    {
+      "code": 6033,
+      "name": "InvalidInstallments",
+      "msg": "Numero de parcelas invalido para a vigencia escolhida"
+    },
+    {
+      "code": 6034,
+      "name": "AlreadyFullyPaid",
+      "msg": "Todas as parcelas desta apolice ja foram pagas"
+    },
+    {
+      "code": 6035,
+      "name": "PolicyLapsed",
+      "msg": "Apolice caducada por parcela em atraso"
+    },
+    {
+      "code": 6036,
+      "name": "NoPendingChange",
+      "msg": "Nao ha mudanca de governanca pendente"
+    },
+    {
+      "code": 6037,
+      "name": "TimelockActive",
+      "msg": "Timelock de governanca ainda nao expirou"
+    },
+    {
+      "code": 6038,
+      "name": "NotPendingAuthority",
+      "msg": "Assinante nao e a autoridade proposta"
+    },
+    {
+      "code": 6039,
+      "name": "InsufficientTreasury",
+      "msg": "Saldo insuficiente na tesouraria do protocolo"
+    },
+    {
+      "code": 6040,
+      "name": "FirstDepositTooSmall",
+      "msg": "Primeiro aporte abaixo do minimo"
+    },
+    {
+      "code": 6041,
+      "name": "InsufficientLiquidityForClaim",
+      "msg": "Liquidez livre insuficiente para pagar o sinistro agora"
     }
   ],
   "types": [
+    {
+      "name": "AssessorPaid",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "assessor",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "kind",
+            "docs": [
+              "0 = vistoria, 1 = voto em sinistro."
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
     {
       "name": "Claim",
       "type": {
         "kind": "struct",
         "fields": [
+          {
+            "name": "version",
+            "type": "u8"
+          },
           {
             "name": "policy",
             "type": "pubkey"
@@ -2035,6 +2677,15 @@
           {
             "name": "bump",
             "type": "u8"
+          },
+          {
+            "name": "_reserved",
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
           }
         ]
       }
@@ -2208,6 +2859,65 @@
       }
     },
     {
+      "name": "GovernanceChangeApplied",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "kind",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "GovernanceChangeProposed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "kind",
+            "docs": [
+              "0 = parametros, 1 = avaliadores."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "eta",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "InstallmentPaid",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "policy",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "number",
+            "type": "u8"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "paid_until",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
       "name": "LiquidityDeposited",
       "type": {
         "kind": "struct",
@@ -2252,6 +2962,10 @@
       "type": {
         "kind": "struct",
         "fields": [
+          {
+            "name": "version",
+            "type": "u8"
+          },
           {
             "name": "owner",
             "type": "pubkey"
@@ -2312,8 +3026,33 @@
             "type": "u16"
           },
           {
-            "name": "premium_paid",
+            "name": "premium_total",
+            "docs": [
+              "Premio total da vigencia (soma de todas as parcelas)."
+            ],
             "type": "u64"
+          },
+          {
+            "name": "premium_paid",
+            "docs": [
+              "Quanto do premio ja foi pago."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "installments",
+            "type": "u8"
+          },
+          {
+            "name": "installments_paid",
+            "type": "u8"
+          },
+          {
+            "name": "installment_period",
+            "docs": [
+              "Intervalo entre parcelas (segundos)."
+            ],
+            "type": "i64"
           },
           {
             "name": "coverage_limit",
@@ -2325,6 +3064,20 @@
           },
           {
             "name": "cashback_amount",
+            "docs": [
+              "Cashback reservado ate agora (cresce a cada parcela paga)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "protocol_fees_paid",
+            "docs": [
+              "Taxa do protocolo ja cobrada desta apolice (estornada se a vistoria for recusada)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "inspection_fee",
             "type": "u64"
           },
           {
@@ -2387,6 +3140,15 @@
           {
             "name": "bump",
             "type": "u8"
+          },
+          {
+            "name": "_reserved",
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
           }
         ]
       }
@@ -2498,6 +3260,10 @@
         "kind": "struct",
         "fields": [
           {
+            "name": "version",
+            "type": "u8"
+          },
+          {
             "name": "authority",
             "type": "pubkey"
           },
@@ -2512,14 +3278,14 @@
           {
             "name": "total_shares",
             "docs": [
-              "Total de cotas emitidas aos provedores de liquidez."
+              "Total de cotas emitidas (inclui as cotas \"mortas\" do primeiro aporte)."
             ],
             "type": "u64"
           },
           {
             "name": "total_active_coverage",
             "docs": [
-              "Soma dos limites de cobertura das apolices ativas."
+              "Soma das coberturas restantes das apolices ativas."
             ],
             "type": "u64"
           },
@@ -2538,6 +3304,20 @@
             "type": "u64"
           },
           {
+            "name": "treasury_accrued",
+            "docs": [
+              "Taxa do protocolo acumulada no cofre (receita, fora do patrimonio dos LPs)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "pending_inspection_fees",
+            "docs": [
+              "Taxas de vistoria pagas pelos motoristas e ainda nao repassadas ao avaliador."
+            ],
+            "type": "u64"
+          },
+          {
             "name": "total_premiums",
             "type": "u64"
           },
@@ -2547,6 +3327,14 @@
           },
           {
             "name": "total_cashback_paid",
+            "type": "u64"
+          },
+          {
+            "name": "total_protocol_fees",
+            "type": "u64"
+          },
+          {
+            "name": "total_assessor_rewards",
             "type": "u64"
           },
           {
@@ -2584,12 +3372,59 @@
             "type": "bool"
           },
           {
+            "name": "pending_params",
+            "docs": [
+              "Governanca com timelock: mudancas propostas so valem apos `*_eta`."
+            ],
+            "type": {
+              "option": {
+                "defined": {
+                  "name": "PoolParams"
+                }
+              }
+            }
+          },
+          {
+            "name": "pending_params_eta",
+            "type": "i64"
+          },
+          {
+            "name": "pending_assessors",
+            "type": {
+              "vec": "pubkey"
+            }
+          },
+          {
+            "name": "pending_threshold",
+            "type": "u8"
+          },
+          {
+            "name": "pending_assessors_eta",
+            "type": "i64"
+          },
+          {
+            "name": "pending_authority",
+            "docs": [
+              "Transferencia de autoridade em dois passos (proposta + aceite)."
+            ],
+            "type": "pubkey"
+          },
+          {
             "name": "bump",
             "type": "u8"
           },
           {
             "name": "vault_bump",
             "type": "u8"
+          },
+          {
+            "name": "_reserved",
+            "type": {
+              "array": [
+                "u8",
+                128
+              ]
+            }
           }
         ]
       }
@@ -2634,6 +3469,13 @@
             "type": "u16"
           },
           {
+            "name": "protocol_fee_bps",
+            "docs": [
+              "Parte do premio que fica com o protocolo (bps)."
+            ],
+            "type": "u16"
+          },
+          {
             "name": "min_collateral_bps",
             "docs": [
               "Colateral minimo exigido sobre a cobertura ativa total (bps)."
@@ -2665,10 +3507,45 @@
           {
             "name": "claim_waiting_secs",
             "docs": [
-              "Carencia entre a contratacao e o primeiro sinistro aceito (segundos).",
-              "Evita contratar a apolice depois que o evento ja aconteceu."
+              "Carencia entre a contratacao e o primeiro sinistro aceito (segundos)."
             ],
             "type": "i64"
+          },
+          {
+            "name": "installment_grace_secs",
+            "docs": [
+              "Tolerancia para pagar uma parcela vencida antes da apolice caducar (segundos)."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "governance_delay_secs",
+            "docs": [
+              "Atraso minimo entre propor e aplicar mudancas de governanca (segundos)."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "inspection_fee",
+            "docs": [
+              "Taxa de vistoria paga pelo motorista na contratacao; vai para o avaliador,",
+              "mesmo se a vistoria for recusada (desestimula contratacoes abusivas)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "vote_reward",
+            "docs": [
+              "Remuneracao por voto em sinistro, paga da tesouraria do protocolo."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "min_vehicle_value",
+            "docs": [
+              "Valor FIPE minimo aceito."
+            ],
+            "type": "u64"
           },
           {
             "name": "faucet_enabled",
@@ -2733,9 +3610,16 @@
             "type": "u16"
           },
           {
+            "name": "installments",
+            "docs": [
+              "1 = a vista; ate 12 parcelas, cada uma cobrindo ao menos 30 dias."
+            ],
+            "type": "u8"
+          },
+          {
             "name": "max_premium",
             "docs": [
-              "Protecao contra slippage: premio maximo aceito pelo usuario."
+              "Protecao contra slippage: premio total maximo aceito pelo usuario."
             ],
             "type": "u64"
           }
@@ -2750,6 +3634,10 @@
       "type": {
         "kind": "struct",
         "fields": [
+          {
+            "name": "version",
+            "type": "u8"
+          },
           {
             "name": "owner",
             "type": "pubkey"
@@ -2777,6 +3665,31 @@
           {
             "name": "bump",
             "type": "u8"
+          },
+          {
+            "name": "_reserved",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "TreasuryWithdrawn",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "destination",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
           }
         ]
       }
@@ -2784,12 +3697,16 @@
     {
       "name": "VehicleRecord",
       "docs": [
-        "Registro unico por veiculo (placa): garante no maximo uma apolice ativa,",
-        "impedindo segurar o mesmo carro varias vezes para multiplicar a indenizacao."
+        "Registro unico por veiculo (placa): garante no maximo uma apolice ativa e",
+        "vistoriada, impedindo segurar o mesmo carro varias vezes."
       ],
       "type": {
         "kind": "struct",
         "fields": [
+          {
+            "name": "version",
+            "type": "u8"
+          },
           {
             "name": "plate_hash",
             "type": {
@@ -2802,7 +3719,7 @@
           {
             "name": "active_policy",
             "docs": [
-              "Apolice ativa atual; `Pubkey::default()` quando livre."
+              "Apolice vistoriada e ativa; `Pubkey::default()` quando livre."
             ],
             "type": "pubkey"
           },
@@ -2813,6 +3730,15 @@
           {
             "name": "bump",
             "type": "u8"
+          },
+          {
+            "name": "_reserved",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
           }
         ]
       }

@@ -63,3 +63,54 @@ export function expectedPayout(
   const d = kind === "theft" || kind === "naturalEvent" ? 0 : deductible;
   return Math.max(0, Math.min(amount - d, remainingCoverage));
 }
+
+// ---------- parcelamento e taxas (espelho de instructions/policy.rs) ----------
+
+export const MAX_INSTALLMENTS = 12;
+export const MIN_DAYS_PER_INSTALLMENT = 30;
+export const DEAD_SHARES = 1_000_000;
+export const MIN_FIRST_DEPOSIT = 100 * UNIT;
+
+/** Opcoes de parcelamento validas para a vigencia (cada parcela >= 30 dias). */
+export function installmentOptions(durationDays: number): number[] {
+  const max = Math.min(MAX_INSTALLMENTS, Math.floor(durationDays / MIN_DAYS_PER_INSTALLMENT));
+  return Array.from({ length: Math.max(1, max) }, (_, i) => i + 1);
+}
+
+/** Valor da parcela `number` (1-based); a ultima absorve o resto da divisao. */
+export function installmentAmount(premiumTotal: number, installments: number, number: number): number {
+  if (installments <= 1) return premiumTotal;
+  const base = Math.floor(premiumTotal / installments);
+  return number === installments ? premiumTotal - base * (installments - 1) : base;
+}
+
+/** Divide um pagamento em taxa do protocolo, cashback reservado e parte dos LPs. */
+export function splitPayment(
+  params: Pick<PoolParams, "protocolFeeBps" | "cashbackBps">,
+  amount: number,
+  cashbackEnabled = true,
+) {
+  const fee = Math.floor((amount * params.protocolFeeBps) / 10_000);
+  const cashback = cashbackEnabled ? Math.floor((amount * params.cashbackBps) / 10_000) : 0;
+  return { fee, cashback, toPool: amount - fee - cashback };
+}
+
+/** Instante ate o qual a cobertura esta paga. */
+export function paidUntil(p: {
+  installments: number;
+  installmentsPaid: number;
+  installmentPeriod: number;
+  startTs: number;
+  endTs: number;
+}): number {
+  if (p.installmentsPaid >= p.installments) return p.endTs;
+  return p.startTs + p.installmentPeriod * p.installmentsPaid;
+}
+
+export function isLapsed(
+  p: Parameters<typeof paidUntil>[0],
+  now: number,
+  grace: number,
+): boolean {
+  return p.installmentsPaid < p.installments && now > paidUntil(p) + grace;
+}

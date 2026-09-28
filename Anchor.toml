@@ -10,7 +10,7 @@ skip-lint = false
 autoshield = "GPnGSA7KH3vqnF1KfzHGzQNvnEBVD3XRfCayEBhQsuRC"
 
 [programs.localnet]
-autoshield = "Ej3YoReUDCwKkE1ECt98vg3LE9KopPM2D24Q4a6zddPE"
+autoshield = "GPnGSA7KH3vqnF1KfzHGzQNvnEBVD3XRfCayEBhQsuRC"
 
 [registry]
 url = "https://api.apr.dev"

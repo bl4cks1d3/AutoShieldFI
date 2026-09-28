@@ -1,6 +1,10 @@
 import { AnchorProvider, BN, Program } from "@coral-xyz/anchor";
 import type { AnchorWallet } from "@solana/wallet-adapter-react";
-import { getAccount, getAssociatedTokenAddressSync } from "@solana/spl-token";
+import {
+  createAssociatedTokenAccountIdempotentInstruction,
+  getAccount,
+  getAssociatedTokenAddressSync,
+} from "@solana/spl-token";
 import { Connection, Keypair, PublicKey, type Transaction, type VersionedTransaction } from "@solana/web3.js";
 import idl from "@/idl/autoshield.json";
 import type { Autoshield } from "@/idl/autoshield";
@@ -22,6 +26,44 @@ import { plateHash } from "../plate";
 const n = (v: BN | number) => (typeof v === "number" ? v : Number(v.toString()));
 const enumKey = <T extends string>(v: object) => Object.keys(v)[0] as T;
 const enumVal = (k: string) => ({ [k]: {} }) as any;
+
+function mapParams(p: any): PoolParams {
+  return {
+    baseRateBps: p.baseRateBps,
+    cashbackBps: p.cashbackBps,
+    protocolFeeBps: p.protocolFeeBps,
+    minCollateralBps: p.minCollateralBps,
+    withdrawCooldownSecs: n(p.withdrawCooldownSecs),
+    claimVotingSecs: n(p.claimVotingSecs),
+    secondsPerDay: n(p.secondsPerDay),
+    claimWaitingSecs: n(p.claimWaitingSecs),
+    installmentGraceSecs: n(p.installmentGraceSecs),
+    governanceDelaySecs: n(p.governanceDelaySecs),
+    inspectionFee: n(p.inspectionFee),
+    voteReward: n(p.voteReward),
+    minVehicleValue: n(p.minVehicleValue),
+    faucetEnabled: p.faucetEnabled,
+  };
+}
+
+function toChainParams(p: PoolParams) {
+  return {
+    baseRateBps: p.baseRateBps,
+    cashbackBps: p.cashbackBps,
+    protocolFeeBps: p.protocolFeeBps,
+    minCollateralBps: p.minCollateralBps,
+    withdrawCooldownSecs: new BN(p.withdrawCooldownSecs),
+    claimVotingSecs: new BN(p.claimVotingSecs),
+    secondsPerDay: new BN(p.secondsPerDay),
+    claimWaitingSecs: new BN(p.claimWaitingSecs),
+    installmentGraceSecs: new BN(p.installmentGraceSecs),
+    governanceDelaySecs: new BN(p.governanceDelaySecs),
+    inspectionFee: new BN(p.inspectionFee),
+    voteReward: new BN(p.voteReward),
+    minVehicleValue: new BN(p.minVehicleValue),
+    faucetEnabled: p.faucetEnabled,
+  };
+}
 
 /** Carteira somente-leitura para consultas sem carteira conectada. */
 class ReadonlyWallet implements AnchorWallet {
@@ -115,19 +157,20 @@ export class OnChainClient implements AutoShieldClient {
       policyCount: n(p.policyCount),
       claimCount: n(p.claimCount),
       activePolicies: n(p.activePolicies),
-      params: {
-        baseRateBps: p.params.baseRateBps,
-        cashbackBps: p.params.cashbackBps,
-        minCollateralBps: p.params.minCollateralBps,
-        withdrawCooldownSecs: n(p.params.withdrawCooldownSecs),
-        claimVotingSecs: n(p.params.claimVotingSecs),
-        secondsPerDay: n(p.params.secondsPerDay),
-        claimWaitingSecs: n(p.params.claimWaitingSecs),
-        faucetEnabled: p.params.faucetEnabled,
-      },
+      params: mapParams(p.params),
       assessors: p.assessors.map((a) => a.toBase58()),
       approvalThreshold: p.approvalThreshold,
       paused: p.paused,
+      treasuryAccrued: n(p.treasuryAccrued),
+      pendingInspectionFees: n(p.pendingInspectionFees),
+      totalProtocolFees: n(p.totalProtocolFees),
+      totalAssessorRewards: n(p.totalAssessorRewards),
+      pendingParams: p.pendingParams ? mapParams(p.pendingParams) : null,
+      pendingParamsEta: n(p.pendingParamsEta),
+      pendingAssessors: p.pendingAssessors.map((a) => a.toBase58()),
+      pendingThreshold: p.pendingThreshold,
+      pendingAssessorsEta: n(p.pendingAssessorsEta),
+      pendingAuthority: p.pendingAuthority.equals(PublicKey.default) ? null : p.pendingAuthority.toBase58(),
     };
   }
 
@@ -167,6 +210,12 @@ export class OnChainClient implements AutoShieldClient {
       inspected: p.inspected,
       inspector: p.inspector.toBase58(),
       claimsAllowedFrom: n(p.claimsAllowedFrom),
+      premiumTotal: n(p.premiumTotal),
+      installments: p.installments,
+      installmentsPaid: p.installmentsPaid,
+      installmentPeriod: n(p.installmentPeriod),
+      protocolFeesPaid: n(p.protocolFeesPaid),
+      inspectionFee: n(p.inspectionFee),
     };
   }
 
@@ -193,14 +242,15 @@ export class OnChainClient implements AutoShieldClient {
   }
 
   async getPolicies(owner?: string): Promise<PolicyInfo[]> {
-    const filters = owner ? [{ memcmp: { offset: 8, bytes: owner } }] : [];
+    // layout: discriminador(8) + version(1) + owner(32)
+    const filters = owner ? [{ memcmp: { offset: 9, bytes: owner } }] : [];
     const all = await this.program.account.policy.all(filters);
     return all.map((a) => this.mapPolicy(a.publicKey, a.account)).sort((a, b) => b.startTs - a.startTs);
   }
 
   async getClaims(owner?: string): Promise<ClaimInfo[]> {
-    // layout: discriminador(8) + policy(32) + claimant(32)
-    const filters = owner ? [{ memcmp: { offset: 40, bytes: owner } }] : [];
+    // layout: discriminador(8) + version(1) + policy(32) + claimant(32)
+    const filters = owner ? [{ memcmp: { offset: 41, bytes: owner } }] : [];
     const all = await this.program.account.claim.all(filters);
     return all.map((a) => this.mapClaim(a.publicKey, a.account)).sort((a, b) => b.createdTs - a.createdTs);
   }
@@ -269,6 +319,7 @@ export class OnChainClient implements AutoShieldClient {
         vehicleValue: new BN(input.vehicleValue),
         tier: enumVal(input.tier),
         durationDays: input.durationDays,
+        installments: input.installments,
         maxPremium: new BN(input.maxPremium),
       })
       .accountsPartial({
@@ -304,7 +355,14 @@ export class OnChainClient implements AutoShieldClient {
     const c = await this.program.account.claim.fetch(claim);
     return this.program.methods
       .voteClaim(approve)
-      .accountsPartial({ assessor: this.me(), pool: this.poolPda, policy: c.policy, claim })
+      .accountsPartial({
+        assessor: this.me(),
+        pool: this.poolPda,
+        stableMint: await this.mint(),
+        vault: this.vaultPda,
+        policy: c.policy,
+        claim,
+      })
       .rpc();
   }
 
@@ -375,25 +433,26 @@ export class OnChainClient implements AutoShieldClient {
     return { authority: this.me(), pool: this.poolPda };
   }
 
-  async updateParams(params: PoolParams): Promise<string> {
+  async payInstallment(policyAddr: string): Promise<string> {
+    const me = this.me();
+    const mint = await this.mint();
     return this.program.methods
-      .updateParams({
-        baseRateBps: params.baseRateBps,
-        cashbackBps: params.cashbackBps,
-        minCollateralBps: params.minCollateralBps,
-        withdrawCooldownSecs: new BN(params.withdrawCooldownSecs),
-        claimVotingSecs: new BN(params.claimVotingSecs),
-        secondsPerDay: new BN(params.secondsPerDay),
-        claimWaitingSecs: new BN(params.claimWaitingSecs),
-        faucetEnabled: params.faucetEnabled,
-      })
-      .accountsPartial(this.admin())
+      .payInstallment()
+      .accountsPartial({ owner: me, ...this.tokenAccounts(me, mint), policy: new PublicKey(policyAddr) })
       .rpc();
   }
 
-  async setAssessors(assessors: string[], threshold: number): Promise<string> {
+  async proposeParams(params: PoolParams): Promise<string> {
+    return this.program.methods.proposeParams(toChainParams(params)).accountsPartial(this.admin()).rpc();
+  }
+
+  async applyParams(): Promise<string> {
+    return this.program.methods.applyParams().accountsPartial({ caller: this.me(), pool: this.poolPda }).rpc();
+  }
+
+  async proposeAssessors(assessors: string[], threshold: number): Promise<string> {
     return this.program.methods
-      .setAssessors(
+      .proposeAssessors(
         assessors.map((a) => new PublicKey(a)),
         threshold,
       )
@@ -401,14 +460,40 @@ export class OnChainClient implements AutoShieldClient {
       .rpc();
   }
 
+  async applyAssessors(): Promise<string> {
+    return this.program.methods.applyAssessors().accountsPartial({ caller: this.me(), pool: this.poolPda }).rpc();
+  }
+
+  async cancelPending(): Promise<string> {
+    return this.program.methods.cancelPending().accountsPartial(this.admin()).rpc();
+  }
+
   async setPaused(paused: boolean): Promise<string> {
     return this.program.methods.setPaused(paused).accountsPartial(this.admin()).rpc();
   }
 
-  async transferAuthority(newAuthority: string): Promise<string> {
+  async proposeAuthority(newAuthority: string): Promise<string> {
     return this.program.methods
-      .transferAuthority(new PublicKey(newAuthority))
+      .proposeAuthority(new PublicKey(newAuthority))
       .accountsPartial(this.admin())
+      .rpc();
+  }
+
+  async acceptAuthority(): Promise<string> {
+    return this.program.methods
+      .acceptAuthority()
+      .accountsPartial({ newAuthority: this.me(), pool: this.poolPda })
+      .rpc();
+  }
+
+  async withdrawTreasury(amount: number): Promise<string> {
+    const me = this.me();
+    const mint = await this.mint();
+    const destination = getAssociatedTokenAddressSync(mint, me);
+    return this.program.methods
+      .withdrawTreasury(new BN(amount))
+      .accountsPartial({ authority: me, pool: this.poolPda, stableMint: mint, vault: this.vaultPda, destination })
+      .preInstructions([createAssociatedTokenAccountIdempotentInstruction(me, destination, me, mint)])
       .rpc();
   }
 }

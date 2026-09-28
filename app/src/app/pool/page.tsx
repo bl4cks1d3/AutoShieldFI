@@ -27,7 +27,8 @@ export default function PoolPage() {
   if (!data?.pool) return <PoolMissing />;
   const { pool, stake, balance, now } = data;
 
-  const nav = Math.max(0, pool.vaultBalance - pool.reservedCashback);
+  const liabilities = pool.reservedCashback + pool.treasuryAccrued + pool.pendingInspectionFees;
+  const nav = Math.max(0, pool.vaultBalance - liabilities);
   const sharePrice = pool.totalShares ? nav / pool.totalShares : 1;
   const required = (pool.totalActiveCoverage * pool.params.minCollateralBps) / 10_000 + pool.pendingClaims;
   const collateralRatio = pool.totalActiveCoverage ? nav / pool.totalActiveCoverage : 0;
@@ -94,8 +95,12 @@ export default function PoolPage() {
             <Row label="Capital mínimo exigido" value={fmtMoney(Math.ceil(required))} />
             <Row label="Livre para saque" value={fmtMoney(freeToWithdraw)} />
             <Row label="Cashback reservado a motoristas" value={fmtMoney(pool.reservedCashback)} />
+            <Row label="Receita do protocolo (tesouraria)" value={fmtMoney(pool.treasuryAccrued)} />
+            <Row label="Taxas de vistoria pendentes" value={fmtMoney(pool.pendingInspectionFees)} />
             <Row label="Sinistros pendentes" value={fmtMoney(pool.pendingClaims)} />
             <Row label="Prêmios arrecadados" value={fmtMoney(pool.totalPremiums)} />
+            <Row label={`Taxa do protocolo (${pool.params.protocolFeeBps / 100}% do prêmio)`} value={fmtMoney(pool.totalProtocolFees)} />
+            <Row label="Pago a avaliadores" value={fmtMoney(pool.totalAssessorRewards)} />
             <Row label="Cashback devolvido" value={fmtMoney(pool.totalCashbackPaid)} />
             <Row label="Carência de saque" value={fmtDuration(pool.params.withdrawCooldownSecs)} />
             <Row

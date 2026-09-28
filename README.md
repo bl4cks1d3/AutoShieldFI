@@ -59,12 +59,19 @@ Além disso, o modelo econômico inclui um mecanismo de staking que possibilita 
 | **Staking (LPs)** | Provedores aportam stablecoin e recebem cotas proporcionais ao patrimônio do pool; prêmios valorizam a cota e indenizações a desvalorizam |
 | **Solvência** | Nova apólice ou saque só é aceito se `patrimônio ≥ 10% da cobertura ativa + sinistros pendentes` |
 | **Sinistros** | Motorista registra (tipo, valor, descrição, hash SHA-256 das evidências) → comitê de avaliadores vota com quórum → pagamento permissionless direto do cofre. Sem quórum no prazo, qualquer pessoa pode encerrar o pedido |
-| **Antifraude** | Registro único por placa (PDA do hash SHA-256 da placa normalizada) impede segurar o mesmo carro duas vezes · vistoria prévia por um avaliador antes de qualquer sinistro (recusada = prêmio devolvido integralmente) · carência configurável entre contratação e sinistro (padrão 7 dias) · avaliador não vota nem vistoria a própria apólice |
-| **Governança** | Autoridade do pool ajusta parâmetros, avaliadores, pausa e transferência de autoridade |
+| **Parcelamento** | À vista ou em até 12x sem juros (cada parcela cobre ao menos 30 dias). Sinistro só com parcelas em dia; atraso além da tolerância (padrão 5 dias) faz a apólice caducar e perder o cashback |
+| **Receita e avaliadores** | Taxa do protocolo (padrão 5% do prêmio) vai para a tesouraria, sacável só pela autoridade. O avaliador recebe a taxa de vistoria (paga pelo motorista, padrão 50 tBRL) e uma remuneração por voto (padrão 10 tBRL) paga da tesouraria |
+| **Antifraude** | Registro único por placa (PDA do hash SHA-256 da placa normalizada), travado só na vistoria aprovada — contratar a placa de outra pessoa não bloqueia o dono · vistoria prévia obrigatória (recusada = prêmio devolvido, taxa de vistoria não) · carência entre contratação e sinistro (padrão 7 dias) · valor FIPE mínimo · avaliador não vota nem vistoria a própria apólice |
+| **Segurança do capital** | Pool só pode ser criado pela autoridade de upgrade do programa · sinistro pago apenas com o patrimônio livre dos LPs (nunca com cashback reservado ou taxas); sem liquidez ele segue aprovado, sem pagamento parcial · cotas "mortas" no primeiro aporte contra ataque de inflação · contas com versão e espaço reservado para upgrades |
+| **Governança** | Mudanças de parâmetros e de avaliadores passam por timelock (propor → aguardar → aplicar, canceláveis) · transferência de autoridade em dois passos (propor + aceite da nova carteira) · pausa de emergência imediata |
 
 ### Instruções do programa
 
-`initialize_pool`, `update_params`, `set_assessors`, `set_paused`, `transfer_authority`, `init_test_mint`, `faucet`, `deposit_liquidity`, `withdraw_liquidity`, `purchase_policy`, `inspect_policy`, `settle_policy`, `file_claim`, `vote_claim`, `expire_claim`, `pay_claim`.
+- **Governança:** `initialize_pool`, `propose_params`, `apply_params`, `propose_assessors`, `apply_assessors`, `cancel_pending`, `set_paused`, `propose_authority`, `accept_authority`, `withdraw_treasury`
+- **Token de teste:** `init_test_mint`, `faucet`
+- **Liquidez:** `deposit_liquidity`, `withdraw_liquidity`
+- **Apólices:** `purchase_policy`, `pay_installment`, `inspect_policy`, `settle_policy`
+- **Sinistros:** `file_claim`, `vote_claim`, `expire_claim`, `pay_claim`
 
 ## Como rodar
 
@@ -107,7 +114,7 @@ Requisitos: Rust, Solana CLI (Agave 2.1.x), Anchor CLI 0.31.1, Node 20+ e Yarn.
 yarn install
 anchor build                         # compila o programa e gera o IDL
 cargo test -p autoshield             # testes unitários de precificação
-anchor test                          # 17 testes de integração no validador local
+anchor test                          # 22 testes de integração no validador local
 ```
 
 > O `Cargo.lock` fixa `blake3 = 1.5.5` e versões compatíveis com o Rust 1.79 do toolchain SBF da Agave 2.1.
@@ -121,7 +128,9 @@ solana airdrop 2                      # repita até ter ~4 SOL (ou use faucet.so
 anchor keys sync                      # gera/atualiza o Program ID no código
 anchor build && anchor deploy --provider.cluster devnet
 # inicializa mint tBRL, pool e 500k de liquidez. SECONDS_PER_DAY=60 acelera a demo (1 dia = 1 min)
-SECONDS_PER_DAY=60 CLAIM_WAITING_SECS=120 ASSESSORS=<pubkey1>,<pubkey2> anchor run bootstrap --provider.cluster devnet
+# carência, timelock e tolerância curtos para a demo; veja scripts/bootstrap.ts para todas as variáveis
+SECONDS_PER_DAY=60 CLAIM_WAITING_SECS=120 GOVERNANCE_DELAY_SECS=300 INSTALLMENT_GRACE_SECS=300 \
+  ASSESSORS=<pubkey1>,<pubkey2> anchor run bootstrap --provider.cluster devnet
 cd app && npm run sync-idl
 cp .env.example .env.local            # ajuste NEXT_PUBLIC_PROGRAM_ID
 npm run dev                           # selecione "Devnet" no topo e conecte a Phantom/Solflare
@@ -239,8 +248,10 @@ Additionally, the protocol includes a staking-based economic model that enables 
 - **On-chain program** (`programs/autoshield`, Anchor 0.31): a mutual risk pool whose LPs stake stablecoin for shares; drivers buy policies priced on-chain (`FIPE value × 3.5%/yr × tier multiplier × days/365`); claims are voted by an assessor committee with a quorum and paid permissionlessly from the vault (5% deductible for partial damage); drivers without paid claims get 20% of the premium back when settling an expired policy; a 10% minimum-collateral rule guards solvency on every purchase and withdrawal.
 - **Frontend** (`app/`, Next.js 16 + Tailwind + Solana Wallet Adapter, installable PWA): quote with FIPE lookup, policies, claims with SHA-256 evidence hashing, LP staking dashboard and assessor panel. A **Demo mode** runs the same rules in the browser (with a time-travel control) so the full lifecycle can be shown without a wallet.
 - **Run the app:** `cd app && npm install && npm run dev`.
-- **Anti-fraud:** one active policy per vehicle (PDA keyed by the plate's SHA-256), mandatory assessor inspection before any claim (rejection refunds the premium), a claim waiting period (default 7 days), and assessors can never vote on or inspect their own policy.
-- **Program:** `yarn install && anchor build && anchor test` (17 integration tests). Deploy + `anchor run bootstrap --provider.cluster devnet` to create the tBRL test mint, the pool and seed liquidity.
+- **Anti-fraud:** one active policy per vehicle (PDA keyed by the plate's SHA-256, locked only when an inspection is approved), mandatory assessor inspection before any claim (rejection refunds the premium but not the inspection fee), a claim waiting period (default 7 days), a minimum vehicle value, and assessors can never vote on or inspect their own policy.
+- **Security:** only the program upgrade authority can create the pool; parameter and assessor changes go through a timelock; authority transfer is two-step; claims are paid only from LP net assets (never partially); dead shares block share-inflation attacks; accounts are versioned with reserved space.
+- **Revenue and installments:** a protocol fee on premiums funds a treasury that pays assessors per vote; drivers pay an inspection fee to the inspector; policies can be paid in up to 12 interest-free installments and lapse when payments fall behind.
+- **Program:** `yarn install && anchor build && anchor test` (22 integration tests). Deploy + `anchor run bootstrap --provider.cluster devnet` to create the tBRL test mint, the pool and seed liquidity.
 
 ## How to Contribute
 

@@ -40,9 +40,11 @@ function ClaimsView() {
   if (!data) return null;
 
   const eligible = data.policies.filter(
-    (p) => policyPhase(p, data.now) === "covered" && !p.hasOpenClaim && p.coverageLimit > p.totalPaidOut,
+    (p) => policyPhase(p, data.now, data.pool?.params.installmentGraceSecs ?? 0) === "covered" && !p.hasOpenClaim && p.coverageLimit > p.totalPaidOut,
   );
-  const blocked = data.policies.filter((p) => ["inspection", "waiting"].includes(policyPhase(p, data.now)));
+  const blocked = data.policies.filter((p) =>
+    ["inspection", "waiting", "overdue"].includes(policyPhase(p, data.now, data.pool?.params.installmentGraceSecs ?? 0)),
+  );
   const policyById = new Map(data.policies.map((p) => [p.address, p]));
 
   return (
@@ -54,9 +56,11 @@ function ClaimsView() {
             {blocked.map((p) => (
               <p key={p.address}>
                 <b className="text-[var(--fg)]">{p.plate}</b> ·{" "}
-                {p.inspected
-                  ? `em carência até ${fmtDate(p.claimsAllowedFrom)}`
-                  : "aguardando vistoria de um avaliador"}
+                {!p.inspected
+                  ? "aguardando vistoria de um avaliador"
+                  : data.now < p.claimsAllowedFrom
+                    ? `em carência até ${fmtDate(p.claimsAllowedFrom)}`
+                    : "parcela em atraso: pague para voltar a ter cobertura"}
               </p>
             ))}
           </div>

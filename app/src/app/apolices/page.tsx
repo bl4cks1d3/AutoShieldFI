@@ -1,12 +1,13 @@
 "use client";
 
-import { AlertTriangle, ClipboardCheck, Coins, ExternalLink, FileWarning, Hourglass, ShieldCheck, ShieldOff, Undo2 } from "lucide-react";
+import { AlertTriangle, ClipboardCheck, Wallet, Coins, ExternalLink, FileWarning, Hourglass, ShieldCheck, ShieldOff, Undo2 } from "lucide-react";
 import Link from "next/link";
 import { useAction, useApp, useData } from "@/components/Providers";
 import { Chip, Empty, Loading, PageHeader, Progress, Row, Spinner, WalletGate } from "@/components/ui";
 import { explorerAddr } from "@/lib/config";
 import { fmtDate, fmtDuration, fmtMoney, TIER_LABEL } from "@/lib/format";
 import { policyPhase } from "@/lib/plate";
+import { installmentAmount, paidUntil } from "@/lib/pricing";
 import type { PolicyInfo } from "@/lib/types";
 
 export default function ApolicesPage() {
@@ -31,7 +32,11 @@ export default function ApolicesPage() {
 function PolicyList() {
   const { client } = useApp();
   const { data, loading } = useData(
-    async (c) => ({ policies: await c.getPolicies(c.wallet!), now: await c.now() }),
+    async (c) => ({
+      policies: await c.getPolicies(c.wallet!),
+      now: await c.now(),
+      grace: (await c.getPool())?.params.installmentGraceSecs ?? 0,
+    }),
     [client.wallet],
   );
 
@@ -49,25 +54,32 @@ function PolicyList() {
   return (
     <div className="grid gap-4 md:grid-cols-2">
       {data.policies.map((p) => (
-        <PolicyCard key={p.address} p={p} now={data.now} />
+        <PolicyCard key={p.address} p={p} now={data.now} grace={data.grace} />
       ))}
     </div>
   );
 }
 
-function PolicyCard({ p, now }: { p: PolicyInfo; now: number }) {
+function PolicyCard({ p, now, grace }: { p: PolicyInfo; now: number; grace: number }) {
   const { client } = useApp();
   const { run, busy } = useAction();
   const total = p.endTs - p.startTs;
   const elapsed = Math.min(Math.max(now - p.startTs, 0), total);
   const expired = now > p.endTs;
   const active = p.status === "active";
-  const phase = policyPhase(p, now);
+  const phase = policyPhase(p, now, grace);
+  const fullyPaid = p.installmentsPaid >= p.installments;
+  const nextAmount = installmentAmount(p.premiumTotal, p.installments, p.installmentsPaid + 1);
+  const dueAt = paidUntil(p);
+  const canSettle = active && !p.hasOpenClaim && (expired || phase === "lapsed");
+  const cashbackOnSettle = expired && fullyPaid && !p.hadPaidClaim && p.inspected && p.cashbackAmount > 0;
 
   let status: { label: string; tone: "ok" | "warn" | "bad" | "info" | "neutral" };
   if (phase === "cancelled") status = { label: "Recusada na vistoria", tone: "bad" };
   else if (phase === "settled") status = { label: "Encerrada", tone: "neutral" };
   else if (p.hasOpenClaim) status = { label: "Sinistro em andamento", tone: "warn" };
+  else if (phase === "lapsed") status = { label: "Caducada — parcela vencida", tone: "bad" };
+  else if (phase === "overdue") status = { label: "Parcela em atraso", tone: "warn" };
   else if (phase === "expired") status = { label: "Vencida — liquidar", tone: "info" };
   else if (phase === "inspection") status = { label: "Aguardando vistoria", tone: "warn" };
   else if (phase === "waiting") status = { label: "Em carência", tone: "info" };
@@ -77,7 +89,7 @@ function PolicyCard({ p, now }: { p: PolicyInfo; now: number }) {
     run(
       `settle-${p.address}`,
       () => client.settle(p.address),
-      !p.hadPaidClaim && p.cashbackAmount > 0 ? `Cashback de ${fmtMoney(p.cashbackAmount)} recebido!` : "Apólice encerrada",
+      cashbackOnSettle ? `Cashback de ${fmtMoney(p.cashbackAmount)} recebido!` : "Apólice encerrada",
     );
 
   return (
@@ -107,7 +119,13 @@ function PolicyCard({ p, now }: { p: PolicyInfo; now: number }) {
 
       <div className="mt-4 divide-y divide-[var(--border)] text-sm">
         <Row label="Cobertura restante" value={fmtMoney(p.coverageLimit - p.totalPaidOut)} />
-        <Row label="Prêmio pago" value={fmtMoney(p.premiumPaid)} />
+        <Row
+          label={p.installments > 1 ? `Prêmio pago (${p.installmentsPaid}/${p.installments} parcelas)` : "Prêmio pago"}
+          value={p.installments > 1 ? `${fmtMoney(p.premiumPaid)} de ${fmtMoney(p.premiumTotal)}` : fmtMoney(p.premiumPaid)}
+        />
+        {active && !fullyPaid && phase !== "lapsed" && (
+          <Row label="Próxima parcela" value={`${fmtMoney(nextAmount)} até ${fmtDate(dueAt)}`} />
+        )}
         <Row label="Franquia" value={fmtMoney(p.deductible)} />
         <Row label="Vigência até" value={fmtDate(p.endTs)} />
         {p.totalPaidOut > 0 && <Row label="Indenizações recebidas" value={fmtMoney(p.totalPaidOut)} />}
@@ -116,8 +134,10 @@ function PolicyCard({ p, now }: { p: PolicyInfo; now: number }) {
           value={
             p.cashbackRedeemed ? (
               <span className="text-[var(--ok)]">{fmtMoney(p.cashbackAmount)} resgatado</span>
-            ) : p.hadPaidClaim ? (
-              <span className="text-[var(--muted)] line-through">{fmtMoney(p.cashbackAmount)}</span>
+            ) : p.hadPaidClaim || p.status !== "active" ? (
+              <span className="text-[var(--muted)]">não se aplica</span>
+            ) : !fullyPaid ? (
+              <span className="text-[var(--ok)]">{fmtMoney(p.cashbackAmount)} acumulado</span>
             ) : (
               <span className="text-[var(--ok)]">{fmtMoney(p.cashbackAmount)}</span>
             )
@@ -128,7 +148,19 @@ function PolicyCard({ p, now }: { p: PolicyInfo; now: number }) {
       {phase === "inspection" && (
         <p className="mt-3 flex items-start gap-1.5 text-xs text-[var(--muted)]">
           <ClipboardCheck className="mt-0.5 size-3.5 shrink-0" /> Um avaliador precisa confirmar o veículo e o valor FIPE.
-          Se a vistoria for recusada, o prêmio volta integralmente.
+          Se a vistoria for recusada, o prêmio pago volta; a taxa de vistoria fica com o avaliador.
+        </p>
+      )}
+      {phase === "overdue" && (
+        <p className="mt-3 flex items-start gap-1.5 text-xs text-[var(--warn)]">
+          <AlertTriangle className="mt-0.5 size-3.5 shrink-0" /> Parcela vencida: sem cobertura até o pagamento. Pague antes
+          de {fmtDate(dueAt + grace)} ou a apólice caduca.
+        </p>
+      )}
+      {phase === "lapsed" && (
+        <p className="mt-3 flex items-start gap-1.5 text-xs text-[var(--muted)]">
+          <AlertTriangle className="mt-0.5 size-3.5 shrink-0" /> A apólice caducou por falta de pagamento. Encerre-a para
+          liberar a placa e contratar de novo.
         </p>
       )}
       {phase === "waiting" && (
@@ -161,10 +193,21 @@ function PolicyCard({ p, now }: { p: PolicyInfo; now: number }) {
             <FileWarning className="size-4" /> Acompanhar sinistro
           </Link>
         )}
-        {active && expired && !p.hasOpenClaim && (
+        {active && !fullyPaid && !expired && phase !== "lapsed" && (
+          <button
+            className={`btn ${phase === "overdue" ? "btn-primary" : "btn-ghost"}`}
+            disabled={!!busy}
+            onClick={() =>
+              run(`inst-${p.address}`, () => client.payInstallment(p.address), `Parcela ${p.installmentsPaid + 1}/${p.installments} paga`)
+            }
+          >
+            {busy === `inst-${p.address}` ? <Spinner /> : <Wallet className="size-4" />} Pagar parcela {p.installmentsPaid + 1}/{p.installments}
+          </button>
+        )}
+        {canSettle && (
           <button className="btn btn-primary" disabled={!!busy} onClick={settle}>
             {busy === `settle-${p.address}` ? <Spinner /> : <Coins className="size-4" />}
-            {!p.hadPaidClaim && p.cashbackAmount > 0 ? `Resgatar ${fmtMoney(p.cashbackAmount)}` : "Encerrar apólice"}
+            {cashbackOnSettle ? `Resgatar ${fmtMoney(p.cashbackAmount)}` : "Encerrar apólice"}
           </button>
         )}
         {p.status === "settled" && (

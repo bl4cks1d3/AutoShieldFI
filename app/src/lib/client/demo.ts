@@ -9,12 +9,28 @@ import type {
   StakeInfo,
 } from "../types";
 import { normalizePlate } from "../plate";
-import { FAUCET_MAX, MAX_DAYS, MIN_DAYS, TIER_COVERS, UNIT, expectedPayout, quote } from "../pricing";
+import {
+  DEAD_SHARES,
+  FAUCET_MAX,
+  MAX_DAYS,
+  MAX_INSTALLMENTS,
+  MIN_DAYS,
+  MIN_DAYS_PER_INSTALLMENT,
+  MIN_FIRST_DEPOSIT,
+  TIER_COVERS,
+  UNIT,
+  expectedPayout,
+  installmentAmount,
+  isLapsed,
+  paidUntil,
+  quote,
+  splitPayment,
+} from "../pricing";
 
 // Simulacao local (localStorage) que replica as regras do programa on-chain.
 // Permite demonstrar o fluxo completo sem carteira, SOL ou deploy.
 
-const KEY = "autoshield-demo-v2";
+const KEY = "autoshield-demo-v3";
 export const DEMO_WALLET = "DemoMotorista1111111111111111111111111111111";
 export const DEMO_ASSESSORS = [
   "Avaliador1Demo11111111111111111111111111111",
@@ -30,18 +46,36 @@ interface DemoState {
   policies: PolicyInfo[];
   claims: ClaimInfo[];
   stakes: Record<string, StakeInfo>;
-  /** Registro unico por veiculo: placa normalizada -> apolice ativa. */
+  /** Registro unico por veiculo: placa normalizada -> apolice vistoriada e ativa. */
   vehicles: Record<string, string>;
 }
 
+const DEFAULT_PARAMS: PoolParams = {
+  baseRateBps: 350,
+  cashbackBps: 2000,
+  protocolFeeBps: 500,
+  minCollateralBps: 1000,
+  withdrawCooldownSecs: 7 * 86400,
+  claimVotingSecs: 3 * 86400,
+  secondsPerDay: 86400,
+  claimWaitingSecs: 7 * 86400,
+  installmentGraceSecs: 5 * 86400,
+  governanceDelaySecs: 86400,
+  inspectionFee: 50 * UNIT,
+  voteReward: 10 * UNIT,
+  minVehicleValue: 5_000 * UNIT,
+  faucetEnabled: true,
+};
+
 function initialState(): DemoState {
+  // Liquidez inicial de LPs simulados (as cotas nao pertencem ao usuario).
   const seedLiquidity = 750_000 * UNIT;
   return {
     timeOffset: 0,
     txCount: 0,
     pool: {
       address: "PoolDemo111111111111111111111111111111111111",
-      authority: "AdminDemo11111111111111111111111111111111111",
+      authority: DEMO_WALLET,
       stableMint: "tBRLDemo11111111111111111111111111111111111",
       vault: "VaultDemo1111111111111111111111111111111111",
       vaultBalance: seedLiquidity,
@@ -55,19 +89,20 @@ function initialState(): DemoState {
       policyCount: 0,
       claimCount: 0,
       activePolicies: 0,
-      params: {
-        baseRateBps: 350,
-        cashbackBps: 2000,
-        minCollateralBps: 1000,
-        withdrawCooldownSecs: 7 * 86400,
-        claimVotingSecs: 3 * 86400,
-        secondsPerDay: 86400,
-        claimWaitingSecs: 7 * 86400,
-        faucetEnabled: true,
-      },
+      params: { ...DEFAULT_PARAMS },
       assessors: DEMO_ASSESSORS,
       approvalThreshold: 2,
       paused: false,
+      treasuryAccrued: 0,
+      pendingInspectionFees: 0,
+      totalProtocolFees: 0,
+      totalAssessorRewards: 0,
+      pendingParams: null,
+      pendingParamsEta: 0,
+      pendingAssessors: [],
+      pendingThreshold: 0,
+      pendingAssessorsEta: 0,
+      pendingAuthority: null,
     },
     balances: {},
     policies: [],
@@ -117,6 +152,26 @@ function fail(msg: string): never {
   throw new Error(`Error Message: ${msg}.`);
 }
 
+function validParams(p: PoolParams) {
+  return (
+    p.baseRateBps > 0 &&
+    p.baseRateBps <= 5_000 &&
+    p.cashbackBps <= 5_000 &&
+    p.protocolFeeBps <= 3_000 &&
+    p.cashbackBps + p.protocolFeeBps < 10_000 &&
+    p.minCollateralBps > 0 &&
+    p.minCollateralBps <= 10_000 &&
+    p.withdrawCooldownSecs >= 0 &&
+    p.claimVotingSecs > 0 &&
+    p.secondsPerDay > 0 &&
+    p.secondsPerDay <= 86_400 &&
+    p.claimWaitingSecs >= 0 &&
+    p.installmentGraceSecs >= 0 &&
+    p.governanceDelaySecs >= 0 &&
+    p.minVehicleValue > 0
+  );
+}
+
 export class DemoClient implements AutoShieldClient {
   readonly mode = "demo" as const;
   readonly wallet = DEMO_WALLET;
@@ -132,8 +187,12 @@ export class DemoClient implements AutoShieldClient {
     return `demo-tx-${s.txCount}`;
   }
 
+  private liabilities(s: DemoState) {
+    return s.pool.reservedCashback + s.pool.treasuryAccrued + s.pool.pendingInspectionFees;
+  }
+
   private nav(s: DemoState) {
-    return Math.max(0, s.pool.vaultBalance - s.pool.reservedCashback);
+    return Math.max(0, s.pool.vaultBalance - this.liabilities(s));
   }
 
   private required(s: DemoState, coverage: number) {
@@ -148,6 +207,19 @@ export class DemoClient implements AutoShieldClient {
 
   private credit(s: DemoState, who: string, amount: number) {
     s.balances[who] = (s.balances[who] ?? 0) + amount;
+  }
+
+  /** Mesma contabilidade de account_payment no contrato. */
+  private accountPayment(s: DemoState, p: PolicyInfo, amount: number) {
+    const { fee, cashback } = splitPayment(s.pool.params, amount, !p.hadPaidClaim);
+    s.pool.treasuryAccrued += fee;
+    s.pool.totalProtocolFees += fee;
+    s.pool.reservedCashback += cashback;
+    s.pool.totalPremiums += amount;
+    p.protocolFeesPaid += fee;
+    p.cashbackAmount += cashback;
+    p.premiumPaid += amount;
+    p.installmentsPaid += 1;
   }
 
   async now() {
@@ -188,13 +260,22 @@ export class DemoClient implements AutoShieldClient {
   async deposit(amount: number) {
     await delay();
     const s = load();
+    if (s.pool.paused) fail("O protocolo está pausado");
     if (amount <= 0) fail("Quantidade deve ser maior que zero");
-    const nav = this.nav(s);
-    const shares =
-      s.pool.totalShares === 0 ? amount : Math.floor((amount * s.pool.totalShares) / Math.max(nav, 1));
+    const first = s.pool.totalShares === 0;
+    let shares: number;
+    if (first) {
+      if (amount < MIN_FIRST_DEPOSIT) fail("Primeiro aporte abaixo do mínimo");
+      shares = amount - DEAD_SHARES;
+    } else {
+      const nav = this.nav(s);
+      if (nav <= 0) fail("Liquidez insuficiente no pool para garantir a cobertura");
+      shares = Math.floor((amount * s.pool.totalShares) / nav);
+    }
+    if (shares <= 0) fail("Quantidade deve ser maior que zero");
     this.debit(s, this.wallet, amount);
     s.pool.vaultBalance += amount;
-    s.pool.totalShares += shares;
+    s.pool.totalShares += first ? amount : shares;
     const pos = s.stakes[this.wallet] ?? { shares: 0, totalDeposited: 0, totalWithdrawn: 0, lastDepositTs: 0 };
     pos.shares += shares;
     pos.totalDeposited += amount;
@@ -212,6 +293,7 @@ export class DemoClient implements AutoShieldClient {
       fail("Período de carência de saque ainda não terminou");
     const nav = this.nav(s);
     const amount = Math.floor((shares * nav) / s.pool.totalShares);
+    if (amount <= 0) fail("Quantidade deve ser maior que zero");
     if (nav - amount < this.required(s, s.pool.totalActiveCoverage))
       fail("Saque deixaria o pool abaixo do colateral mínimo");
     s.pool.vaultBalance -= amount;
@@ -225,27 +307,33 @@ export class DemoClient implements AutoShieldClient {
   async purchase(input: PurchaseInput) {
     await delay();
     const s = load();
+    const params = s.pool.params;
     if (s.pool.paused) fail("O protocolo está pausado");
     if (input.durationDays < MIN_DAYS || input.durationDays > MAX_DAYS)
       fail("Duração da apólice fora do intervalo permitido (30 a 365 dias)");
-    if (input.vehicleValue <= 0) fail("Valor do veículo inválido");
+    const n = input.installments;
+    if (n < 1 || n > MAX_INSTALLMENTS || input.durationDays < MIN_DAYS_PER_INSTALLMENT * n)
+      fail("Número de parcelas inválido para a vigência escolhida");
+    if (input.vehicleValue < params.minVehicleValue) fail("Valor do veículo inválido");
     const plate = normalizePlate(input.plate);
     if (!plate || plate.length > 10) fail("Placa inválida");
     if (s.vehicles[plate]) fail("Este veículo já possui uma apólice ativa");
-    const q = quote(s.pool.params, input.vehicleValue, input.tier, input.durationDays);
-    if (q.premium <= 0) fail("Valor do veículo inválido");
+    const q = quote(params, input.vehicleValue, input.tier, input.durationDays);
+    if (q.premium < n) fail("Valor do veículo inválido");
     if (q.premium > input.maxPremium) fail("Prêmio acima do máximo aceito");
+    const first = installmentAmount(q.premium, n, 1);
+    const { fee, cashback } = splitPayment(params, first);
     const coverageAfter = s.pool.totalActiveCoverage + q.coverageLimit;
-    const navAfter = s.pool.vaultBalance + q.premium - (s.pool.reservedCashback + q.cashback);
-    if (navAfter < this.required(s, coverageAfter))
+    if (this.nav(s) + first - fee - cashback < this.required(s, coverageAfter))
       fail("Liquidez insuficiente no pool para garantir a cobertura");
-    this.debit(s, this.wallet, q.premium);
+    this.debit(s, this.wallet, first + params.inspectionFee);
+    s.pool.vaultBalance += first + params.inspectionFee;
+
     const now = this.clock(s);
     const id = s.pool.policyCount;
-    const address = `PolicyDemo${String(id).padStart(4, "0")}${Math.random().toString(36).slice(2, 10)}`;
-    s.vehicles[plate] = address;
-    s.policies.push({
-      address,
+    const durationSecs = input.durationDays * params.secondsPerDay;
+    const policy: PolicyInfo = {
+      address: `PolicyDemo${String(id).padStart(4, "0")}${Math.random().toString(36).slice(2, 10)}`,
       owner: this.wallet,
       id,
       nonce: String(Date.now()),
@@ -255,12 +343,18 @@ export class DemoClient implements AutoShieldClient {
       vehicleValue: input.vehicleValue,
       tier: input.tier,
       durationDays: input.durationDays,
-      premiumPaid: q.premium,
+      premiumTotal: q.premium,
+      premiumPaid: 0,
+      installments: n,
+      installmentsPaid: 0,
+      installmentPeriod: Math.floor(durationSecs / n),
       coverageLimit: q.coverageLimit,
       deductible: q.deductible,
-      cashbackAmount: q.cashback,
+      cashbackAmount: 0,
+      protocolFeesPaid: 0,
+      inspectionFee: params.inspectionFee,
       startTs: now,
-      endTs: now + input.durationDays * s.pool.params.secondsPerDay,
+      endTs: now + durationSecs,
       status: "active",
       claimsFiled: 0,
       hasOpenClaim: false,
@@ -269,14 +363,30 @@ export class DemoClient implements AutoShieldClient {
       cashbackRedeemed: false,
       inspected: false,
       inspector: "",
-      claimsAllowedFrom: now + s.pool.params.claimWaitingSecs,
-    });
-    s.pool.vaultBalance += q.premium;
-    s.pool.reservedCashback += q.cashback;
+      claimsAllowedFrom: now + params.claimWaitingSecs,
+    };
+    this.accountPayment(s, policy, first);
+    s.policies.push(policy);
+    s.pool.pendingInspectionFees += params.inspectionFee;
     s.pool.totalActiveCoverage = coverageAfter;
-    s.pool.totalPremiums += q.premium;
     s.pool.policyCount += 1;
     s.pool.activePolicies += 1;
+    return this.tx(s);
+  }
+
+  async payInstallment(policyAddr: string) {
+    await delay();
+    const s = load();
+    const p = s.policies.find((x) => x.address === policyAddr);
+    if (!p || p.owner !== this.wallet) fail("Operação não autorizada");
+    if (p.status !== "active") fail("A apólice não está ativa");
+    if (p.installmentsPaid >= p.installments) fail("Todas as parcelas desta apólice já foram pagas");
+    if (isLapsed(p, this.clock(s), s.pool.params.installmentGraceSecs))
+      fail("Apólice caducada por parcela em atraso");
+    const amount = installmentAmount(p.premiumTotal, p.installments, p.installmentsPaid + 1);
+    this.debit(s, this.wallet, amount);
+    s.pool.vaultBalance += amount;
+    this.accountPayment(s, p, amount);
     return this.tx(s);
   }
 
@@ -290,6 +400,7 @@ export class DemoClient implements AutoShieldClient {
     if (now < p.startTs || now > p.endTs) fail("A apólice está fora do período de vigência");
     if (!p.inspected) fail("A apólice ainda não passou pela vistoria");
     if (now < p.claimsAllowedFrom) fail("Sinistro dentro do período de carência da apólice");
+    if (now > paidUntil(p)) fail("Apólice caducada por parcela em atraso");
     if (p.hasOpenClaim) fail("Já existe um sinistro em aberto para esta apólice");
     if (!TIER_COVERS[p.tier].includes(input.kind)) fail("O plano contratado não cobre este tipo de sinistro");
     if (input.amount <= 0) fail("Quantidade deve ser maior que zero");
@@ -329,10 +440,10 @@ export class DemoClient implements AutoShieldClient {
     if (!s.pool.assessors.includes(voter)) fail("Assinante não é um avaliador do pool");
     const c = s.claims.find((x) => x.address === claimAddr);
     if (!c) fail("Sinistro não encontrado");
+    if (c.claimant === voter) fail("Avaliador não pode votar ou vistoriar a própria apólice");
     if (c.status !== "pending") fail("O sinistro não está pendente");
     const now = this.clock(s);
     if (now > c.votingDeadline) fail("Período de votação encerrado");
-    if (c.claimant === voter) fail("Avaliador não pode votar ou vistoriar a própria apólice");
     if (c.voters.includes(voter)) fail("Avaliador já votou neste sinistro");
     c.voters.push(voter);
     if (approve) c.approvals += 1;
@@ -348,6 +459,14 @@ export class DemoClient implements AutoShieldClient {
       const p = s.policies.find((x) => x.address === c.policy);
       if (p) p.hasOpenClaim = false;
     }
+    // remuneracao pelo voto, limitada a tesouraria
+    const reward = Math.min(s.pool.params.voteReward, s.pool.treasuryAccrued);
+    if (reward > 0) {
+      s.pool.vaultBalance -= reward;
+      s.pool.treasuryAccrued -= reward;
+      s.pool.totalAssessorRewards += reward;
+      this.credit(s, voter, reward);
+    }
     return this.tx(s);
   }
 
@@ -361,19 +480,28 @@ export class DemoClient implements AutoShieldClient {
     if (p.owner === inspector) fail("Avaliador não pode votar ou vistoriar a própria apólice");
     if (p.inspected) fail("A vistoria desta apólice já foi realizada");
     if (p.hasOpenClaim) fail("Já existe um sinistro em aberto para esta apólice");
+    if (approve && s.vehicles[p.plate]) fail("Este veículo já possui uma apólice ativa");
+    // a taxa de vistoria vai para o avaliador em qualquer resultado
+    s.pool.vaultBalance -= p.inspectionFee;
+    s.pool.pendingInspectionFees -= p.inspectionFee;
+    s.pool.totalAssessorRewards += p.inspectionFee;
+    this.credit(s, inspector, p.inspectionFee);
     p.inspector = inspector;
     if (approve) {
       p.inspected = true;
+      s.vehicles[p.plate] = p.address;
     } else {
-      // vistoria recusada: premio devolvido integralmente e placa liberada
+      // recusada: devolve o premio pago e estorna a contabilidade
       s.pool.vaultBalance -= p.premiumPaid;
       this.credit(s, p.owner, p.premiumPaid);
       s.pool.totalActiveCoverage -= p.coverageLimit - p.totalPaidOut;
       s.pool.reservedCashback -= p.cashbackAmount;
+      s.pool.treasuryAccrued -= p.protocolFeesPaid;
+      s.pool.totalProtocolFees -= p.protocolFeesPaid;
       s.pool.totalPremiums -= p.premiumPaid;
       s.pool.activePolicies -= 1;
+      p.cashbackAmount = 0;
       p.status = "cancelled";
-      if (s.vehicles[p.plate] === p.address) delete s.vehicles[p.plate];
     }
     return this.tx(s);
   }
@@ -384,16 +512,17 @@ export class DemoClient implements AutoShieldClient {
     const c = s.claims.find((x) => x.address === claimAddr);
     if (!c || c.status !== "approved") fail("O sinistro não está aprovado");
     const p = s.policies.find((x) => x.address === c.policy)!;
-    const payout = Math.min(
-      expectedPayout(c.kind, c.amountRequested, p.deductible, p.coverageLimit - p.totalPaidOut),
-      s.pool.vaultBalance,
-    );
+    const payout = expectedPayout(c.kind, c.amountRequested, p.deductible, p.coverageLimit - p.totalPaidOut);
+    if (payout > this.nav(s)) fail("Liquidez livre insuficiente para pagar o sinistro agora");
     s.pool.vaultBalance -= payout;
     this.credit(s, c.claimant, payout);
     s.pool.pendingClaims -= c.amountRequested;
     s.pool.totalActiveCoverage -= payout;
     s.pool.totalClaimsPaid += payout;
-    if (payout > 0 && !p.hadPaidClaim) s.pool.reservedCashback -= p.cashbackAmount;
+    if (payout > 0 && !p.hadPaidClaim) {
+      s.pool.reservedCashback -= p.cashbackAmount;
+      p.cashbackAmount = 0;
+    }
     p.hasOpenClaim = false;
     p.totalPaidOut += payout;
     if (payout > 0) p.hadPaidClaim = true;
@@ -422,40 +551,88 @@ export class DemoClient implements AutoShieldClient {
     const s = load();
     const p = s.policies.find((x) => x.address === policyAddr);
     if (!p || p.status !== "active") fail("A apólice não está ativa");
-    if (this.clock(s) <= p.endTs) fail("A apólice ainda está vigente");
+    const now = this.clock(s);
+    const ended = now > p.endTs;
+    const lapsed = isLapsed(p, now, s.pool.params.installmentGraceSecs);
+    if (!ended && !lapsed) fail("A apólice ainda está vigente");
     if (p.hasOpenClaim) fail("Sinistro em aberto impede a liquidação da apólice");
-    const pay = !p.hadPaidClaim && p.cashbackAmount > 0;
+    const fullyPaid = p.installmentsPaid >= p.installments;
+    const pay = ended && fullyPaid && !p.hadPaidClaim && p.inspected && p.cashbackAmount > 0;
     if (pay) {
       s.pool.vaultBalance -= p.cashbackAmount;
-      s.pool.reservedCashback -= p.cashbackAmount;
       s.pool.totalCashbackPaid += p.cashbackAmount;
       this.credit(s, p.owner, p.cashbackAmount);
+    }
+    s.pool.reservedCashback -= p.cashbackAmount;
+    if (!p.inspected) {
+      s.pool.pendingInspectionFees -= p.inspectionFee;
+      s.pool.treasuryAccrued += p.inspectionFee;
     }
     s.pool.totalActiveCoverage -= p.coverageLimit - p.totalPaidOut;
     s.pool.activePolicies -= 1;
     p.status = "settled";
     p.cashbackRedeemed = pay;
+    if (!pay) p.cashbackAmount = 0;
     if (s.vehicles[p.plate] === p.address) delete s.vehicles[p.plate];
     return this.tx(s);
   }
 
-  // Na demonstracao o usuario tambem atua como autoridade do pool.
-  async updateParams(params: PoolParams) {
+  // ---------- governanca (na demonstracao o usuario e a autoridade) ----------
+
+  async proposeParams(params: PoolParams) {
     await delay();
     if (!validParams(params)) fail("Parâmetro inválido");
     const s = load();
-    s.pool.params = { ...params };
+    s.pool.pendingParams = { ...params };
+    s.pool.pendingParamsEta = this.clock(s) + s.pool.params.governanceDelaySecs;
     return this.tx(s);
   }
 
-  async setAssessors(assessors: string[], threshold: number) {
+  async applyParams() {
+    await delay();
+    const s = load();
+    if (!s.pool.pendingParams) fail("Não há mudança de governança pendente");
+    if (this.clock(s) < s.pool.pendingParamsEta) fail("Timelock de governança ainda não expirou");
+    s.pool.params = s.pool.pendingParams;
+    s.pool.pendingParams = null;
+    s.pool.pendingParamsEta = 0;
+    return this.tx(s);
+  }
+
+  async proposeAssessors(assessors: string[], threshold: number) {
     await delay();
     if (!assessors.length || assessors.length > 5 || new Set(assessors).size !== assessors.length)
       fail("Parâmetro inválido");
     if (threshold < 1 || threshold > assessors.length) fail("Parâmetro inválido");
     const s = load();
-    s.pool.assessors = [...assessors];
-    s.pool.approvalThreshold = threshold;
+    s.pool.pendingAssessors = [...assessors];
+    s.pool.pendingThreshold = threshold;
+    s.pool.pendingAssessorsEta = this.clock(s) + s.pool.params.governanceDelaySecs;
+    return this.tx(s);
+  }
+
+  async applyAssessors() {
+    await delay();
+    const s = load();
+    if (!s.pool.pendingAssessors.length) fail("Não há mudança de governança pendente");
+    if (this.clock(s) < s.pool.pendingAssessorsEta) fail("Timelock de governança ainda não expirou");
+    s.pool.assessors = s.pool.pendingAssessors;
+    s.pool.approvalThreshold = s.pool.pendingThreshold;
+    s.pool.pendingAssessors = [];
+    s.pool.pendingThreshold = 0;
+    s.pool.pendingAssessorsEta = 0;
+    return this.tx(s);
+  }
+
+  async cancelPending() {
+    await delay();
+    const s = load();
+    s.pool.pendingParams = null;
+    s.pool.pendingParamsEta = 0;
+    s.pool.pendingAssessors = [];
+    s.pool.pendingThreshold = 0;
+    s.pool.pendingAssessorsEta = 0;
+    s.pool.pendingAuthority = null;
     return this.tx(s);
   }
 
@@ -466,25 +643,30 @@ export class DemoClient implements AutoShieldClient {
     return this.tx(s);
   }
 
-  async transferAuthority(newAuthority: string) {
+  async proposeAuthority(newAuthority: string) {
     await delay();
     const s = load();
-    s.pool.authority = newAuthority;
+    s.pool.pendingAuthority = newAuthority;
     return this.tx(s);
   }
-}
 
-function validParams(p: PoolParams) {
-  return (
-    p.baseRateBps > 0 &&
-    p.baseRateBps <= 5_000 &&
-    p.cashbackBps <= 5_000 &&
-    p.minCollateralBps > 0 &&
-    p.minCollateralBps <= 10_000 &&
-    p.withdrawCooldownSecs >= 0 &&
-    p.claimVotingSecs > 0 &&
-    p.secondsPerDay > 0 &&
-    p.secondsPerDay <= 86_400 &&
-    p.claimWaitingSecs >= 0
-  );
+  async acceptAuthority() {
+    await delay();
+    const s = load();
+    if (!s.pool.pendingAuthority) fail("Assinante não é a autoridade proposta");
+    s.pool.authority = s.pool.pendingAuthority;
+    s.pool.pendingAuthority = null;
+    return this.tx(s);
+  }
+
+  async withdrawTreasury(amount: number) {
+    await delay();
+    const s = load();
+    if (amount <= 0) fail("Quantidade deve ser maior que zero");
+    if (amount > s.pool.treasuryAccrued) fail("Saldo insuficiente na tesouraria do protocolo");
+    s.pool.vaultBalance -= amount;
+    s.pool.treasuryAccrued -= amount;
+    this.credit(s, this.wallet, amount);
+    return this.tx(s);
+  }
 }

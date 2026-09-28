@@ -58,7 +58,9 @@ function AssessorView() {
         <div className="flex items-center gap-2">
           <Gavel className="size-5 text-[var(--accent)]" />
           <span className="text-sm">
-            Quórum: <b>{pool.approvalThreshold}</b> de <b>{pool.assessors.length}</b> avaliadores
+            Quórum: <b>{pool.approvalThreshold}</b> de <b>{pool.assessors.length}</b> avaliadores · você recebe{" "}
+            <b>{fmtMoney(pool.params.inspectionFee)}</b> por vistoria e até <b>{fmtMoney(pool.params.voteReward)}</b> por
+            voto
           </span>
         </div>
         {client.mode === "demo" ? (
@@ -249,7 +251,7 @@ function InspectionCard({ p, identity, canAct }: { p: PolicyInfo; identity: stri
       </div>
       <p className="mt-3 text-xs text-[var(--muted)]">
         Confira fotos do veículo, documento (CRLV) e se o valor declarado bate com a tabela FIPE. Recusar devolve o
-        prêmio integral e libera a placa.
+        prêmio pago ao motorista; a taxa de vistoria é sua em qualquer resultado.
       </p>
       <div className="mt-auto flex gap-2 pt-4">
         {own ? (

@@ -16,7 +16,7 @@ const STEPS = [
   {
     icon: ShieldCheck,
     title: "Contrate com sua carteira",
-    text: "O pagamento vai para o cofre do pool de risco e a apólice vira uma conta na Solana. Um avaliador faz a vistoria; se recusar, o prêmio volta inteiro.",
+    text: "Pague à vista ou em até 12x sem juros direto da carteira. A apólice vira uma conta na Solana e um avaliador faz a vistoria antes da cobertura começar.",
   },
   {
     icon: FileCheck2,

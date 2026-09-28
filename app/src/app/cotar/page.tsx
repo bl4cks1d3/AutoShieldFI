@@ -9,7 +9,16 @@ import { FipeLookup } from "@/components/FipeLookup";
 import { Loading, PageHeader, PoolMissing, Row, Spinner, WalletGate } from "@/components/ui";
 import { normalizePlate, PLATE_RE, PRESETS } from "@/lib/fipe";
 import { fmtDuration, fmtMoney, KIND_LABEL, TIER_DESC, TIER_LABEL, toBase } from "@/lib/format";
-import { MAX_DAYS, MIN_DAYS, quote, TIER_COVERS, TIER_MULTIPLIER } from "@/lib/pricing";
+import {
+  installmentAmount,
+  installmentOptions,
+  MAX_DAYS,
+  MIN_DAYS,
+  quote,
+  splitPayment,
+  TIER_COVERS,
+  TIER_MULTIPLIER,
+} from "@/lib/pricing";
 import type { Tier } from "@/lib/types";
 
 export default function CotarPage() {
@@ -25,6 +34,7 @@ export default function CotarPage() {
   const [value, setValue] = useState("");
   const [tier, setTier] = useState<Tier>("standard");
   const [days, setDays] = useState(365);
+  const [installments, setInstallments] = useState(12);
   const [fipeOpen, setFipeOpen] = useState(false);
 
   if (loading) return <Loading />;
@@ -34,12 +44,19 @@ export default function CotarPage() {
   const q = quote(pool.params, vehicleValue, tier, days);
   const plateNorm = normalizePlate(plate);
   const plateOk = PLATE_RE.test(plateNorm);
-  const freeCapital = pool.vaultBalance - pool.reservedCashback;
+  const options = installmentOptions(days);
+  const n = Math.min(installments, options.length);
+  const first = installmentAmount(q.premium, n, 1);
+  const payToday = first + pool.params.inspectionFee;
+  const split = splitPayment(pool.params, first);
+  const freeCapital =
+    pool.vaultBalance - pool.reservedCashback - pool.treasuryAccrued - pool.pendingInspectionFees;
   const required =
     ((pool.totalActiveCoverage + vehicleValue) * pool.params.minCollateralBps) / 10_000 + pool.pendingClaims;
-  const capacityOk = freeCapital + q.premium - q.cashback >= required;
+  const capacityOk = freeCapital + split.toPool >= required;
+  const valueOk = vehicleValue >= pool.params.minVehicleValue;
   const canBuy =
-    plateOk && model.trim().length > 1 && vehicleValue > 0 && q.premium > 0 && (balance ?? 0) >= q.premium && capacityOk;
+    plateOk && model.trim().length > 1 && valueOk && q.premium >= n && (balance ?? 0) >= payToday && capacityOk;
 
   const buy = async () => {
     const sig = await run(
@@ -52,6 +69,7 @@ export default function CotarPage() {
           vehicleValue,
           tier,
           durationDays: days,
+          installments: n,
           maxPremium: Math.ceil(q.premium * 1.01),
         }),
       "Apólice contratada!",
@@ -213,6 +231,27 @@ export default function CotarPage() {
                 ))}
               </div>
             </div>
+
+            <div className="mt-6">
+              <span className="label">Pagamento</span>
+              <div className="flex flex-wrap gap-2">
+                {[1, 2, 3, 6, 12].filter((k) => options.includes(k)).map((k) => (
+                  <button
+                    key={k}
+                    onClick={() => setInstallments(k)}
+                    className={`chip border py-1.5 ${n === k ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--border)] text-[var(--muted)]"}`}
+                  >
+                    {k === 1 ? "À vista" : `${k}x sem juros`}
+                  </button>
+                ))}
+              </div>
+              {n > 1 && (
+                <p className="mt-2 text-xs text-[var(--muted)]">
+                  Parcelas a cada {Math.round(days / n)} dias. Com parcela atrasada além da tolerância de{" "}
+                  {fmtDuration(pool.params.installmentGraceSecs)}, a apólice caduca e perde o cashback.
+                </p>
+              )}
+            </div>
           </section>
         </div>
 
@@ -225,21 +264,30 @@ export default function CotarPage() {
               <Row label={`Plano ${TIER_LABEL[tier]}`} value={`×${(TIER_MULTIPLIER[tier] / 100).toFixed(1)}`} />
               <Row label="Franquia (danos parciais)" value={fmtMoney(q.deductible)} />
               <Row label="Prêmio total" value={fmtMoney(q.premium)} strong />
-              <Row label="Equivalente mensal" value={fmtMoney(q.monthlyEquivalent)} />
+              {n > 1 ? (
+                <Row label={`${n} parcelas de`} value={fmtMoney(first)} />
+              ) : (
+                <Row label="Equivalente mensal" value={fmtMoney(q.monthlyEquivalent)} />
+              )}
+              <Row label="Taxa de vistoria (única)" value={fmtMoney(pool.params.inspectionFee)} />
               <Row
                 label={`Cashback sem sinistro (${pool.params.cashbackBps / 100}%)`}
                 value={<span className="text-[var(--ok)]">+{fmtMoney(q.cashback)}</span>}
               />
               <Row label="Custo líquido sem sinistro" value={fmtMoney(q.netCost)} strong />
+              <Row label="Pago hoje" value={fmtMoney(payToday)} strong />
             </div>
 
             <div className="mt-4">
               <WalletGate>
                 <button className="btn btn-primary w-full" disabled={!canBuy || !!busy} onClick={buy}>
-                  {busy === "buy" && <Spinner />} Contratar por {fmtMoney(q.premium)}
+                  {busy === "buy" && <Spinner />} {n > 1 ? `Contratar: 1ª parcela ${fmtMoney(payToday)}` : `Contratar por ${fmtMoney(payToday)}`}
                 </button>
                 <div className="mt-2 space-y-1 text-xs text-[var(--muted)]">
-                  {(balance ?? 0) < q.premium && q.premium > 0 && (
+                  {vehicleValue > 0 && !valueOk && (
+                    <p className="text-[var(--warn)]">Valor FIPE mínimo: {fmtMoney(pool.params.minVehicleValue)}.</p>
+                  )}
+                  {(balance ?? 0) < payToday && q.premium > 0 && (
                     <p className="text-[var(--warn)]">
                       Saldo insuficiente ({fmtMoney(balance ?? 0)}). Use o faucet no topo da página.
                     </p>

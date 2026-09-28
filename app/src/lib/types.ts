@@ -9,11 +9,17 @@ export type PolicyStatus = "active" | "settled" | "cancelled";
 export interface PoolParams {
   baseRateBps: number;
   cashbackBps: number;
+  protocolFeeBps: number;
   minCollateralBps: number;
   withdrawCooldownSecs: number;
   claimVotingSecs: number;
   secondsPerDay: number;
   claimWaitingSecs: number;
+  installmentGraceSecs: number;
+  governanceDelaySecs: number;
+  inspectionFee: number;
+  voteReward: number;
+  minVehicleValue: number;
   faucetEnabled: boolean;
 }
 
@@ -37,6 +43,18 @@ export interface PoolInfo {
   assessors: string[];
   approvalThreshold: number;
   paused: boolean;
+  /** Receita do protocolo no cofre (fora do patrimonio dos LPs). */
+  treasuryAccrued: number;
+  pendingInspectionFees: number;
+  totalProtocolFees: number;
+  totalAssessorRewards: number;
+  /** Governanca com timelock. */
+  pendingParams: PoolParams | null;
+  pendingParamsEta: number;
+  pendingAssessors: string[];
+  pendingThreshold: number;
+  pendingAssessorsEta: number;
+  pendingAuthority: string | null;
 }
 
 export interface PolicyInfo {
@@ -65,6 +83,13 @@ export interface PolicyInfo {
   inspected: boolean;
   inspector: string;
   claimsAllowedFrom: number;
+  /** Premio total da vigencia; `premiumPaid` e o que ja foi pago. */
+  premiumTotal: number;
+  installments: number;
+  installmentsPaid: number;
+  installmentPeriod: number;
+  protocolFeesPaid: number;
+  inspectionFee: number;
 }
 
 export interface ClaimInfo {
@@ -101,6 +126,7 @@ export interface PurchaseInput {
   vehicleValue: number;
   tier: Tier;
   durationDays: number;
+  installments: number;
   maxPremium: number;
 }
 
@@ -136,9 +162,17 @@ export interface AutoShieldClient {
   expireClaim(claim: string): Promise<string>;
   settle(policy: string): Promise<string>;
 
-  // Governanca (somente a autoridade do pool)
-  updateParams(params: PoolParams): Promise<string>;
-  setAssessors(assessors: string[], threshold: number): Promise<string>;
+  payInstallment(policy: string): Promise<string>;
+
+  // Governanca: mudancas passam por timelock (propor -> aguardar -> aplicar).
+  proposeParams(params: PoolParams): Promise<string>;
+  applyParams(): Promise<string>;
+  proposeAssessors(assessors: string[], threshold: number): Promise<string>;
+  applyAssessors(): Promise<string>;
+  cancelPending(): Promise<string>;
   setPaused(paused: boolean): Promise<string>;
-  transferAuthority(newAuthority: string): Promise<string>;
+  /** Transferencia de autoridade em dois passos. */
+  proposeAuthority(newAuthority: string): Promise<string>;
+  acceptAuthority(): Promise<string>;
+  withdrawTreasury(amount: number): Promise<string>;
 }

@@ -49,6 +49,7 @@ async function main() {
     vehicleValue: 60_000 * UNIT,
     tier: "standard",
     durationDays: 30,
+    installments: 1,
     maxPremium: q.premium,
   });
   const policies = await client.getPolicies(me);
@@ -56,17 +57,17 @@ async function main() {
   if (policy.premiumPaid !== q.premium) throw new Error("premio divergente do calculo do frontend");
   console.log("apolice", policy.id, "premio", policy.premiumPaid / UNIT, "== cotacao do frontend");
 
-  try {
-    await client.purchase({ plate: "smk-1e23", model: "Duplicata", year: 2022, vehicleValue: 10_000 * UNIT, tier: "basic", durationDays: 30, maxPremium: 10_000 * UNIT });
-    throw new Error("placa duplicada deveria ser recusada");
-  } catch (e) {
-    if (!String(e).includes("VehicleAlreadyInsured")) throw e;
-    console.log("placa duplicada recusada: ok");
-  }
-
   await assessor.inspect(policy.address, true);
   const inspected = (await client.getPolicies(me))[0];
   console.log("vistoria aprovada:", inspected.inspected);
+  try {
+    await client.purchase({ plate: "smk-1e23", model: "Duplicata", year: 2022, vehicleValue: 10_000 * UNIT, tier: "basic", durationDays: 30, installments: 1, maxPremium: 10_000 * UNIT });
+    throw new Error("placa duplicada deveria ser recusada");
+  } catch (e) {
+    if (!String(e).includes("VehicleAlreadyInsured")) throw e;
+    console.log("placa duplicada recusada apos a vistoria: ok");
+  }
+
   while ((await client.now()) < inspected.claimsAllowedFrom) await sleep(1000);
 
   await client.fileClaim(policy.address, {
