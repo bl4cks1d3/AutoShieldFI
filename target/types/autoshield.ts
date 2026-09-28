@@ -5,7 +5,7 @@
  * IDL can be found at `target/idl/autoshield.json`.
  */
 export type Autoshield = {
-  "address": "Ej3YoReUDCwKkE1ECt98vg3LE9KopPM2D24Q4a6zddPE",
+  "address": "GPnGSA7KH3vqnF1KfzHGzQNvnEBVD3XRfCayEBhQsuRC",
   "metadata": {
     "name": "autoshield",
     "version": "0.1.0",

@@ -10,6 +10,7 @@ import type {
   ClaimInput,
   PolicyInfo,
   PoolInfo,
+  PoolParams,
   PurchaseInput,
   StakeInfo,
 } from "../types";
@@ -367,6 +368,47 @@ export class OnChainClient implements AutoShieldClient {
         vehicle: this.vehiclePda(p.plateHash),
         owner: p.owner,
       })
+      .rpc();
+  }
+
+  private admin() {
+    return { authority: this.me(), pool: this.poolPda };
+  }
+
+  async updateParams(params: PoolParams): Promise<string> {
+    return this.program.methods
+      .updateParams({
+        baseRateBps: params.baseRateBps,
+        cashbackBps: params.cashbackBps,
+        minCollateralBps: params.minCollateralBps,
+        withdrawCooldownSecs: new BN(params.withdrawCooldownSecs),
+        claimVotingSecs: new BN(params.claimVotingSecs),
+        secondsPerDay: new BN(params.secondsPerDay),
+        claimWaitingSecs: new BN(params.claimWaitingSecs),
+        faucetEnabled: params.faucetEnabled,
+      })
+      .accountsPartial(this.admin())
+      .rpc();
+  }
+
+  async setAssessors(assessors: string[], threshold: number): Promise<string> {
+    return this.program.methods
+      .setAssessors(
+        assessors.map((a) => new PublicKey(a)),
+        threshold,
+      )
+      .accountsPartial(this.admin())
+      .rpc();
+  }
+
+  async setPaused(paused: boolean): Promise<string> {
+    return this.program.methods.setPaused(paused).accountsPartial(this.admin()).rpc();
+  }
+
+  async transferAuthority(newAuthority: string): Promise<string> {
+    return this.program.methods
+      .transferAuthority(new PublicKey(newAuthority))
+      .accountsPartial(this.admin())
       .rpc();
   }
 }

@@ -21,7 +21,7 @@ pub mod state;
 use instructions::*;
 use state::PoolParams;
 
-declare_id!("Ej3YoReUDCwKkE1ECt98vg3LE9KopPM2D24Q4a6zddPE");
+declare_id!("GPnGSA7KH3vqnF1KfzHGzQNvnEBVD3XRfCayEBhQsuRC");
 
 #[program]
 pub mod autoshield {

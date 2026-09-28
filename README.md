@@ -68,6 +68,8 @@ Além disso, o modelo econômico inclui um mecanismo de staking que possibilita 
 
 ## Como rodar
 
+> Guia completo (WSL, ferramentas, localnet, devnet, variáveis e solução de problemas): [docs/INSTALACAO.md](docs/INSTALACAO.md)
+
 ### Frontend (modo demonstração — não precisa de carteira)
 
 ```bash
@@ -78,6 +80,24 @@ npm run dev          # http://localhost:3000
 
 O **modo Demo** simula o protocolo inteiro no navegador com as mesmas regras do contrato. Use os botões
 **+7 dias / +30 dias** no topo para avançar o relógio e mostrar vencimento e cashback.
+
+### API FIPE (por modelo e por placa)
+
+O app expõe rotas próprias que normalizam a tabela FIPE (`app/src/lib/fipe/`):
+
+| Rota | Retorno |
+|---|---|
+| `GET /api/fipe/status` | `{ modelo, placa }` — recursos habilitados no servidor |
+| `GET /api/fipe/{carros\|motos\|caminhoes}/marcas` | marcas |
+| `GET /api/fipe/{tipo}/marcas/{marca}/modelos` | modelos |
+| `GET /api/fipe/{tipo}/marcas/{marca}/modelos/{modelo}/anos` | anos/combustível |
+| `GET /api/fipe/{tipo}/marcas/{marca}/modelos/{modelo}/anos/{ano}` | preço (`FipeQuote`) |
+| `GET /api/fipe/{tipo}/codigo/{codigoFipe}/anos[/{ano}]` | anos / preço pelo código FIPE |
+| `GET /api/placa/{placa}` | veículo + versões FIPE compatíveis (`PlateLookup`) |
+
+A busca por modelo usa a API pública FIPE v2 (parallelum) e funciona sem configuração. A consulta por
+placa depende de um provedor pago (WDAPI2 / apiplacas.com.br): defina `PLACA_API_TOKEN` em `app/.env.local`.
+Os tokens ficam só no servidor.
 
 ### Programa Solana
 

@@ -3,15 +3,14 @@
 import { Car, Check, Search, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useAction, useApp, useData } from "@/components/Providers";
+import { FipeLookup } from "@/components/FipeLookup";
 import { Loading, PageHeader, PoolMissing, Row, Spinner, WalletGate } from "@/components/ui";
-import { fipe, parseFipeValue, PRESETS, type FipeItem } from "@/lib/fipe";
+import { normalizePlate, PLATE_RE, PRESETS } from "@/lib/fipe";
 import { fmtDuration, fmtMoney, KIND_LABEL, TIER_DESC, TIER_LABEL, toBase } from "@/lib/format";
 import { MAX_DAYS, MIN_DAYS, quote, TIER_COVERS, TIER_MULTIPLIER } from "@/lib/pricing";
 import type { Tier } from "@/lib/types";
-
-const PLATE_RE = /^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/;
 
 export default function CotarPage() {
   const router = useRouter();
@@ -33,7 +32,7 @@ export default function CotarPage() {
 
   const vehicleValue = toBase(value);
   const q = quote(pool.params, vehicleValue, tier, days);
-  const plateNorm = plate.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const plateNorm = normalizePlate(plate);
   const plateOk = PLATE_RE.test(plateNorm);
   const freeCapital = pool.vaultBalance - pool.reservedCashback;
   const required =
@@ -81,10 +80,12 @@ export default function CotarPage() {
 
             {fipeOpen && (
               <FipeLookup
-                onPick={(m, y, v) => {
-                  setModel(m);
-                  setYear(y);
-                  setValue(String(v));
+                initialPlate={plate}
+                onPick={(p) => {
+                  if (p.placa) setPlate(p.placa);
+                  setModel(p.modelo);
+                  setYear(p.ano);
+                  setValue(String(p.valor).replace(".", ","));
                   setFipeOpen(false);
                 }}
               />
@@ -260,75 +261,6 @@ export default function CotarPage() {
           </div>
         </aside>
       </div>
-    </div>
-  );
-}
-
-function FipeLookup({ onPick }: { onPick: (model: string, year: number, value: number) => void }) {
-  const [brands, setBrands] = useState<FipeItem[]>([]);
-  const [models, setModels] = useState<FipeItem[]>([]);
-  const [years, setYears] = useState<FipeItem[]>([]);
-  const [brand, setBrand] = useState("");
-  const [modelId, setModelId] = useState("");
-  const [yearId, setYearId] = useState("");
-  const [err, setErr] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    fipe.brands().then(setBrands).catch((e) => setErr(e.message));
-  }, []);
-
-  useEffect(() => {
-    setModels([]);
-    setModelId("");
-    if (brand) fipe.models(brand).then(setModels).catch((e) => setErr(e.message));
-  }, [brand]);
-
-  useEffect(() => {
-    setYears([]);
-    setYearId("");
-    if (brand && modelId) fipe.years(brand, modelId).then(setYears).catch((e) => setErr(e.message));
-  }, [brand, modelId]);
-
-  const fetchPrice = async () => {
-    setLoading(true);
-    try {
-      const r = await fipe.price(brand, modelId, yearId);
-      const y = r.AnoModelo > 3000 ? new Date().getFullYear() : r.AnoModelo;
-      onPick(`${r.Marca} ${r.Modelo}`.slice(0, 48), y, parseFipeValue(r.Valor));
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--bg-soft)] p-4">
-      {err && <p className="mb-3 text-sm text-[var(--warn)]">{err} — informe o valor manualmente.</p>}
-      <div className="grid gap-3 sm:grid-cols-3">
-        <select className="input" value={brand} onChange={(e) => setBrand(e.target.value)} aria-label="Marca">
-          <option value="">Marca…</option>
-          {brands.map((b) => (
-            <option key={b.codigo} value={b.codigo}>{b.nome}</option>
-          ))}
-        </select>
-        <select className="input" value={modelId} onChange={(e) => setModelId(e.target.value)} disabled={!models.length} aria-label="Modelo">
-          <option value="">Modelo…</option>
-          {models.map((m) => (
-            <option key={m.codigo} value={m.codigo}>{m.nome}</option>
-          ))}
-        </select>
-        <select className="input" value={yearId} onChange={(e) => setYearId(e.target.value)} disabled={!years.length} aria-label="Ano">
-          <option value="">Ano…</option>
-          {years.map((y) => (
-            <option key={y.codigo} value={y.codigo}>{y.nome}</option>
-          ))}
-        </select>
-      </div>
-      <button className="btn btn-primary mt-3" disabled={!yearId || loading} onClick={fetchPrice}>
-        {loading && <Spinner />} Usar valor FIPE
-      </button>
     </div>
   );
 }

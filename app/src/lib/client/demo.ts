@@ -4,6 +4,7 @@ import type {
   ClaimInput,
   PolicyInfo,
   PoolInfo,
+  PoolParams,
   PurchaseInput,
   StakeInfo,
 } from "../types";
@@ -437,4 +438,53 @@ export class DemoClient implements AutoShieldClient {
     if (s.vehicles[p.plate] === p.address) delete s.vehicles[p.plate];
     return this.tx(s);
   }
+
+  // Na demonstracao o usuario tambem atua como autoridade do pool.
+  async updateParams(params: PoolParams) {
+    await delay();
+    if (!validParams(params)) fail("Parâmetro inválido");
+    const s = load();
+    s.pool.params = { ...params };
+    return this.tx(s);
+  }
+
+  async setAssessors(assessors: string[], threshold: number) {
+    await delay();
+    if (!assessors.length || assessors.length > 5 || new Set(assessors).size !== assessors.length)
+      fail("Parâmetro inválido");
+    if (threshold < 1 || threshold > assessors.length) fail("Parâmetro inválido");
+    const s = load();
+    s.pool.assessors = [...assessors];
+    s.pool.approvalThreshold = threshold;
+    return this.tx(s);
+  }
+
+  async setPaused(paused: boolean) {
+    await delay();
+    const s = load();
+    s.pool.paused = paused;
+    return this.tx(s);
+  }
+
+  async transferAuthority(newAuthority: string) {
+    await delay();
+    const s = load();
+    s.pool.authority = newAuthority;
+    return this.tx(s);
+  }
+}
+
+function validParams(p: PoolParams) {
+  return (
+    p.baseRateBps > 0 &&
+    p.baseRateBps <= 5_000 &&
+    p.cashbackBps <= 5_000 &&
+    p.minCollateralBps > 0 &&
+    p.minCollateralBps <= 10_000 &&
+    p.withdrawCooldownSecs >= 0 &&
+    p.claimVotingSecs > 0 &&
+    p.secondsPerDay > 0 &&
+    p.secondsPerDay <= 86_400 &&
+    p.claimWaitingSecs >= 0
+  );
 }
