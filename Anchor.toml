@@ -6,10 +6,10 @@ package_manager = "yarn"
 resolution = true
 skip-lint = false
 
-[programs.localnet]
-autoshield = "Ej3YoReUDCwKkE1ECt98vg3LE9KopPM2D24Q4a6zddPE"
-
 [programs.devnet]
+autoshield = "GPnGSA7KH3vqnF1KfzHGzQNvnEBVD3XRfCayEBhQsuRC"
+
+[programs.localnet]
 autoshield = "Ej3YoReUDCwKkE1ECt98vg3LE9KopPM2D24Q4a6zddPE"
 
 [registry]
@@ -20,5 +20,5 @@ cluster = "localnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
-test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
 bootstrap = "yarn run ts-node scripts/bootstrap.ts"
+test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"

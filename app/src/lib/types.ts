@@ -130,4 +130,10 @@ export interface AutoShieldClient {
   payClaim(claim: string): Promise<string>;
   expireClaim(claim: string): Promise<string>;
   settle(policy: string): Promise<string>;
+
+  // Governanca (somente a autoridade do pool)
+  updateParams(params: PoolParams): Promise<string>;
+  setAssessors(assessors: string[], threshold: number): Promise<string>;
+  setPaused(paused: boolean): Promise<string>;
+  transferAuthority(newAuthority: string): Promise<string>;
 }

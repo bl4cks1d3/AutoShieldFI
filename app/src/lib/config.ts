@@ -1,5 +1,5 @@
 export const PROGRAM_ID =
-  process.env.NEXT_PUBLIC_PROGRAM_ID ?? "Ej3YoReUDCwKkE1ECt98vg3LE9KopPM2D24Q4a6zddPE";
+  process.env.NEXT_PUBLIC_PROGRAM_ID ?? "GPnGSA7KH3vqnF1KfzHGzQNvnEBVD3XRfCayEBhQsuRC";
 
 export const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL ?? "https://api.devnet.solana.com";
 
@@ -20,6 +20,8 @@ export function explorerTx(sig: string): string {
 }
 
 export function explorerAddr(addr: string): string {
+  if (EXPLORER_CLUSTER === "localnet")
+    return `https://explorer.solana.com/address/${addr}?cluster=custom&customUrl=${encodeURIComponent(RPC_URL)}`;
   const q = EXPLORER_CLUSTER === "mainnet-beta" ? "" : `?cluster=${EXPLORER_CLUSTER}`;
   return `https://explorer.solana.com/address/${addr}${q}`;
 }
