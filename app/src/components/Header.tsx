@@ -1,6 +1,8 @@
 "use client";
 
-import { Coins, FastForward, Menu, RotateCcw, ShieldCheck, X } from "lucide-react";
+import { useConnection } from "@solana/wallet-adapter-react";
+import { LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
+import { Coins, Droplets, FastForward, Menu, RotateCcw, ShieldCheck, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
@@ -17,6 +19,7 @@ const NAV = [
   { href: "/sinistros", label: "Sinistros" },
   { href: "/pool", label: "Pool & Staking" },
   { href: "/avaliacao", label: "Avaliação" },
+  { href: "/admin", label: "Governança" },
 ];
 
 export function Header() {
@@ -26,6 +29,23 @@ export function Header() {
   const { run, busy } = useAction();
   const { data: balance } = useData((c) => (c.wallet ? c.getBalance(c.wallet) : Promise.resolve(0)), [client.wallet]);
   const { data: pool } = useData((c) => c.getPool());
+  const { connection } = useConnection();
+  const { data: sol } = useData(
+    (c) => (c.mode === "chain" && c.wallet ? connection.getBalance(new PublicKey(c.wallet)) : Promise.resolve(null)),
+    [client.wallet, connection],
+  );
+
+  const airdrop = () =>
+    run(
+      "airdrop",
+      async () => {
+        const sig = await connection.requestAirdrop(new PublicKey(client.wallet!), 2 * LAMPORTS_PER_SOL);
+        const bh = await connection.getLatestBlockhash();
+        await connection.confirmTransaction({ signature: sig, ...bh }, "confirmed");
+        return sig;
+      },
+      "+2 SOL recebidos para taxas",
+    );
 
   const faucet = () =>
     run("faucet", () => client.faucet(50_000 * UNIT), `+50.000 ${STABLE_SYMBOL} recebidos`);
@@ -84,6 +104,17 @@ export function Header() {
             <span className="num">
               Saldo: <b>{fmtMoney(balance ?? 0)}</b>
             </span>
+            {sol !== null && sol !== undefined && (
+              <span className="num">
+                <b>{(sol / LAMPORTS_PER_SOL).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}</b> SOL
+              </span>
+            )}
+            {mode === "chain" && CLUSTER_LABEL !== "Mainnet" && (
+              <button onClick={airdrop} disabled={!!busy} className="inline-flex items-center gap-1 font-semibold text-[var(--accent)] hover:underline">
+                {busy === "airdrop" ? <Spinner className="size-3.5" /> : <Droplets className="size-3.5" />}
+                Airdrop SOL
+              </button>
+            )}
             {pool?.params.faucetEnabled && (
               <button onClick={faucet} disabled={!!busy} className="inline-flex items-center gap-1 font-semibold text-[var(--accent)] hover:underline">
                 {busy === "faucet" ? <Spinner className="size-3.5" /> : <Coins className="size-3.5" />}

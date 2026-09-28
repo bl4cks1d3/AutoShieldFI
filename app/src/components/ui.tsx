@@ -3,6 +3,7 @@
 import { Loader2, Wallet } from "lucide-react";
 import dynamic from "next/dynamic";
 import type { ReactNode } from "react";
+import { CLUSTER_LABEL } from "@/lib/config";
 import { STATUS_LABEL } from "@/lib/format";
 import type { ClaimStatus } from "@/lib/types";
 import { useApp } from "./Providers";
@@ -96,7 +97,7 @@ export function WalletGate({ children }: { children: ReactNode }) {
   if (client.wallet) return <>{children}</>;
   return (
     <Empty icon={<Wallet className="size-6" />} title="Conecte sua carteira">
-      <p>Use Phantom, Solflare ou Backpack na rede {client.mode === "chain" ? "Devnet" : ""} para continuar.</p>
+      <p>Use Phantom, Solflare ou Backpack na rede {CLUSTER_LABEL} para continuar.</p>
       <div className="mt-4 flex justify-center">
         <WalletButton />
       </div>
