@@ -82,7 +82,7 @@ function AdminView() {
   );
 }
 
-type ParamField = { key: keyof PoolParams; label: string; unit: "pct" | "secs" | "money"; hint: string };
+type ParamField = { key: keyof PoolParams; label: string; unit: "pct" | "secs" | "money" | "int"; hint: string };
 
 const FIELDS: ParamField[] = [
   { key: "baseRateBps", label: "Taxa base anual", unit: "pct", hint: "Sobre o valor FIPE (máx. 50%)" },
@@ -98,6 +98,9 @@ const FIELDS: ParamField[] = [
   { key: "inspectionFee", label: "Taxa de vistoria", unit: "money", hint: "Paga pelo motorista ao avaliador" },
   { key: "voteReward", label: "Remuneração por voto", unit: "money", hint: "Paga da tesouraria a cada voto" },
   { key: "minVehicleValue", label: "Valor FIPE mínimo", unit: "money", hint: "Evita apólices de valor irrisório" },
+  { key: "inspectionThreshold", label: "Quórum de vistoria", unit: "int", hint: "Votos para aprovar uma vistoria" },
+  { key: "withdrawNoticeSecs", label: "Aviso prévio de saque (LP)", unit: "secs", hint: "Entre pedir e sacar liquidez" },
+  { key: "maxPolicyCoverageBps", label: "Cobertura máx. por apólice", unit: "pct", hint: "Sobre o patrimônio do pool (até 1000%)" },
 ];
 
 function toInput(p: PoolParams, f: ParamField) {
@@ -137,7 +140,9 @@ function ParamsForm({ pool, disabled }: { pool: PoolInfo; disabled: boolean }) {
           <label key={f.key} className="flex flex-col gap-1 text-sm">
             <span className="font-medium">
               {f.label}{" "}
-              <span className="text-[var(--muted)]">({f.unit === "pct" ? "%" : f.unit === "money" ? "tBRL" : "s"})</span>
+              {f.unit !== "int" && (
+                <span className="text-[var(--muted)]">({f.unit === "pct" ? "%" : f.unit === "money" ? "tBRL" : "s"})</span>
+              )}
             </span>
             <input
               className="input num"

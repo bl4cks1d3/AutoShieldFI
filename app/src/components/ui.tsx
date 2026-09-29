@@ -1,9 +1,9 @@
 "use client";
 
-import { Loader2, Wallet } from "lucide-react";
+import { ExternalLink, Loader2, Wallet } from "lucide-react";
 import dynamic from "next/dynamic";
 import type { ReactNode } from "react";
-import { CLUSTER_LABEL, DEMO_ENABLED } from "@/lib/config";
+import { CLUSTER_LABEL, DEMO_ENABLED, ipfsUrl } from "@/lib/config";
 import { STATUS_LABEL } from "@/lib/format";
 import type { ClaimStatus } from "@/lib/types";
 import { useApp } from "./Providers";
@@ -126,5 +126,21 @@ export function Row({ label, value, strong }: { label: ReactNode; value: ReactNo
       <span className={strong ? "" : "text-[var(--muted)]"}>{label}</span>
       <span className="num text-right">{value}</span>
     </div>
+  );
+}
+
+/** Evidencias de sinistro: link para o IPFS (se enviado) + hash de integridade. */
+export function EvidenceLink({ uri }: { uri: string }) {
+  const url = ipfsUrl(uri);
+  const sha = uri.match(/sha256:([0-9a-f]{8})/)?.[1];
+  return (
+    <span className="inline-flex items-center gap-2 text-xs">
+      {url && (
+        <a href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-semibold text-[var(--accent)] hover:underline">
+          Ver no IPFS <ExternalLink className="size-3" />
+        </a>
+      )}
+      {sha ? <span className="font-mono text-[var(--muted)]">sha256 {sha}…</span> : !url && <span className="text-[var(--muted)]">sem anexos</span>}
+    </span>
   );
 }

@@ -97,6 +97,13 @@ async function main() {
   const final = (await client.getPolicies(me))[0];
   console.log("apolice encerrada:", final.status, "cashback resgatado:", final.cashbackRedeemed);
 
+  const lamportsBefore = await connection.getBalance(driverKp.publicKey);
+  await client.closePolicy(policy.address);
+  const left = (await client.getPolicies(me)).length;
+  const refunded = (await connection.getBalance(driverKp.publicKey)) - lamportsBefore;
+  console.log("contas fechadas, apolices restantes:", left, "aluguel devolvido (lamports):", refunded);
+  if (left !== 0 || refunded <= 0) throw new Error("fechamento de contas falhou");
+
   const stake = await assessor.getStake(assessor.wallet!);
   console.log("posicao LP (cotas):", (stake?.shares ?? 0) / UNIT);
   console.log("SMOKE OK");

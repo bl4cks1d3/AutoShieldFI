@@ -41,6 +41,10 @@ export default function PoolPage() {
   const pnl = Math.abs(rawPnl) < 10_000 ? 0 : rawPnl; // ignora arredondamento < 0,01
   const cooldownEnd = stake ? stake.lastDepositTs + pool.params.withdrawCooldownSecs : 0;
   const inCooldown = !!stake && now < cooldownEnd;
+  const pendingShares = stake?.pendingWithdrawShares ?? 0;
+  const pendingValue = Math.floor(pendingShares * sharePrice);
+  const noticeLeft = stake ? stake.withdrawAvailableAt - now : 0;
+  const canExecute = pendingShares > 0 && noticeLeft <= 0 && !inCooldown;
   const maxWithdraw = Math.min(myValue, freeToWithdraw);
 
   const amountBase = toBase(amount);
@@ -49,16 +53,24 @@ export default function PoolPage() {
       const sig = await run("deposit", () => client.deposit(amountBase), "Liquidez aportada no pool");
       if (sig) setAmount("");
     } else {
-      // converte valor desejado em cotas
+      // passo 1: pedir o saque (converte o valor desejado em cotas)
       const shares = Math.min(stake?.shares ?? 0, Math.floor(amountBase / sharePrice));
-      const sig = await run("withdraw", () => client.withdraw(shares), "Saque realizado");
+      const sig = await run(
+        "withdraw",
+        () => client.requestWithdraw(shares),
+        `Saque pedido: liberado em ${fmtDuration(pool.params.withdrawNoticeSecs)}`,
+      );
       if (sig) setAmount("");
     }
   };
 
+  // passo 2: executar o saque pedido, apos o aviso previo
+  const execute = () =>
+    run("execute", () => client.withdraw(Math.min(pendingShares, stake?.shares ?? 0)), "Saque realizado");
+
   const invalid =
     amountBase <= 0 ||
-    (tab === "deposit" ? amountBase > balance : amountBase > maxWithdraw + 1 || inCooldown);
+    (tab === "deposit" ? amountBase > balance : amountBase > myValue + 1);
 
   return (
     <div>
@@ -103,6 +115,11 @@ export default function PoolPage() {
             <Row label="Pago a avaliadores" value={fmtMoney(pool.totalAssessorRewards)} />
             <Row label="Cashback devolvido" value={fmtMoney(pool.totalCashbackPaid)} />
             <Row label="Carência de saque" value={fmtDuration(pool.params.withdrawCooldownSecs)} />
+            <Row label="Aviso prévio de saque" value={fmtDuration(pool.params.withdrawNoticeSecs)} />
+            <Row
+              label="Cobertura máxima por apólice"
+              value={`${fmtMoney(Math.floor((nav * pool.params.maxPolicyCoverageBps) / 10_000))} (${pool.params.maxPolicyCoverageBps / 100}% do patrimônio)`}
+            />
             <Row
               label="Avaliadores"
               value={`${pool.approvalThreshold} de ${pool.assessors.length}`}
@@ -181,13 +198,29 @@ export default function PoolPage() {
                   value={amount}
                   onChange={(e) => setAmount(e.target.value.replace(/[^\d.,]/g, ""))}
                 />
+                {tab === "withdraw" && pendingShares > 0 && (
+                  <div className="mt-3 rounded-xl border border-[var(--border)] p-3 text-sm">
+                    <p>
+                      Saque pedido: <b>{fmtMoney(pendingValue)}</b> ({(pendingShares / UNIT).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} cotas)
+                    </p>
+                    <p className="text-xs text-[var(--muted)]">
+                      {noticeLeft > 0
+                        ? `Aviso prévio: libera em ${fmtDuration(noticeLeft)}. Até lá as cotas seguem expostas aos sinistros.`
+                        : "Aviso prévio cumprido. O valor final é calculado no momento do saque."}
+                    </p>
+                    <button className="btn btn-primary mt-2 w-full" disabled={!canExecute || !!busy} onClick={execute}>
+                      {busy === "execute" && <Spinner />} Sacar {fmtMoney(Math.min(pendingValue, maxWithdraw))}
+                    </button>
+                  </div>
+                )}
                 {tab === "withdraw" && inCooldown && (
                   <p className="mt-2 flex items-center gap-1 text-xs text-[var(--warn)]">
                     <Info className="size-3.5" /> Carência: saque liberado em {fmtDuration(cooldownEnd - now)}.
                   </p>
                 )}
                 <button className="btn btn-primary mt-4 w-full" disabled={invalid || !!busy} onClick={submit}>
-                  {busy && <Spinner />} {tab === "deposit" ? "Aportar no pool" : "Sacar do pool"}
+                  {busy === "deposit" || busy === "withdraw" ? <Spinner /> : null}{" "}
+                  {tab === "deposit" ? "Aportar no pool" : pendingShares > 0 ? "Refazer pedido de saque" : "Pedir saque"}
                 </button>
                 <p className="mt-2 text-xs text-[var(--muted)]">
                   Os cotistas absorvem os sinistros e ficam com os prêmios. O valor da cota sobe quando prêmios superam

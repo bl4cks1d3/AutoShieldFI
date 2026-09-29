@@ -54,9 +54,11 @@ export default function CotarPage() {
   const required =
     ((pool.totalActiveCoverage + vehicleValue) * pool.params.minCollateralBps) / 10_000 + pool.pendingClaims;
   const capacityOk = freeCapital + split.toPool >= required;
+  const maxCoverage = Math.floor(((freeCapital + split.toPool) * pool.params.maxPolicyCoverageBps) / 10_000);
+  const exposureOk = q.coverageLimit <= maxCoverage;
   const valueOk = vehicleValue >= pool.params.minVehicleValue;
   const canBuy =
-    plateOk && model.trim().length > 1 && valueOk && q.premium >= n && (balance ?? 0) >= payToday && capacityOk;
+    plateOk && model.trim().length > 1 && valueOk && q.premium >= n && (balance ?? 0) >= payToday && capacityOk && exposureOk;
 
   const buy = async () => {
     const sig = await run(
@@ -284,6 +286,11 @@ export default function CotarPage() {
                   {busy === "buy" && <Spinner />} {n > 1 ? `Contratar: 1ª parcela ${fmtMoney(payToday)}` : `Contratar por ${fmtMoney(payToday)}`}
                 </button>
                 <div className="mt-2 space-y-1 text-xs text-[var(--muted)]">
+                  {vehicleValue > 0 && !exposureOk && (
+                    <p className="text-[var(--warn)]">
+                      Cobertura acima do limite por apólice do pool ({fmtMoney(maxCoverage)}). Aguarde mais liquidez.
+                    </p>
+                  )}
                   {vehicleValue > 0 && !valueOk && (
                     <p className="text-[var(--warn)]">Valor FIPE mínimo: {fmtMoney(pool.params.minVehicleValue)}.</p>
                   )}

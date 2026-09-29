@@ -5,10 +5,10 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useAction, useApp, useData } from "@/components/Providers";
-import { ClaimStatusChip, Empty, Loading, PageHeader, Row, Spinner, WalletGate } from "@/components/ui";
+import { ClaimStatusChip, Empty, EvidenceLink, Loading, PageHeader, Row, Spinner, WalletGate } from "@/components/ui";
 import { fmtDate, fmtDuration, fmtMoney, KIND_LABEL, shortAddr, toBase } from "@/lib/format";
 import { expectedPayout, TIER_COVERS } from "@/lib/pricing";
-import { policyPhase } from "@/lib/plate";
+import { displayPlate, policyPhase } from "@/lib/plate";
 import type { ClaimInfo, ClaimKind, PolicyInfo } from "@/lib/types";
 
 export default function SinistrosPage() {
@@ -55,7 +55,7 @@ function ClaimsView() {
           <div className="card p-4 text-sm text-[var(--muted)]">
             {blocked.map((p) => (
               <p key={p.address}>
-                <b className="text-[var(--fg)]">{p.plate}</b> ·{" "}
+                <b className="text-[var(--fg)]">{displayPlate(p)}</b> ·{" "}
                 {!p.inspected
                   ? "aguardando vistoria de um avaliador"
                   : data.now < p.claimsAllowedFrom
@@ -108,6 +108,15 @@ function ClaimForm({ policies }: { policies: PolicyInfo[] }) {
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [evidence, setEvidence] = useState("");
+  const [ipfsEnabled, setIpfsEnabled] = useState(false);
+
+  useEffect(() => {
+    if (client.mode !== "chain") return;
+    fetch("/api/evidence")
+      .then((r) => r.json())
+      .then((d: { enabled?: boolean }) => setIpfsEnabled(Boolean(d.enabled)))
+      .catch(() => setIpfsEnabled(false));
+  }, [client.mode]);
 
   useEffect(() => {
     const fromUrl = params.get("policy");
@@ -146,16 +155,29 @@ function ClaimForm({ policies }: { policies: PolicyInfo[] }) {
   const payout = policy ? expectedPayout(kind, amountBase, policy.deductible, remaining) : 0;
   const valid = policy && amountBase > 0 && amountBase <= remaining && description.trim().length >= 10;
 
+  /** Envia os arquivos ao IPFS (se configurado) e monta a URI gravada on-chain. */
+  const buildEvidenceUri = async (): Promise<string> => {
+    if (!files.length) return "sem-anexos";
+    if (!ipfsEnabled) return evidence;
+    const form = new FormData();
+    files.forEach((f) => form.append("files", f));
+    const res = await fetch("/api/evidence", { method: "POST", body: form });
+    const data = (await res.json()) as { uri?: string; error?: string };
+    if (!res.ok || !data.uri) throw new Error(data.error ?? "Falha ao enviar evidências");
+    // ipfs://CID#sha256:<hash dos arquivos> (cabe nos 200 caracteres on-chain)
+    return `${data.uri}#${evidence}`;
+  };
+
   const submit = async () => {
     if (!policy) return;
     const sig = await run(
       "claim",
-      () =>
+      async () =>
         client.fileClaim(policy.address, {
           kind,
           amount: amountBase,
           description: description.trim().slice(0, 200),
-          evidenceUri: evidence || "sem-anexos",
+          evidenceUri: await buildEvidenceUri(),
         }),
       "Sinistro registrado! Aguardando avaliadores.",
     );
@@ -189,7 +211,7 @@ function ClaimForm({ policies }: { policies: PolicyInfo[] }) {
           <select id="policy" className="input" value={policyAddr} onChange={(e) => setPolicyAddr(e.target.value)}>
             {policies.map((p) => (
               <option key={p.address} value={p.address}>
-                #{p.id} · {p.plate} · {p.model}
+                #{p.id} · {displayPlate(p)} · {p.model}
               </option>
             ))}
           </select>
@@ -263,7 +285,9 @@ function ClaimForm({ policies }: { policies: PolicyInfo[] }) {
             </p>
           )}
           <p className="mt-1 text-xs text-[var(--muted)]">
-            O hash SHA-256 dos arquivos é gravado on-chain como prova de integridade.
+            {ipfsEnabled
+              ? "Os arquivos vão para o IPFS e o link + hash SHA-256 ficam gravados on-chain. Evite fotos com dados de terceiros: o IPFS é público."
+              : "O hash SHA-256 dos arquivos é gravado on-chain como prova de integridade."}
           </p>
         </div>
 
@@ -317,13 +341,21 @@ function ClaimCard({ c, policy, threshold, now }: { c: ClaimInfo; policy?: Polic
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
-            Sinistro #{c.id} · {policy ? `${policy.plate}` : shortAddr(c.policy)}
+            Sinistro #{c.id} · {policy ? `${displayPlate(policy)}` : shortAddr(c.policy)}
           </p>
           <h3 className="mt-1 font-bold">{KIND_LABEL[c.kind]} · {fmtMoney(c.amountRequested)}</h3>
         </div>
         <ClaimStatusChip status={c.status} />
       </div>
       <p className="mt-2 text-sm text-[var(--muted)]">{c.description}</p>
+      {c.reclassified && (
+        <p className="mt-1 text-xs text-[var(--warn)]">
+          Reclassificado pelos avaliadores: declarado como {KIND_LABEL[c.originalKind]}.
+        </p>
+      )}
+      <div className="mt-2">
+        <EvidenceLink uri={c.evidenceUri} />
+      </div>
 
       <ol className="mt-4 flex flex-col gap-2">
         {steps.map((s, i) => (

@@ -20,6 +20,9 @@ export interface PoolParams {
   inspectionFee: number;
   voteReward: number;
   minVehicleValue: number;
+  inspectionThreshold: number;
+  withdrawNoticeSecs: number;
+  maxPolicyCoverageBps: number;
   faucetEnabled: boolean;
 }
 
@@ -82,6 +85,12 @@ export interface PolicyInfo {
   cashbackRedeemed: boolean;
   inspected: boolean;
   inspector: string;
+  inspectionApprovals: number;
+  inspectionRejections: number;
+  inspectionVoters: string[];
+  inspectionFeePaid: number;
+  /** sha256 (hex) da placa normalizada — e o que fica on-chain. */
+  plateHash: string;
   claimsAllowedFrom: number;
   /** Premio total da vigencia; `premiumPaid` e o que ja foi pago. */
   premiumTotal: number;
@@ -99,6 +108,8 @@ export interface ClaimInfo {
   id: number;
   index: number;
   kind: ClaimKind;
+  originalKind: ClaimKind;
+  reclassified: boolean;
   amountRequested: number;
   payoutAmount: number;
   description: string;
@@ -117,6 +128,8 @@ export interface StakeInfo {
   totalDeposited: number;
   totalWithdrawn: number;
   lastDepositTs: number;
+  pendingWithdrawShares: number;
+  withdrawAvailableAt: number;
 }
 
 export interface PurchaseInput {
@@ -153,10 +166,14 @@ export interface AutoShieldClient {
 
   faucet(amount: number): Promise<string>;
   deposit(amount: number): Promise<string>;
+  /** Pede o saque; so pode ser executado apos o aviso previo. */
+  requestWithdraw(shares: number): Promise<string>;
   withdraw(shares: number): Promise<string>;
+  /** Fecha a apolice encerrada (e seus sinistros resolvidos), devolvendo o aluguel. */
+  closePolicy(policy: string): Promise<string>;
   purchase(input: PurchaseInput): Promise<string>;
   fileClaim(policy: string, input: ClaimInput): Promise<string>;
-  vote(claim: string, approve: boolean, as?: string): Promise<string>;
+  vote(claim: string, approve: boolean, as?: string, reclassify?: ClaimKind): Promise<string>;
   inspect(policy: string, approve: boolean, as?: string): Promise<string>;
   payClaim(claim: string): Promise<string>;
   expireClaim(claim: string): Promise<string>;

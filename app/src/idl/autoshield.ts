@@ -165,6 +165,96 @@ export type Autoshield = {
       "args": []
     },
     {
+      "name": "closeClaim",
+      "discriminator": [
+        42,
+        177,
+        165,
+        35,
+        213,
+        179,
+        211,
+        19
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "signer": true
+        },
+        {
+          "name": "claim",
+          "writable": true
+        },
+        {
+          "name": "claimant",
+          "writable": true,
+          "relations": [
+            "claim"
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "closePolicy",
+      "discriminator": [
+        55,
+        42,
+        248,
+        229,
+        222,
+        138,
+        26,
+        252
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "signer": true
+        },
+        {
+          "name": "policy",
+          "writable": true
+        },
+        {
+          "name": "owner",
+          "writable": true,
+          "relations": [
+            "policy"
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "closePosition",
+      "discriminator": [
+        123,
+        134,
+        81,
+        0,
+        49,
+        68,
+        98,
+        98
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "position"
+          ]
+        },
+        {
+          "name": "position",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "depositLiquidity",
       "discriminator": [
         245,
@@ -1532,6 +1622,76 @@ export type Autoshield = {
       ]
     },
     {
+      "name": "requestWithdrawal",
+      "discriminator": [
+        251,
+        85,
+        121,
+        205,
+        56,
+        201,
+        12,
+        177
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "position"
+          ]
+        },
+        {
+          "name": "pool",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  97,
+                  107,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "shares",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "setPaused",
       "discriminator": [
         91,
@@ -1940,6 +2100,16 @@ export type Autoshield = {
         {
           "name": "approve",
           "type": "bool"
+        },
+        {
+          "name": "reclassify",
+          "type": {
+            "option": {
+              "defined": {
+                "name": "claimKind"
+              }
+            }
+          }
         }
       ]
     },
@@ -2564,6 +2734,26 @@ export type Autoshield = {
       "code": 6041,
       "name": "insufficientLiquidityForClaim",
       "msg": "Liquidez livre insuficiente para pagar o sinistro agora"
+    },
+    {
+      "code": 6042,
+      "name": "exposureLimit",
+      "msg": "Cobertura acima do limite de exposicao do pool por apolice"
+    },
+    {
+      "code": 6043,
+      "name": "withdrawNotRequested",
+      "msg": "Saque nao solicitado ou acima das cotas solicitadas"
+    },
+    {
+      "code": 6044,
+      "name": "withdrawNoticeActive",
+      "msg": "Aviso previo de saque ainda em andamento"
+    },
+    {
+      "code": 6045,
+      "name": "accountNotClosable",
+      "msg": "Conta ainda em uso e nao pode ser fechada"
     }
   ],
   "types": [
@@ -2626,6 +2816,21 @@ export type Autoshield = {
                 "name": "claimKind"
               }
             }
+          },
+          {
+            "name": "originalKind",
+            "docs": [
+              "Tipo informado pelo motorista (antes de eventual reclassificacao)."
+            ],
+            "type": {
+              "defined": {
+                "name": "claimKind"
+              }
+            }
+          },
+          {
+            "name": "reclassified",
+            "type": "bool"
           },
           {
             "name": "amountRequested",
@@ -2989,13 +3194,10 @@ export type Autoshield = {
             "type": "u64"
           },
           {
-            "name": "plate",
-            "type": "string"
-          },
-          {
             "name": "plateHash",
             "docs": [
-              "sha256 da placa normalizada: chave do registro unico do veiculo."
+              "sha256 da placa normalizada. A placa em texto nunca vai para a",
+              "blockchain (pseudonimizacao, LGPD); o avaliador confere o hash na vistoria."
             ],
             "type": {
               "array": [
@@ -3134,7 +3336,31 @@ export type Autoshield = {
           },
           {
             "name": "inspector",
+            "docs": [
+              "Ultimo avaliador que votou na vistoria."
+            ],
             "type": "pubkey"
+          },
+          {
+            "name": "inspectionApprovals",
+            "type": "u8"
+          },
+          {
+            "name": "inspectionRejections",
+            "type": "u8"
+          },
+          {
+            "name": "inspectionVoters",
+            "type": {
+              "vec": "pubkey"
+            }
+          },
+          {
+            "name": "inspectionFeePaid",
+            "docs": [
+              "Parte da taxa de vistoria ja repassada aos avaliadores."
+            ],
+            "type": "u64"
           },
           {
             "name": "claimsAllowedFrom",
@@ -3554,6 +3780,29 @@ export type Autoshield = {
             "type": "u64"
           },
           {
+            "name": "inspectionThreshold",
+            "docs": [
+              "Votos de avaliadores necessarios para aprovar uma vistoria."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "withdrawNoticeSecs",
+            "docs": [
+              "Aviso previo entre pedir e executar um saque de liquidez (segundos).",
+              "Durante o aviso as cotas continuam expostas aos sinistros."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "maxPolicyCoverageBps",
+            "docs": [
+              "Cobertura maxima de uma apolice em relacao ao patrimonio do pool (bps;",
+              "pode passar de 10.000 = 100% porque o colateral e fracionario)."
+            ],
+            "type": "u32"
+          },
+          {
             "name": "faucetEnabled",
             "docs": [
               "Habilita o faucet de token de teste (somente devnet/localnet)."
@@ -3576,13 +3825,10 @@ export type Autoshield = {
             "type": "u64"
           },
           {
-            "name": "plate",
-            "type": "string"
-          },
-          {
             "name": "plateHash",
             "docs": [
-              "sha256 da placa normalizada (maiusculas, so letras e digitos)."
+              "sha256 da placa normalizada (maiusculas, so letras e digitos). A placa em",
+              "texto nao e enviada; a vistoria confere se o hash bate com o documento."
             ],
             "type": {
               "array": [
@@ -3666,6 +3912,17 @@ export type Autoshield = {
           },
           {
             "name": "lastDepositTs",
+            "type": "i64"
+          },
+          {
+            "name": "pendingWithdrawShares",
+            "docs": [
+              "Cotas com saque pedido e o instante em que podem ser sacadas."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "withdrawAvailableAt",
             "type": "i64"
           },
           {

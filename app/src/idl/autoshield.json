@@ -159,6 +159,96 @@
       "args": []
     },
     {
+      "name": "close_claim",
+      "discriminator": [
+        42,
+        177,
+        165,
+        35,
+        213,
+        179,
+        211,
+        19
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "signer": true
+        },
+        {
+          "name": "claim",
+          "writable": true
+        },
+        {
+          "name": "claimant",
+          "writable": true,
+          "relations": [
+            "claim"
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "close_policy",
+      "discriminator": [
+        55,
+        42,
+        248,
+        229,
+        222,
+        138,
+        26,
+        252
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "signer": true
+        },
+        {
+          "name": "policy",
+          "writable": true
+        },
+        {
+          "name": "owner",
+          "writable": true,
+          "relations": [
+            "policy"
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "close_position",
+      "discriminator": [
+        123,
+        134,
+        81,
+        0,
+        49,
+        68,
+        98,
+        98
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "position"
+          ]
+        },
+        {
+          "name": "position",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "deposit_liquidity",
       "discriminator": [
         245,
@@ -1526,6 +1616,76 @@
       ]
     },
     {
+      "name": "request_withdrawal",
+      "discriminator": [
+        251,
+        85,
+        121,
+        205,
+        56,
+        201,
+        12,
+        177
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "position"
+          ]
+        },
+        {
+          "name": "pool",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  97,
+                  107,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "shares",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "set_paused",
       "discriminator": [
         91,
@@ -1934,6 +2094,16 @@
         {
           "name": "approve",
           "type": "bool"
+        },
+        {
+          "name": "reclassify",
+          "type": {
+            "option": {
+              "defined": {
+                "name": "ClaimKind"
+              }
+            }
+          }
         }
       ]
     },
@@ -2558,6 +2728,26 @@
       "code": 6041,
       "name": "InsufficientLiquidityForClaim",
       "msg": "Liquidez livre insuficiente para pagar o sinistro agora"
+    },
+    {
+      "code": 6042,
+      "name": "ExposureLimit",
+      "msg": "Cobertura acima do limite de exposicao do pool por apolice"
+    },
+    {
+      "code": 6043,
+      "name": "WithdrawNotRequested",
+      "msg": "Saque nao solicitado ou acima das cotas solicitadas"
+    },
+    {
+      "code": 6044,
+      "name": "WithdrawNoticeActive",
+      "msg": "Aviso previo de saque ainda em andamento"
+    },
+    {
+      "code": 6045,
+      "name": "AccountNotClosable",
+      "msg": "Conta ainda em uso e nao pode ser fechada"
     }
   ],
   "types": [
@@ -2620,6 +2810,21 @@
                 "name": "ClaimKind"
               }
             }
+          },
+          {
+            "name": "original_kind",
+            "docs": [
+              "Tipo informado pelo motorista (antes de eventual reclassificacao)."
+            ],
+            "type": {
+              "defined": {
+                "name": "ClaimKind"
+              }
+            }
+          },
+          {
+            "name": "reclassified",
+            "type": "bool"
           },
           {
             "name": "amount_requested",
@@ -2983,13 +3188,10 @@
             "type": "u64"
           },
           {
-            "name": "plate",
-            "type": "string"
-          },
-          {
             "name": "plate_hash",
             "docs": [
-              "sha256 da placa normalizada: chave do registro unico do veiculo."
+              "sha256 da placa normalizada. A placa em texto nunca vai para a",
+              "blockchain (pseudonimizacao, LGPD); o avaliador confere o hash na vistoria."
             ],
             "type": {
               "array": [
@@ -3128,7 +3330,31 @@
           },
           {
             "name": "inspector",
+            "docs": [
+              "Ultimo avaliador que votou na vistoria."
+            ],
             "type": "pubkey"
+          },
+          {
+            "name": "inspection_approvals",
+            "type": "u8"
+          },
+          {
+            "name": "inspection_rejections",
+            "type": "u8"
+          },
+          {
+            "name": "inspection_voters",
+            "type": {
+              "vec": "pubkey"
+            }
+          },
+          {
+            "name": "inspection_fee_paid",
+            "docs": [
+              "Parte da taxa de vistoria ja repassada aos avaliadores."
+            ],
+            "type": "u64"
           },
           {
             "name": "claims_allowed_from",
@@ -3548,6 +3774,29 @@
             "type": "u64"
           },
           {
+            "name": "inspection_threshold",
+            "docs": [
+              "Votos de avaliadores necessarios para aprovar uma vistoria."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "withdraw_notice_secs",
+            "docs": [
+              "Aviso previo entre pedir e executar um saque de liquidez (segundos).",
+              "Durante o aviso as cotas continuam expostas aos sinistros."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "max_policy_coverage_bps",
+            "docs": [
+              "Cobertura maxima de uma apolice em relacao ao patrimonio do pool (bps;",
+              "pode passar de 10.000 = 100% porque o colateral e fracionario)."
+            ],
+            "type": "u32"
+          },
+          {
             "name": "faucet_enabled",
             "docs": [
               "Habilita o faucet de token de teste (somente devnet/localnet)."
@@ -3570,13 +3819,10 @@
             "type": "u64"
           },
           {
-            "name": "plate",
-            "type": "string"
-          },
-          {
             "name": "plate_hash",
             "docs": [
-              "sha256 da placa normalizada (maiusculas, so letras e digitos)."
+              "sha256 da placa normalizada (maiusculas, so letras e digitos). A placa em",
+              "texto nao e enviada; a vistoria confere se o hash bate com o documento."
             ],
             "type": {
               "array": [
@@ -3660,6 +3906,17 @@
           },
           {
             "name": "last_deposit_ts",
+            "type": "i64"
+          },
+          {
+            "name": "pending_withdraw_shares",
+            "docs": [
+              "Cotas com saque pedido e o instante em que podem ser sacadas."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "withdraw_available_at",
             "type": "i64"
           },
           {

@@ -61,17 +61,19 @@ Além disso, o modelo econômico inclui um mecanismo de staking que possibilita 
 | **Sinistros** | Motorista registra (tipo, valor, descrição, hash SHA-256 das evidências) → comitê de avaliadores vota com quórum → pagamento permissionless direto do cofre. Sem quórum no prazo, qualquer pessoa pode encerrar o pedido |
 | **Parcelamento** | À vista ou em até 12x sem juros (cada parcela cobre ao menos 30 dias). Sinistro só com parcelas em dia; atraso além da tolerância (padrão 5 dias) faz a apólice caducar e perder o cashback |
 | **Receita e avaliadores** | Taxa do protocolo (padrão 5% do prêmio) vai para a tesouraria, sacável só pela autoridade. O avaliador recebe a taxa de vistoria (paga pelo motorista, padrão 50 tBRL) e uma remuneração por voto (padrão 10 tBRL) paga da tesouraria |
-| **Antifraude** | Registro único por placa (PDA do hash SHA-256 da placa normalizada), travado só na vistoria aprovada — contratar a placa de outra pessoa não bloqueia o dono · vistoria prévia obrigatória (recusada = prêmio devolvido, taxa de vistoria não) · carência entre contratação e sinistro (padrão 7 dias) · valor FIPE mínimo · avaliador não vota nem vistoria a própria apólice |
+| **Antifraude** | Registro único por placa (PDA do hash SHA-256 da placa normalizada), travado só na vistoria aprovada — contratar a placa de outra pessoa não bloqueia o dono · vistoria prévia obrigatória (recusada = prêmio devolvido, taxa de vistoria não) · carência entre contratação e sinistro (padrão 7 dias) · valor FIPE mínimo · avaliador não vota nem vistoria a própria apólice · vistoria decidida por quórum (padrão 2) · avaliador pode reclassificar o tipo do sinistro ao aprovar |
 | **Segurança do capital** | Pool só pode ser criado pela autoridade de upgrade do programa · sinistro pago apenas com o patrimônio livre dos LPs (nunca com cashback reservado ou taxas); sem liquidez ele segue aprovado, sem pagamento parcial · cotas "mortas" no primeiro aporte contra ataque de inflação · contas com versão e espaço reservado para upgrades |
+| **Privacidade e evidências** | A placa nunca vai em texto para a blockchain: só o hash SHA-256 (pseudonimização, LGPD); o avaliador confere digitando a placa do documento. Fotos e B.O. vão para o IPFS (via Pinata, chave só no servidor) e o link + hash ficam no sinistro |
+| **Robustez do pool** | Cobertura máxima por apólice em relação ao patrimônio (padrão 200%) · saque de LP com aviso prévio (padrão 2 dias), durante o qual as cotas seguem expostas · contas encerradas podem ser fechadas, devolvendo o aluguel em SOL |
 | **Governança** | Mudanças de parâmetros e de avaliadores passam por timelock (propor → aguardar → aplicar, canceláveis) · transferência de autoridade em dois passos (propor + aceite da nova carteira) · pausa de emergência imediata |
 
 ### Instruções do programa
 
 - **Governança:** `initialize_pool`, `propose_params`, `apply_params`, `propose_assessors`, `apply_assessors`, `cancel_pending`, `set_paused`, `propose_authority`, `accept_authority`, `withdraw_treasury`
 - **Token de teste:** `init_test_mint`, `faucet`
-- **Liquidez:** `deposit_liquidity`, `withdraw_liquidity`
-- **Apólices:** `purchase_policy`, `pay_installment`, `inspect_policy`, `settle_policy`
-- **Sinistros:** `file_claim`, `vote_claim`, `expire_claim`, `pay_claim`
+- **Liquidez:** `deposit_liquidity`, `request_withdrawal`, `withdraw_liquidity`, `close_position`
+- **Apólices:** `purchase_policy`, `pay_installment`, `inspect_policy`, `settle_policy`, `close_policy`
+- **Sinistros:** `file_claim`, `vote_claim`, `expire_claim`, `pay_claim`, `close_claim`
 
 ## Como rodar
 
@@ -114,7 +116,7 @@ Requisitos: Rust, Solana CLI (Agave 2.1.x), Anchor CLI 0.31.1, Node 20+ e Yarn.
 yarn install
 anchor build                         # compila o programa e gera o IDL
 cargo test -p autoshield             # testes unitários de precificação
-anchor test                          # 22 testes de integração no validador local
+anchor test                          # 24 testes de integração no validador local
 ```
 
 > O `Cargo.lock` fixa `blake3 = 1.5.5` e versões compatíveis com o Rust 1.79 do toolchain SBF da Agave 2.1.
@@ -251,7 +253,8 @@ Additionally, the protocol includes a staking-based economic model that enables 
 - **Anti-fraud:** one active policy per vehicle (PDA keyed by the plate's SHA-256, locked only when an inspection is approved), mandatory assessor inspection before any claim (rejection refunds the premium but not the inspection fee), a claim waiting period (default 7 days), a minimum vehicle value, and assessors can never vote on or inspect their own policy.
 - **Security:** only the program upgrade authority can create the pool; parameter and assessor changes go through a timelock; authority transfer is two-step; claims are paid only from LP net assets (never partially); dead shares block share-inflation attacks; accounts are versioned with reserved space.
 - **Revenue and installments:** a protocol fee on premiums funds a treasury that pays assessors per vote; drivers pay an inspection fee to the inspector; policies can be paid in up to 12 interest-free installments and lapse when payments fall behind.
-- **Program:** `yarn install && anchor build && anchor test` (22 integration tests). Deploy + `anchor run bootstrap --provider.cluster devnet` to create the tBRL test mint, the pool and seed liquidity.
+- **Privacy, evidence and pool robustness:** plates are stored only as a SHA-256 hash (checked by assessors at inspection), claim evidence goes to IPFS via a server-side Pinata key, inspections need a quorum, assessors can reclassify claims, LP withdrawals need a notice period, per-policy coverage is capped, and closed accounts return their rent.
+- **Program:** `yarn install && anchor build && anchor test` (24 integration tests). Deploy + `anchor run bootstrap --provider.cluster devnet` to create the tBRL test mint, the pool and seed liquidity.
 
 ## How to Contribute
 

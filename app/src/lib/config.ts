@@ -32,3 +32,11 @@ export function explorerAddr(addr: string): string {
   const q = EXPLORER_CLUSTER === "mainnet-beta" ? "" : `?cluster=${EXPLORER_CLUSTER}`;
   return `https://explorer.solana.com/address/${addr}${q}`;
 }
+
+/** Gateway publico para abrir evidencias gravadas como ipfs://CID. */
+export const IPFS_GATEWAY = process.env.NEXT_PUBLIC_IPFS_GATEWAY ?? "https://ipfs.io/ipfs/";
+
+export function ipfsUrl(uri: string): string | null {
+  const m = uri.match(/^ipfs:\/\/([A-Za-z0-9]+)/);
+  return m ? `${IPFS_GATEWAY}${m[1]}` : null;
+}

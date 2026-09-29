@@ -17,9 +17,10 @@ import type {
   PoolParams,
   PurchaseInput,
   StakeInfo,
+  ClaimKind,
 } from "../types";
 import { PROGRAM_ID } from "../config";
-import { plateHash } from "../plate";
+import { lookupPlate, plateHash, rememberPlate, toHex } from "../plate";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -42,6 +43,9 @@ function mapParams(p: any): PoolParams {
     inspectionFee: n(p.inspectionFee),
     voteReward: n(p.voteReward),
     minVehicleValue: n(p.minVehicleValue),
+    inspectionThreshold: p.inspectionThreshold,
+    withdrawNoticeSecs: n(p.withdrawNoticeSecs),
+    maxPolicyCoverageBps: p.maxPolicyCoverageBps,
     faucetEnabled: p.faucetEnabled,
   };
 }
@@ -61,6 +65,9 @@ function toChainParams(p: PoolParams) {
     inspectionFee: new BN(p.inspectionFee),
     voteReward: new BN(p.voteReward),
     minVehicleValue: new BN(p.minVehicleValue),
+    inspectionThreshold: p.inspectionThreshold,
+    withdrawNoticeSecs: new BN(p.withdrawNoticeSecs),
+    maxPolicyCoverageBps: p.maxPolicyCoverageBps,
     faucetEnabled: p.faucetEnabled,
   };
 }
@@ -189,7 +196,8 @@ export class OnChainClient implements AutoShieldClient {
       owner: p.owner.toBase58(),
       id: n(p.id),
       nonce: p.nonce.toString(),
-      plate: p.plate,
+      plateHash: toHex(p.plateHash),
+      plate: lookupPlate(toHex(p.plateHash)),
       model: p.model,
       year: p.year,
       vehicleValue: n(p.vehicleValue),
@@ -209,6 +217,10 @@ export class OnChainClient implements AutoShieldClient {
       cashbackRedeemed: p.cashbackRedeemed,
       inspected: p.inspected,
       inspector: p.inspector.toBase58(),
+      inspectionApprovals: p.inspectionApprovals,
+      inspectionRejections: p.inspectionRejections,
+      inspectionVoters: p.inspectionVoters.map((v: PublicKey) => v.toBase58()),
+      inspectionFeePaid: n(p.inspectionFeePaid),
       claimsAllowedFrom: n(p.claimsAllowedFrom),
       premiumTotal: n(p.premiumTotal),
       installments: p.installments,
@@ -227,6 +239,8 @@ export class OnChainClient implements AutoShieldClient {
       id: n(c.id),
       index: c.index,
       kind: enumKey(c.kind),
+      originalKind: enumKey(c.originalKind),
+      reclassified: c.reclassified,
       amountRequested: n(c.amountRequested),
       payoutAmount: n(c.payoutAmount),
       description: c.description,
@@ -267,6 +281,8 @@ export class OnChainClient implements AutoShieldClient {
       totalDeposited: n(s.totalDeposited),
       totalWithdrawn: n(s.totalWithdrawn),
       lastDepositTs: n(s.lastDepositTs),
+      pendingWithdrawShares: n(s.pendingWithdrawShares),
+      withdrawAvailableAt: n(s.withdrawAvailableAt),
     };
   }
 
@@ -292,6 +308,42 @@ export class OnChainClient implements AutoShieldClient {
       .rpc();
   }
 
+  async requestWithdraw(shares: number): Promise<string> {
+    const me = this.me();
+    return this.program.methods
+      .requestWithdrawal(new BN(shares))
+      .accountsPartial({ owner: me, pool: this.poolPda })
+      .rpc();
+  }
+
+  async closePolicy(policyAddr: string): Promise<string> {
+    const policy = new PublicKey(policyAddr);
+    const p = await this.program.account.policy.fetch(policy);
+    const caller = this.me();
+    // fecha antes os sinistros resolvidos da apolice que ainda existem
+    const claimIxs = [];
+    for (let i = 0; i < p.claimsFiled; i++) {
+      const [claim] = PublicKey.findProgramAddressSync(
+        [Buffer.from("claim"), policy.toBuffer(), Buffer.from([i])],
+        this.programId,
+      );
+      const c = await this.program.account.claim.fetchNullable(claim);
+      if (c && ("paid" in c.status || "rejected" in c.status)) {
+        claimIxs.push(
+          await this.program.methods
+            .closeClaim()
+            .accountsPartial({ caller, claim, claimant: c.claimant })
+            .instruction(),
+        );
+      }
+    }
+    return this.program.methods
+      .closePolicy()
+      .accountsPartial({ caller, policy, owner: p.owner })
+      .preInstructions(claimIxs)
+      .rpc();
+  }
+
   async withdraw(shares: number): Promise<string> {
     const me = this.me();
     const mint = await this.mint();
@@ -303,6 +355,7 @@ export class OnChainClient implements AutoShieldClient {
 
   async purchase(input: PurchaseInput): Promise<string> {
     const me = this.me();
+    rememberPlate(input.plate);
     const mint = await this.mint();
     const nonce = new BN(Date.now());
     const [policy] = PublicKey.findProgramAddressSync(
@@ -312,7 +365,6 @@ export class OnChainClient implements AutoShieldClient {
     return this.program.methods
       .purchasePolicy({
         nonce,
-        plate: input.plate,
         plateHash: plateHash(input.plate),
         model: input.model,
         year: input.year,
@@ -350,11 +402,11 @@ export class OnChainClient implements AutoShieldClient {
       .rpc();
   }
 
-  async vote(claimAddr: string, approve: boolean): Promise<string> {
+  async vote(claimAddr: string, approve: boolean, _as?: string, reclassify?: ClaimKind): Promise<string> {
     const claim = new PublicKey(claimAddr);
     const c = await this.program.account.claim.fetch(claim);
     return this.program.methods
-      .voteClaim(approve)
+      .voteClaim(approve, approve && reclassify ? enumVal(reclassify) : null)
       .accountsPartial({
         assessor: this.me(),
         pool: this.poolPda,

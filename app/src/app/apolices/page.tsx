@@ -6,7 +6,7 @@ import { useAction, useApp, useData } from "@/components/Providers";
 import { Chip, Empty, Loading, PageHeader, Progress, Row, Spinner, WalletGate } from "@/components/ui";
 import { explorerAddr } from "@/lib/config";
 import { fmtDate, fmtDuration, fmtMoney, TIER_LABEL } from "@/lib/format";
-import { policyPhase } from "@/lib/plate";
+import { displayPlate, policyPhase } from "@/lib/plate";
 import { installmentAmount, paidUntil } from "@/lib/pricing";
 import type { PolicyInfo } from "@/lib/types";
 
@@ -101,7 +101,7 @@ function PolicyCard({ p, now, grace }: { p: PolicyInfo; now: number; grace: numb
           </p>
           <h3 className="mt-1 text-lg font-bold">{p.model}</h3>
           <p className="text-sm text-[var(--muted)]">
-            <span className="rounded bg-[var(--bg-soft)] px-1.5 py-0.5 font-mono text-[var(--fg)]">{p.plate}</span> · {p.year}
+            <span className="rounded bg-[var(--bg-soft)] px-1.5 py-0.5 font-mono text-[var(--fg)]">{displayPlate(p)}</span> · {p.year}
           </p>
         </div>
         <Chip tone={status.tone}>{status.label}</Chip>
@@ -208,6 +208,22 @@ function PolicyCard({ p, now, grace }: { p: PolicyInfo; now: number; grace: numb
           <button className="btn btn-primary" disabled={!!busy} onClick={settle}>
             {busy === `settle-${p.address}` ? <Spinner /> : <Coins className="size-4" />}
             {cashbackOnSettle ? `Resgatar ${fmtMoney(p.cashbackAmount)}` : "Encerrar apólice"}
+          </button>
+        )}
+        {(p.status === "settled" || p.status === "cancelled") && !p.hasOpenClaim && (
+          <button
+            className="btn btn-ghost"
+            disabled={!!busy}
+            title="Fecha a conta da apólice e dos sinistros resolvidos na blockchain e devolve o aluguel em SOL"
+            onClick={() =>
+              run(
+                `close-${p.address}`,
+                () => client.closePolicy(p.address),
+                client.mode === "chain" ? "Conta fechada: aluguel em SOL devolvido" : "Apólice arquivada",
+              )
+            }
+          >
+            {busy === `close-${p.address}` && <Spinner />} {client.mode === "chain" ? "Recuperar SOL" : "Arquivar"}
           </button>
         )}
         {p.status === "settled" && (
