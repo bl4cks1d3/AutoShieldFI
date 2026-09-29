@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useAction, useApp, useData } from "@/components/Providers";
 import { FipeLookup } from "@/components/FipeLookup";
+import { PlateStatus, usePlateAutofill } from "@/components/PlateAutofill";
 import { Loading, PageHeader, PoolMissing, Row, Spinner, WalletGate } from "@/components/ui";
 import { normalizePlate, PLATE_RE, PRESETS } from "@/lib/fipe";
 import { fmtDuration, fmtInput, fmtMoney, toBase } from "@/lib/format";
@@ -38,6 +39,12 @@ export default function CotarPage() {
   const [days, setDays] = useState(365);
   const [installments, setInstallments] = useState(12);
   const [fipeOpen, setFipeOpen] = useState(false);
+  // Placa valida digitada -> busca o veiculo e preenche modelo, ano e valor FIPE.
+  const plateState = usePlateAutofill(plate, (q) => {
+    setModel(`${q.marca.split(" - ")[0]} ${q.modelo}`.slice(0, 48));
+    setYear(q.anoModelo);
+    setValue(fmtInput(q.valor));
+  });
 
   if (loading) return <Loading />;
   if (!pool) return <PoolMissing />;
@@ -144,6 +151,7 @@ export default function CotarPage() {
                   onChange={(e) => setPlate(e.target.value)}
                 />
                 {plate && !plateOk && <p className="mt-1 text-xs text-[var(--bad)]">{t("Formato inválido (ex.: ABC1D23)", "Invalid format (e.g. ABC1D23)")}</p>}
+                <PlateStatus state={plateState} onMoreVersions={() => setFipeOpen(true)} />
               </div>
               <div>
                 <label className="label" htmlFor="year">{t("Ano do modelo", "Model year")}</label>
