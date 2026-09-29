@@ -7,7 +7,7 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "Contrate proteção veicular, acione sinistros e receba cashback na Solana.",
     start_url: "/",
     display: "standalone",
-    background_color: "#0b1311",
+    background_color: "#f5f7f6",
     theme_color: "#0f9f75",
     lang: "pt-BR",
     categories: ["finance", "utilities"],

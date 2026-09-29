@@ -1,30 +1,46 @@
 import { UNIT } from "./pricing";
-import type { ClaimKind, ClaimStatus, Tier } from "./types";
 import { STABLE_SYMBOL } from "./config";
+import { getLang, locale, tr, translateError } from "./i18n";
 
-const brl = new Intl.NumberFormat("pt-BR", {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
+// Formatadores sensiveis ao idioma escolhido (PT-BR ou English).
+
+function money(): Intl.NumberFormat {
+  return new Intl.NumberFormat(locale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 
 export function fmtMoney(base: number, symbol = true): string {
-  const s = brl.format(base / UNIT);
+  const s = money().format(base / UNIT);
   return symbol ? `${s} ${STABLE_SYMBOL}` : s;
 }
 
 export function fmtBRL(base: number): string {
-  return `R$ ${brl.format(base / UNIT)}`;
+  return `R$ ${money().format(base / UNIT)}`;
 }
 
+/** Numero no idioma atual, ex.: 1.234,5 (PT) ou 1,234.5 (EN). */
+export function fmtNum(v: number, maxDigits = 2): string {
+  return v.toLocaleString(locale(), { maximumFractionDigits: maxDigits });
+}
+
+/** Numero para preencher um campo de texto (sem separador de milhar). */
+export function fmtInput(v: number, digits?: number): string {
+  const s = digits === undefined ? String(v) : v.toFixed(digits);
+  return getLang() === "en" ? s : s.replace(".", ",");
+}
+
+/** Le um valor digitado no idioma atual e converte para unidades base do token. */
 export function toBase(v: number | string): number {
-  const n = typeof v === "string" ? Number(v.replace(/\./g, "").replace(",", ".")) : v;
+  let n: number;
+  if (typeof v === "number") n = v;
+  else if (getLang() === "en") n = Number(v.replace(/,/g, ""));
+  else n = Number(v.replace(/\./g, "").replace(",", "."));
   if (!Number.isFinite(n) || n < 0) return 0;
   return Math.round(n * UNIT);
 }
 
 export function fmtDate(ts: number): string {
   if (!ts) return "—";
-  return new Date(ts * 1000).toLocaleString("pt-BR", {
+  return new Date(ts * 1000).toLocaleString(locale(), {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -34,7 +50,7 @@ export function fmtDate(ts: number): string {
 }
 
 export function fmtPct(v: number, digits = 1): string {
-  return `${(v * 100).toLocaleString("pt-BR", { maximumFractionDigits: digits })}%`;
+  return `${(v * 100).toLocaleString(locale(), { maximumFractionDigits: digits })}%`;
 }
 
 export function shortAddr(a: string): string {
@@ -44,7 +60,7 @@ export function shortAddr(a: string): string {
 }
 
 export function fmtDuration(secs: number): string {
-  if (secs <= 0) return "encerrado";
+  if (secs <= 0) return tr("encerrado", "ended");
   const d = Math.floor(secs / 86400);
   const h = Math.floor((secs % 86400) / 3600);
   const m = Math.floor((secs % 3600) / 60);
@@ -53,45 +69,19 @@ export function fmtDuration(secs: number): string {
   return `${m}min ${Math.floor(secs % 60)}s`;
 }
 
-export const TIER_LABEL: Record<Tier, string> = {
-  basic: "Básico",
-  standard: "Essencial",
-  premium: "Completo",
-};
-
-export const TIER_DESC: Record<Tier, string> = {
-  basic: "Roubo, furto e eventos da natureza",
-  standard: "Básico + colisão",
-  premium: "Essencial + danos a terceiros e outros eventos",
-};
-
-export const KIND_LABEL: Record<ClaimKind, string> = {
-  theft: "Roubo / furto",
-  collision: "Colisão",
-  thirdParty: "Danos a terceiros",
-  naturalEvent: "Evento da natureza",
-  other: "Outros",
-};
-
-export const STATUS_LABEL: Record<ClaimStatus, string> = {
-  pending: "Em análise",
-  approved: "Aprovado",
-  rejected: "Recusado",
-  paid: "Pago",
-};
-
 export function errMsg(e: unknown): string {
   const any = e as {
     error?: { errorMessage?: string };
     message?: string;
     logs?: string[];
   };
-  if (any?.error?.errorMessage) return any.error.errorMessage;
+  if (any?.error?.errorMessage) return translateError(any.error.errorMessage);
   const msg = any?.message ?? String(e);
   const m = msg.match(/Error Message: ([^.]+)/);
-  if (m) return m[1];
-  if (msg.includes("User rejected")) return "Transação cancelada na carteira";
+  if (m) return translateError(m[1]);
+  if (msg.includes("User rejected")) return translateError("Transação cancelada na carteira");
   if (msg.includes("insufficient funds") || msg.includes("0x1"))
-    return "Saldo insuficiente para a operação";
-  return msg.length > 180 ? msg.slice(0, 180) + "…" : msg;
+    return translateError("Saldo insuficiente para a operação");
+  const out = translateError(msg);
+  return out.length > 180 ? out.slice(0, 180) + "…" : out;
 }

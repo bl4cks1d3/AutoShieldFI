@@ -40,3 +40,6 @@ export function ipfsUrl(uri: string): string | null {
   const m = uri.match(/^ipfs:\/\/([A-Za-z0-9]+)/);
   return m ? `${IPFS_GATEWAY}${m[1]}` : null;
 }
+
+/** App ID da Privy (login com Google/e-mail e carteira embutida). Vazio desativa. */
+export const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID ?? "";

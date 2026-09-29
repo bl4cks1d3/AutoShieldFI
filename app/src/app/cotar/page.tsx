@@ -8,7 +8,8 @@ import { useAction, useApp, useData } from "@/components/Providers";
 import { FipeLookup } from "@/components/FipeLookup";
 import { Loading, PageHeader, PoolMissing, Row, Spinner, WalletGate } from "@/components/ui";
 import { normalizePlate, PLATE_RE, PRESETS } from "@/lib/fipe";
-import { fmtDuration, fmtMoney, KIND_LABEL, TIER_DESC, TIER_LABEL, toBase } from "@/lib/format";
+import { fmtDuration, fmtInput, fmtMoney, toBase } from "@/lib/format";
+import { kindLabel, tierDesc, tierLabel, useI18n } from "@/lib/i18n";
 import {
   installmentAmount,
   installmentOptions,
@@ -27,6 +28,7 @@ export default function CotarPage() {
   const { data: pool, loading } = useData((c) => c.getPool());
   const { data: balance } = useData((c) => (c.wallet ? c.getBalance(c.wallet) : Promise.resolve(0)), [client.wallet]);
   const { run, busy } = useAction();
+  const { lang, t } = useI18n();
 
   const [plate, setPlate] = useState("");
   const [model, setModel] = useState("");
@@ -74,7 +76,7 @@ export default function CotarPage() {
           installments: n,
           maxPremium: Math.ceil(q.premium * 1.01),
         }),
-      "Apólice contratada!",
+      t("Apólice contratada!", "Policy purchased!"),
     );
     if (sig) router.push("/apolices");
   };
@@ -82,19 +84,22 @@ export default function CotarPage() {
   return (
     <div>
       <PageHeader
-        title="Contratar proteção"
-        subtitle="Prêmio calculado on-chain a partir do valor FIPE, plano e vigência."
+        title={t("Contratar proteção", "Get covered")}
+        subtitle={t(
+          "Prêmio calculado on-chain a partir do valor FIPE, plano e vigência.",
+          "Premium calculated on-chain from the FIPE value, plan and term.",
+        )}
       />
       <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
         <div className="flex flex-col gap-6">
           <section className="card p-5">
             <div className="flex items-center justify-between">
               <h2 className="flex items-center gap-2 font-semibold">
-                <Car className="size-5 text-[var(--accent)]" /> Veículo
+                <Car className="size-5 text-[var(--accent)]" /> {t("Veículo", "Vehicle")}
               </h2>
               <button className="text-sm font-semibold text-[var(--accent)] hover:underline" onClick={() => setFipeOpen(!fipeOpen)}>
                 <Search className="mr-1 inline size-3.5" />
-                {fipeOpen ? "Fechar consulta FIPE" : "Consultar tabela FIPE"}
+                {fipeOpen ? t("Fechar consulta FIPE", "Close FIPE lookup") : t("Consultar tabela FIPE", "Look up FIPE price")}
               </button>
             </div>
 
@@ -105,7 +110,7 @@ export default function CotarPage() {
                   if (p.placa) setPlate(p.placa);
                   setModel(p.modelo);
                   setYear(p.ano);
-                  setValue(String(p.valor).replace(".", ","));
+                  setValue(fmtInput(p.valor));
                   setFipeOpen(false);
                 }}
               />
@@ -129,7 +134,7 @@ export default function CotarPage() {
 
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <div>
-                <label className="label" htmlFor="plate">Placa (Mercosul ou antiga)</label>
+                <label className="label" htmlFor="plate">{t("Placa (Mercosul ou antiga)", "License plate (Mercosur or old format)")}</label>
                 <input
                   id="plate"
                   className="input uppercase"
@@ -138,10 +143,10 @@ export default function CotarPage() {
                   value={plate}
                   onChange={(e) => setPlate(e.target.value)}
                 />
-                {plate && !plateOk && <p className="mt-1 text-xs text-[var(--bad)]">Formato inválido (ex.: ABC1D23)</p>}
+                {plate && !plateOk && <p className="mt-1 text-xs text-[var(--bad)]">{t("Formato inválido (ex.: ABC1D23)", "Invalid format (e.g. ABC1D23)")}</p>}
               </div>
               <div>
-                <label className="label" htmlFor="year">Ano do modelo</label>
+                <label className="label" htmlFor="year">{t("Ano do modelo", "Model year")}</label>
                 <input
                   id="year"
                   type="number"
@@ -153,18 +158,18 @@ export default function CotarPage() {
                 />
               </div>
               <div className="sm:col-span-2">
-                <label className="label" htmlFor="model">Marca / modelo</label>
+                <label className="label" htmlFor="model">{t("Marca / modelo", "Make / model")}</label>
                 <input
                   id="model"
                   className="input"
-                  placeholder="Ex.: VW Gol 1.0"
+                  placeholder={t("Ex.: VW Gol 1.0", "e.g. VW Gol 1.0")}
                   maxLength={48}
                   value={model}
                   onChange={(e) => setModel(e.target.value)}
                 />
               </div>
               <div className="sm:col-span-2">
-                <label className="label" htmlFor="value">Valor FIPE (R$)</label>
+                <label className="label" htmlFor="value">{t("Valor FIPE (R$)", "FIPE value (R$)")}</label>
                 <input
                   id="value"
                   className="input num"
@@ -179,26 +184,26 @@ export default function CotarPage() {
 
           <section className="card p-5">
             <h2 className="flex items-center gap-2 font-semibold">
-              <ShieldCheck className="size-5 text-[var(--accent)]" /> Plano de cobertura
+              <ShieldCheck className="size-5 text-[var(--accent)]" /> {t("Plano de cobertura", "Coverage plan")}
             </h2>
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              {(["basic", "standard", "premium"] as Tier[]).map((t) => (
+              {(["basic", "standard", "premium"] as Tier[]).map((tr) => (
                 <button
-                  key={t}
-                  onClick={() => setTier(t)}
+                  key={tr}
+                  onClick={() => setTier(tr)}
                   className={`rounded-xl border p-4 text-left transition ${
-                    tier === t ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--border)] hover:border-[var(--accent)]"
+                    tier === tr ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--border)] hover:border-[var(--accent)]"
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <p className="font-semibold">{TIER_LABEL[t]}</p>
-                    <span className="text-xs text-[var(--muted)]">×{(TIER_MULTIPLIER[t] / 100).toFixed(1)}</span>
+                    <p className="font-semibold">{tierLabel(tr, lang)}</p>
+                    <span className="text-xs text-[var(--muted)]">×{(TIER_MULTIPLIER[tr] / 100).toFixed(1)}</span>
                   </div>
-                  <p className="mt-1 text-xs text-[var(--muted)]">{TIER_DESC[t]}</p>
+                  <p className="mt-1 text-xs text-[var(--muted)]">{tierDesc(tr, lang)}</p>
                   <ul className="mt-3 space-y-1">
-                    {TIER_COVERS[t].map((k) => (
+                    {TIER_COVERS[tr].map((k) => (
                       <li key={k} className="flex items-center gap-1.5 text-xs">
-                        <Check className="size-3.5 text-[var(--ok)]" /> {KIND_LABEL[k]}
+                        <Check className="size-3.5 text-[var(--ok)]" /> {kindLabel(k, lang)}
                       </li>
                     ))}
                   </ul>
@@ -208,8 +213,8 @@ export default function CotarPage() {
 
             <div className="mt-6">
               <div className="flex items-center justify-between">
-                <label className="label !mb-0" htmlFor="days">Vigência</label>
-                <span className="num font-semibold">{days} dias</span>
+                <label className="label !mb-0" htmlFor="days">{t("Vigência", "Term")}</label>
+                <span className="num font-semibold">{days} {t("dias", "days")}</span>
               </div>
               <input
                 id="days"
@@ -228,14 +233,14 @@ export default function CotarPage() {
                     onClick={() => setDays(d)}
                     className={`chip border py-1 ${days === d ? "border-[var(--accent)] text-[var(--accent)]" : "border-[var(--border)] text-[var(--muted)]"}`}
                   >
-                    {d === 365 ? "1 ano" : `${d} dias`}
+                    {d === 365 ? t("1 ano", "1 year") : `${d} ${t("dias", "days")}`}
                   </button>
                 ))}
               </div>
             </div>
 
             <div className="mt-6">
-              <span className="label">Pagamento</span>
+              <span className="label">{t("Pagamento", "Payment")}</span>
               <div className="flex flex-wrap gap-2">
                 {[1, 2, 3, 6, 12].filter((k) => options.includes(k)).map((k) => (
                   <button
@@ -243,14 +248,16 @@ export default function CotarPage() {
                     onClick={() => setInstallments(k)}
                     className={`chip border py-1.5 ${n === k ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--border)] text-[var(--muted)]"}`}
                   >
-                    {k === 1 ? "À vista" : `${k}x sem juros`}
+                    {k === 1 ? t("À vista", "Upfront") : t(`${k}x sem juros`, `${k}x interest-free`)}
                   </button>
                 ))}
               </div>
               {n > 1 && (
                 <p className="mt-2 text-xs text-[var(--muted)]">
-                  Parcelas a cada {Math.round(days / n)} dias. Com parcela atrasada além da tolerância de{" "}
-                  {fmtDuration(pool.params.installmentGraceSecs)}, a apólice caduca e perde o cashback.
+                  {t(
+                    `Parcelas a cada ${Math.round(days / n)} dias. Com parcela atrasada além da tolerância de ${fmtDuration(pool.params.installmentGraceSecs)}, a apólice caduca e perde o cashback.`,
+                    `Installments every ${Math.round(days / n)} days. If an installment is late beyond the ${fmtDuration(pool.params.installmentGraceSecs)} grace period, the policy lapses and loses the cashback.`,
+                  )}
                 </p>
               )}
             </div>
@@ -259,56 +266,69 @@ export default function CotarPage() {
 
         <aside className="lg:sticky lg:top-32 lg:self-start">
           <div className="card p-5">
-            <h2 className="font-semibold">Resumo da cotação</h2>
+            <h2 className="font-semibold">{t("Resumo da cotação", "Quote summary")}</h2>
             <div className="mt-3 divide-y divide-[var(--border)] text-sm">
-              <Row label="Cobertura (valor FIPE)" value={fmtMoney(q.coverageLimit)} />
-              <Row label="Taxa base anual" value={`${(pool.params.baseRateBps / 100).toFixed(2)}%`} />
-              <Row label={`Plano ${TIER_LABEL[tier]}`} value={`×${(TIER_MULTIPLIER[tier] / 100).toFixed(1)}`} />
-              <Row label="Franquia (danos parciais)" value={fmtMoney(q.deductible)} />
-              <Row label="Prêmio total" value={fmtMoney(q.premium)} strong />
+              <Row label={t("Cobertura (valor FIPE)", "Coverage (FIPE value)")} value={fmtMoney(q.coverageLimit)} />
+              <Row label={t("Taxa base anual", "Annual base rate")} value={`${(pool.params.baseRateBps / 100).toFixed(2)}%`} />
+              <Row label={`${t("Plano", "Plan")} ${tierLabel(tier, lang)}`} value={`×${(TIER_MULTIPLIER[tier] / 100).toFixed(1)}`} />
+              <Row label={t("Franquia (danos parciais)", "Deductible (partial damage)")} value={fmtMoney(q.deductible)} />
+              <Row label={t("Prêmio total", "Total premium")} value={fmtMoney(q.premium)} strong />
               {n > 1 ? (
-                <Row label={`${n} parcelas de`} value={fmtMoney(first)} />
+                <Row label={t(`${n} parcelas de`, `${n} installments of`)} value={fmtMoney(first)} />
               ) : (
-                <Row label="Equivalente mensal" value={fmtMoney(q.monthlyEquivalent)} />
+                <Row label={t("Equivalente mensal", "Monthly equivalent")} value={fmtMoney(q.monthlyEquivalent)} />
               )}
-              <Row label="Taxa de vistoria (única)" value={fmtMoney(pool.params.inspectionFee)} />
+              <Row label={t("Taxa de vistoria (única)", "Inspection fee (one-time)")} value={fmtMoney(pool.params.inspectionFee)} />
               <Row
-                label={`Cashback sem sinistro (${pool.params.cashbackBps / 100}%)`}
+                label={`${t("Cashback sem sinistro", "Cashback with no claims")} (${pool.params.cashbackBps / 100}%)`}
                 value={<span className="text-[var(--ok)]">+{fmtMoney(q.cashback)}</span>}
               />
-              <Row label="Custo líquido sem sinistro" value={fmtMoney(q.netCost)} strong />
-              <Row label="Pago hoje" value={fmtMoney(payToday)} strong />
+              <Row label={t("Custo líquido sem sinistro", "Net cost with no claims")} value={fmtMoney(q.netCost)} strong />
+              <Row label={t("Pago hoje", "Paid today")} value={fmtMoney(payToday)} strong />
             </div>
 
             <div className="mt-4">
               <WalletGate>
                 <button className="btn btn-primary w-full" disabled={!canBuy || !!busy} onClick={buy}>
-                  {busy === "buy" && <Spinner />} {n > 1 ? `Contratar: 1ª parcela ${fmtMoney(payToday)}` : `Contratar por ${fmtMoney(payToday)}`}
+                  {busy === "buy" && <Spinner />} {n > 1
+                    ? `${t("Contratar: 1ª parcela", "Buy: 1st installment")} ${fmtMoney(payToday)}`
+                    : `${t("Contratar por", "Buy for")} ${fmtMoney(payToday)}`}
                 </button>
                 <div className="mt-2 space-y-1 text-xs text-[var(--muted)]">
                   {vehicleValue > 0 && !exposureOk && (
                     <p className="text-[var(--warn)]">
-                      Cobertura acima do limite por apólice do pool ({fmtMoney(maxCoverage)}). Aguarde mais liquidez.
+                      {t("Cobertura acima do limite por apólice do pool", "Coverage above the pool's per-policy limit")} (
+                      {fmtMoney(maxCoverage)}). {t("Aguarde mais liquidez.", "Wait for more liquidity.")}
                     </p>
                   )}
                   {vehicleValue > 0 && !valueOk && (
-                    <p className="text-[var(--warn)]">Valor FIPE mínimo: {fmtMoney(pool.params.minVehicleValue)}.</p>
+                    <p className="text-[var(--warn)]">
+                      {t("Valor FIPE mínimo", "Minimum FIPE value")}: {fmtMoney(pool.params.minVehicleValue)}.
+                    </p>
                   )}
                   {(balance ?? 0) < payToday && q.premium > 0 && (
                     <p className="text-[var(--warn)]">
-                      Saldo insuficiente ({fmtMoney(balance ?? 0)}). Use o faucet no topo da página.
+                      {t("Saldo insuficiente", "Insufficient balance")} ({fmtMoney(balance ?? 0)}).{" "}
+                      {t("Use o faucet no Início.", "Use the faucet on the Home page.")}
                     </p>
                   )}
                   {!capacityOk && vehicleValue > 0 && (
                     <p className="text-[var(--warn)]">
-                      O pool não tem capital livre para esta cobertura agora.{" "}
-                      <Link href="/pool" className="underline">Aporte liquidez</Link>.
+                      {t("O pool não tem capital livre para esta cobertura agora.", "The pool has no free capital for this coverage right now.")}{" "}
+                      <Link href="/pool" className="underline">{t("Aporte liquidez", "Provide liquidity")}</Link>.
                     </p>
                   )}
-                  <p>O prêmio é transferido para o cofre do pool de risco e a apólice é registrada on-chain.</p>
                   <p>
-                    Antes de cobrir sinistros, a apólice passa por vistoria de um avaliador (recusada = prêmio devolvido)
-                    e por carência de {fmtDuration(pool.params.claimWaitingSecs)}. Cada placa só pode ter uma apólice ativa.
+                    {t(
+                      "O prêmio é transferido para o cofre do pool de risco e a apólice é registrada on-chain.",
+                      "The premium is transferred to the risk pool vault and the policy is recorded on-chain.",
+                    )}
+                  </p>
+                  <p>
+                    {t(
+                      `Antes de cobrir sinistros, a apólice passa por vistoria de um avaliador (recusada = prêmio devolvido) e por carência de ${fmtDuration(pool.params.claimWaitingSecs)}. Cada placa só pode ter uma apólice ativa.`,
+                      `Before covering claims, the policy goes through an assessor inspection (rejected = premium refunded) and a ${fmtDuration(pool.params.claimWaitingSecs)} waiting period. Each plate can only have one active policy.`,
+                    )}
                   </p>
                 </div>
               </WalletGate>

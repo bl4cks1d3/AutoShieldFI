@@ -5,9 +5,14 @@ const isDev = process.env.NODE_ENV !== "production";
 // Politica de seguranca do conteudo: o app so carrega codigo proprio, fala com
 // RPCs/IPFS via HTTPS e nao pode ser embutido em outro site (anti-clickjacking,
 // importante para dApps em que o usuario aprova transacoes na carteira).
+// Excecoes: login social da Privy (iframe da carteira embutida em auth.privy.io
+// e captcha Cloudflare Turnstile).
+const PRIVY_FRAMES = "https://auth.privy.io https://challenges.cloudflare.com";
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
+  `script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com${isDev ? " 'unsafe-eval'" : ""}`,
+  `frame-src 'self' ${PRIVY_FRAMES}`,
+  `child-src 'self' ${PRIVY_FRAMES}`,
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data: https://fonts.gstatic.com",

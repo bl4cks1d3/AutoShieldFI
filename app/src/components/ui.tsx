@@ -2,26 +2,40 @@
 
 import { ExternalLink, Loader2, Wallet } from "lucide-react";
 import dynamic from "next/dynamic";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { CLUSTER_LABEL, DEMO_ENABLED, ipfsUrl } from "@/lib/config";
-import { STATUS_LABEL } from "@/lib/format";
+import { locale, statusLabel, useI18n } from "@/lib/i18n";
 import type { ClaimStatus } from "@/lib/types";
 import { useApp } from "./Providers";
+import { LoginButton, PRIVY_ENABLED } from "./PrivyAuth";
 
 export const WalletButton = dynamic(
   async () => (await import("@solana/wallet-adapter-react-ui")).WalletMultiButton,
   { ssr: false, loading: () => <div className="h-10 w-36 rounded-xl bg-[var(--bg-soft)]" /> },
 );
 
+/** Data de hoje por extenso, so no cliente (evita divergencia de fuso/idioma na hidratacao). */
+function Today() {
+  const { lang } = useI18n();
+  const [text, setText] = useState("");
+  useEffect(() => {
+    setText(new Date().toLocaleDateString(locale(lang), { weekday: "long", day: "numeric", month: "long" }));
+  }, [lang]);
+  return <>{text || " "}</>;
+}
+
 export function PageHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
   return (
-    <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+    <header className="mb-7 flex flex-wrap items-end justify-between gap-4">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{title}</h1>
-        {subtitle && <p className="mt-1 text-[var(--muted)]">{subtitle}</p>}
+        <p className="mb-1 text-[13px] font-semibold uppercase tracking-[0.02em] text-[var(--muted)]">
+          <Today />
+        </p>
+        <h1 className="text-[34px] font-bold leading-[1.1] tracking-[-0.025em]">{title}</h1>
+        {subtitle && <p className="mt-1.5 text-[15px] text-[var(--muted)]">{subtitle}</p>}
       </div>
-      {action}
-    </div>
+      {action && <div className="flex flex-wrap gap-2">{action}</div>}
+    </header>
   );
 }
 
@@ -43,7 +57,8 @@ const STATUS_STYLE: Record<ClaimStatus, string> = {
 };
 
 export function ClaimStatusChip({ status }: { status: ClaimStatus }) {
-  return <span className={`chip ${STATUS_STYLE[status]}`}>{STATUS_LABEL[status]}</span>;
+  const { lang } = useI18n();
+  return <span className={`chip ${STATUS_STYLE[status]}`}>{statusLabel(status, lang)}</span>;
 }
 
 export function Chip({ children, tone = "neutral" }: { children: ReactNode; tone?: "neutral" | "ok" | "warn" | "bad" | "info" }) {
@@ -84,9 +99,10 @@ export function Spinner({ className = "size-4" }: { className?: string }) {
 }
 
 export function Loading() {
+  const { t } = useI18n();
   return (
     <div className="flex items-center justify-center gap-2 py-16 text-[var(--muted)]">
-      <Spinner /> Carregando…
+      <Spinner /> {t("Carregando…", "Loading…")}
     </div>
   );
 }
@@ -94,26 +110,42 @@ export function Loading() {
 /** Exige carteira conectada no modo on-chain. */
 export function WalletGate({ children }: { children: ReactNode }) {
   const { client } = useApp();
+  const { t } = useI18n();
   if (client.wallet) return <>{children}</>;
   return (
-    <Empty icon={<Wallet className="size-6" />} title="Conecte sua carteira">
-      <p>Use Phantom, Solflare ou Backpack na rede {CLUSTER_LABEL} para continuar.</p>
-      <div className="mt-4 flex justify-center">
+    <Empty icon={<Wallet className="size-6" />} title={t("Conecte sua carteira", "Connect your wallet")}>
+      <p>
+        {t("Use Phantom, Solflare ou Backpack na rede", "Use Phantom, Solflare or Backpack on the")} {CLUSTER_LABEL}{" "}
+        {t("para continuar.", "network to continue.")}
+      </p>
+      <div className="mt-4 flex flex-col items-center gap-3">
         <WalletButton />
+        {PRIVY_ENABLED && (
+          <>
+            <span className="text-xs uppercase text-[var(--muted)]">{t("ou", "or")}</span>
+            <LoginButton />
+          </>
+        )}
       </div>
     </Empty>
   );
 }
 
 export function PoolMissing() {
+  const { t } = useI18n();
   return (
-    <Empty icon={<Wallet className="size-6" />} title="Pool não encontrado nesta rede">
+    <Empty icon={<Wallet className="size-6" />} title={t("Pool não encontrado nesta rede", "Pool not found on this network")}>
       <p>
-        O programa ainda não foi inicializado neste cluster.
+        {t("O programa ainda não foi inicializado neste cluster.", "The program has not been initialized on this cluster yet.")}
         {DEMO_ENABLED ? (
-          <> Rode <code>anchor run bootstrap</code> (veja o README) ou alterne para o <b>modo demonstração</b> no topo da página.</>
+          <>
+            {" "}
+            {t("Rode", "Run")} <code>anchor run bootstrap</code>{" "}
+            {t("(veja o README) ou alterne para o", "(see the README) or switch to")}{" "}
+            <b>{t("modo demonstração", "demo mode")}</b> {t("na barra lateral.", "in the sidebar.")}
+          </>
         ) : (
-          <> Tente novamente em alguns minutos.</>
+          <> {t("Tente novamente em alguns minutos.", "Please try again in a few minutes.")}</>
         )}
       </p>
     </Empty>
@@ -131,16 +163,17 @@ export function Row({ label, value, strong }: { label: ReactNode; value: ReactNo
 
 /** Evidencias de sinistro: link para o IPFS (se enviado) + hash de integridade. */
 export function EvidenceLink({ uri }: { uri: string }) {
+  const { t } = useI18n();
   const url = ipfsUrl(uri);
   const sha = uri.match(/sha256:([0-9a-f]{8})/)?.[1];
   return (
     <span className="inline-flex items-center gap-2 text-xs">
       {url && (
         <a href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-semibold text-[var(--accent)] hover:underline">
-          Ver no IPFS <ExternalLink className="size-3" />
+          {t("Ver no IPFS", "View on IPFS")} <ExternalLink className="size-3" />
         </a>
       )}
-      {sha ? <span className="font-mono text-[var(--muted)]">sha256 {sha}…</span> : !url && <span className="text-[var(--muted)]">sem anexos</span>}
+      {sha ? <span className="font-mono text-[var(--muted)]">sha256 {sha}…</span> : !url && <span className="text-[var(--muted)]">{t("sem anexos", "no attachments")}</span>}
     </span>
   );
 }

@@ -6,15 +6,23 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useAction, useApp, useData } from "@/components/Providers";
 import { ClaimStatusChip, Empty, EvidenceLink, Loading, PageHeader, Row, Spinner, WalletGate } from "@/components/ui";
-import { fmtDate, fmtDuration, fmtMoney, KIND_LABEL, shortAddr, toBase } from "@/lib/format";
+import { fmtDate, fmtDuration, fmtMoney, shortAddr, toBase } from "@/lib/format";
+import { kindLabel, useI18n } from "@/lib/i18n";
 import { expectedPayout, TIER_COVERS } from "@/lib/pricing";
 import { displayPlate, policyPhase } from "@/lib/plate";
 import type { ClaimInfo, ClaimKind, PolicyInfo } from "@/lib/types";
 
 export default function SinistrosPage() {
+  const { t } = useI18n();
   return (
     <div>
-      <PageHeader title="Sinistros" subtitle="Registre ocorrências e acompanhe cada etapa da análise on-chain." />
+      <PageHeader
+        title={t("Sinistros", "Claims")}
+        subtitle={t(
+          "Registre ocorrências e acompanhe cada etapa da análise on-chain.",
+          "Report incidents and follow every step of the on-chain review.",
+        )}
+      />
       <WalletGate>
         <Suspense fallback={<Loading />}>
           <ClaimsView />
@@ -26,6 +34,7 @@ export default function SinistrosPage() {
 
 function ClaimsView() {
   const { client } = useApp();
+  const { t } = useI18n();
   const { data, loading } = useData(
     async (c) => ({
       policies: await c.getPolicies(c.wallet!),
@@ -57,20 +66,25 @@ function ClaimsView() {
               <p key={p.address}>
                 <b className="text-[var(--fg)]">{displayPlate(p)}</b> ·{" "}
                 {!p.inspected
-                  ? "aguardando vistoria de um avaliador"
+                  ? t("aguardando vistoria de um avaliador", "awaiting an assessor inspection")
                   : data.now < p.claimsAllowedFrom
-                    ? `em carência até ${fmtDate(p.claimsAllowedFrom)}`
-                    : "parcela em atraso: pague para voltar a ter cobertura"}
+                    ? t(`em carência até ${fmtDate(p.claimsAllowedFrom)}`, `waiting period until ${fmtDate(p.claimsAllowedFrom)}`)
+                    : t("parcela em atraso: pague para voltar a ter cobertura", "installment overdue: pay it to restore coverage")}
               </p>
             ))}
           </div>
         )}
       </div>
       <section>
-        <h2 className="mb-3 font-semibold">Meus sinistros</h2>
+        <h2 className="mb-3 font-semibold">{t("Meus sinistros", "My claims")}</h2>
         {data.claims.length === 0 ? (
-          <Empty icon={<FileText className="size-6" />} title="Nenhum sinistro registrado">
-            <p>Esperamos que continue assim! Se algo acontecer, registre aqui em minutos.</p>
+          <Empty icon={<FileText className="size-6" />} title={t("Nenhum sinistro registrado", "No claims filed")}>
+            <p>
+              {t(
+                "Esperamos que continue assim! Se algo acontecer, registre aqui em minutos.",
+                "We hope it stays that way! If something happens, file it here in minutes.",
+              )}
+            </p>
           </Empty>
         ) : (
           <div className="flex flex-col gap-4">
@@ -101,6 +115,7 @@ function ClaimForm({ policies }: { policies: PolicyInfo[] }) {
   const params = useSearchParams();
   const { client } = useApp();
   const { run, busy } = useAction();
+  const { lang, t } = useI18n();
   const [policyAddr, setPolicyAddr] = useState("");
   const [kind, setKind] = useState<ClaimKind>("collision");
   const [amount, setAmount] = useState("");
@@ -179,7 +194,7 @@ function ClaimForm({ policies }: { policies: PolicyInfo[] }) {
           description: description.trim().slice(0, 200),
           evidenceUri: await buildEvidenceUri(),
         }),
-      "Sinistro registrado! Aguardando avaliadores.",
+      t("Sinistro registrado! Aguardando avaliadores.", "Claim filed! Waiting for assessors."),
     );
     if (sig) {
       setAmount("");
@@ -190,12 +205,15 @@ function ClaimForm({ policies }: { policies: PolicyInfo[] }) {
 
   if (!policies.length)
     return (
-      <Empty icon={<FileWarning className="size-6" />} title="Nenhuma apólice apta">
+      <Empty icon={<FileWarning className="size-6" />} title={t("Nenhuma apólice apta", "No eligible policy")}>
         <p>
-          É preciso ter uma apólice vistoriada, fora da carência e sem sinistro em aberto para registrar uma ocorrência.
+          {t(
+            "É preciso ter uma apólice vistoriada, fora da carência e sem sinistro em aberto para registrar uma ocorrência.",
+            "You need an inspected policy, past its waiting period and with no open claim, to file an incident.",
+          )}
         </p>
         <Link href="/cotar" className="btn btn-primary mt-4">
-          Contratar proteção
+          {t("Contratar proteção", "Get covered")}
         </Link>
       </Empty>
     );
@@ -203,11 +221,11 @@ function ClaimForm({ policies }: { policies: PolicyInfo[] }) {
   return (
     <section className="card p-5 lg:self-start">
       <h2 className="flex items-center gap-2 font-semibold">
-        <FileWarning className="size-5 text-[var(--accent)]" /> Registrar sinistro
+        <FileWarning className="size-5 text-[var(--accent)]" /> {t("Registrar sinistro", "File a claim")}
       </h2>
       <div className="mt-4 flex flex-col gap-4">
         <div>
-          <label className="label" htmlFor="policy">Apólice</label>
+          <label className="label" htmlFor="policy">{t("Apólice", "Policy")}</label>
           <select id="policy" className="input" value={policyAddr} onChange={(e) => setPolicyAddr(e.target.value)}>
             {policies.map((p) => (
               <option key={p.address} value={p.address}>
@@ -217,7 +235,7 @@ function ClaimForm({ policies }: { policies: PolicyInfo[] }) {
           </select>
         </div>
         <div>
-          <span className="label">Tipo de ocorrência</span>
+          <span className="label">{t("Tipo de ocorrência", "Incident type")}</span>
           <div className="flex flex-wrap gap-2">
             {kinds.map((k) => (
               <button
@@ -225,39 +243,42 @@ function ClaimForm({ policies }: { policies: PolicyInfo[] }) {
                 onClick={() => setKind(k)}
                 className={`chip border py-1.5 ${kind === k ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--border)] text-[var(--muted)]"}`}
               >
-                {KIND_LABEL[k]}
+                {kindLabel(k, lang)}
               </button>
             ))}
           </div>
         </div>
         <div>
-          <label className="label" htmlFor="amount">Valor estimado do prejuízo (R$)</label>
+          <label className="label" htmlFor="amount">{t("Valor estimado do prejuízo (R$)", "Estimated loss (R$)")}</label>
           <input
             id="amount"
             className="input num"
             inputMode="decimal"
-            placeholder="Ex.: 8000"
+            placeholder={t("Ex.: 8000", "e.g. 8000")}
             value={amount}
             onChange={(e) => setAmount(e.target.value.replace(/[^\d.,]/g, ""))}
           />
-          {amountBase > remaining && <p className="mt-1 text-xs text-[var(--bad)]">Acima da cobertura restante ({fmtMoney(remaining)})</p>}
+          {amountBase > remaining && <p className="mt-1 text-xs text-[var(--bad)]">{t("Acima da cobertura restante", "Above the remaining coverage")} ({fmtMoney(remaining)})</p>}
         </div>
         <div>
-          <label className="label" htmlFor="desc">Descrição do ocorrido</label>
+          <label className="label" htmlFor="desc">{t("Descrição do ocorrido", "What happened")}</label>
           <textarea
             id="desc"
             className="input min-h-24"
             maxLength={200}
-            placeholder="Data, local e o que aconteceu. Inclua nº do B.O. em caso de roubo."
+            placeholder={t(
+              "Data, local e o que aconteceu. Inclua nº do B.O. em caso de roubo.",
+              "Date, place and what happened. Include the police report number for theft.",
+            )}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />
           <p className="mt-1 text-right text-xs text-[var(--muted)]">{description.length}/200</p>
         </div>
         <div>
-          <span className="label">Evidências (fotos, B.O., orçamento)</span>
+          <span className="label">{t("Evidências (fotos, B.O., orçamento)", "Evidence (photos, police report, repair estimate)")}</span>
           <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--border)] p-4 text-sm text-[var(--muted)] hover:border-[var(--accent)]">
-            <Camera className="size-4" /> Adicionar arquivos
+            <Camera className="size-4" /> {t("Adicionar arquivos", "Add files")}
             <input
               type="file"
               accept="image/*,application/pdf"
@@ -286,24 +307,34 @@ function ClaimForm({ policies }: { policies: PolicyInfo[] }) {
           )}
           <p className="mt-1 text-xs text-[var(--muted)]">
             {ipfsEnabled
-              ? "Os arquivos vão para o IPFS e o link + hash SHA-256 ficam gravados on-chain. Evite fotos com dados de terceiros: o IPFS é público."
-              : "O hash SHA-256 dos arquivos é gravado on-chain como prova de integridade."}
+              ? t(
+                  "Os arquivos vão para o IPFS e o link + hash SHA-256 ficam gravados on-chain. Evite fotos com dados de terceiros: o IPFS é público.",
+                  "Files go to IPFS and the link + SHA-256 hash are recorded on-chain. Avoid photos with other people's data: IPFS is public.",
+                )
+              : t(
+                  "O hash SHA-256 dos arquivos é gravado on-chain como prova de integridade.",
+                  "The files' SHA-256 hash is recorded on-chain as proof of integrity.",
+                )}
           </p>
         </div>
 
         {policy && amountBase > 0 && (
           <div className="rounded-xl bg-[var(--bg-soft)] p-3 text-sm">
-            <Row label="Valor solicitado" value={fmtMoney(amountBase)} />
+            <Row label={t("Valor solicitado", "Amount requested")} value={fmtMoney(amountBase)} />
             <Row
-              label="Franquia"
-              value={kind === "theft" || kind === "naturalEvent" ? "isento (perda total)" : `− ${fmtMoney(policy.deductible)}`}
+              label={t("Franquia", "Deductible")}
+              value={
+                kind === "theft" || kind === "naturalEvent"
+                  ? t("isento (perda total)", "waived (total loss)")
+                  : `− ${fmtMoney(policy.deductible)}`
+              }
             />
-            <Row label="Indenização estimada" value={fmtMoney(payout)} strong />
+            <Row label={t("Indenização estimada", "Estimated payout")} value={fmtMoney(payout)} strong />
           </div>
         )}
 
         <button className="btn btn-primary" disabled={!valid || !!busy} onClick={submit}>
-          {busy === "claim" && <Spinner />} Enviar para avaliação
+          {busy === "claim" && <Spinner />} {t("Enviar para avaliação", "Submit for review")}
         </button>
       </div>
     </section>
@@ -313,16 +344,17 @@ function ClaimForm({ policies }: { policies: PolicyInfo[] }) {
 function ClaimCard({ c, policy, threshold, now }: { c: ClaimInfo; policy?: PolicyInfo; threshold: number; now: number }) {
   const { client } = useApp();
   const { run, busy } = useAction();
+  const { lang, t } = useI18n();
 
   const steps = useMemo(() => {
     const decided = c.status !== "pending";
     return [
-      { label: "Registrado on-chain", done: true, ts: c.createdTs },
+      { label: t("Registrado on-chain", "Recorded on-chain"), done: true, ts: c.createdTs },
       {
         label:
           c.status === "rejected"
-            ? `Recusado (${c.rejections} votos contra)`
-            : `Votação dos avaliadores (${c.approvals}/${threshold})`,
+            ? t(`Recusado (${c.rejections} votos contra)`, `Rejected (${c.rejections} votes against)`)
+            : t(`Votação dos avaliadores (${c.approvals}/${threshold})`, `Assessor vote (${c.approvals}/${threshold})`),
         done: decided,
         bad: c.status === "rejected",
         ts: decided ? c.resolvedTs : 0,
@@ -330,27 +362,32 @@ function ClaimCard({ c, policy, threshold, now }: { c: ClaimInfo; policy?: Polic
       ...(c.status === "rejected"
         ? []
         : [
-            { label: "Aprovado", done: c.status === "approved" || c.status === "paid", ts: 0 },
-            { label: c.status === "paid" ? `Pago: ${fmtMoney(c.payoutAmount)}` : "Pagamento", done: c.status === "paid", ts: c.status === "paid" ? c.resolvedTs : 0 },
+            { label: t("Aprovado", "Approved"), done: c.status === "approved" || c.status === "paid", ts: 0 },
+            {
+              label: c.status === "paid" ? `${t("Pago", "Paid")}: ${fmtMoney(c.payoutAmount)}` : t("Pagamento", "Payment"),
+              done: c.status === "paid",
+              ts: c.status === "paid" ? c.resolvedTs : 0,
+            },
           ]),
     ];
-  }, [c, threshold]);
+  }, [c, threshold, t]);
 
   return (
     <div className="card p-5">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
-            Sinistro #{c.id} · {policy ? `${displayPlate(policy)}` : shortAddr(c.policy)}
+            {t("Sinistro", "Claim")} #{c.id} · {policy ? `${displayPlate(policy)}` : shortAddr(c.policy)}
           </p>
-          <h3 className="mt-1 font-bold">{KIND_LABEL[c.kind]} · {fmtMoney(c.amountRequested)}</h3>
+          <h3 className="mt-1 font-bold">{kindLabel(c.kind, lang)} · {fmtMoney(c.amountRequested)}</h3>
         </div>
         <ClaimStatusChip status={c.status} />
       </div>
       <p className="mt-2 text-sm text-[var(--muted)]">{c.description}</p>
       {c.reclassified && (
         <p className="mt-1 text-xs text-[var(--warn)]">
-          Reclassificado pelos avaliadores: declarado como {KIND_LABEL[c.originalKind]}.
+          {t("Reclassificado pelos avaliadores: declarado como", "Reclassified by the assessors: originally filed as")}{" "}
+          {kindLabel(c.originalKind, lang)}.
         </p>
       )}
       <div className="mt-2">
@@ -375,7 +412,10 @@ function ClaimCard({ c, policy, threshold, now }: { c: ClaimInfo; policy?: Polic
 
       {c.status === "pending" && (
         <p className="mt-3 text-xs text-[var(--muted)]">
-          Janela de votação: {now > c.votingDeadline ? "encerrada" : `restam ${fmtDuration(c.votingDeadline - now)}`}
+          {t("Janela de votação", "Voting window")}:{" "}
+          {now > c.votingDeadline
+            ? t("encerrada", "closed")
+            : t(`restam ${fmtDuration(c.votingDeadline - now)}`, `${fmtDuration(c.votingDeadline - now)} left`)}
         </p>
       )}
 
@@ -383,18 +423,18 @@ function ClaimCard({ c, policy, threshold, now }: { c: ClaimInfo; policy?: Polic
         <button
           className="btn btn-primary mt-4 w-full"
           disabled={!!busy}
-          onClick={() => run(`pay-${c.address}`, () => client.payClaim(c.address), "Indenização recebida!")}
+          onClick={() => run(`pay-${c.address}`, () => client.payClaim(c.address), t("Indenização recebida!", "Payout received!"))}
         >
-          {busy === `pay-${c.address}` && <Spinner />} Receber indenização
+          {busy === `pay-${c.address}` && <Spinner />} {t("Receber indenização", "Receive payout")}
         </button>
       )}
       {c.status === "pending" && now > c.votingDeadline && (
         <button
           className="btn btn-ghost mt-4 w-full"
           disabled={!!busy}
-          onClick={() => run(`exp-${c.address}`, () => client.expireClaim(c.address), "Sinistro encerrado por falta de quórum")}
+          onClick={() => run(`exp-${c.address}`, () => client.expireClaim(c.address), t("Sinistro encerrado por falta de quórum", "Claim closed for lack of quorum"))}
         >
-          Encerrar (sem quórum)
+          {t("Encerrar (sem quórum)", "Close (no quorum)")}
         </button>
       )}
     </div>

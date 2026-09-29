@@ -12,6 +12,7 @@ import {
   type PlateLookup,
   type VehicleType,
 } from "@/lib/fipe";
+import { translateError, useI18n } from "@/lib/i18n";
 import { Spinner } from "./ui";
 
 export interface FipePick {
@@ -27,6 +28,7 @@ type Tab = "placa" | "modelo";
 /** Consulta FIPE por placa ou por marca/modelo/ano. */
 export function FipeLookup({ initialPlate = "", onPick }: { initialPlate?: string; onPick: (p: FipePick) => void }) {
   const [tab, setTab] = useState<Tab>("placa");
+  const { t } = useI18n();
   const [plateEnabled, setPlateEnabled] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -53,18 +55,18 @@ export function FipeLookup({ initialPlate = "", onPick }: { initialPlate?: strin
       <div className="mb-4 flex rounded-xl border border-[var(--border)] p-0.5 text-sm font-semibold">
         {(
           [
-            { key: "placa", label: "Por placa", icon: Hash },
-            { key: "modelo", label: "Por modelo", icon: CarFront },
+            { key: "placa", label: t("Por placa", "By plate"), icon: Hash },
+            { key: "modelo", label: t("Por modelo", "By model"), icon: CarFront },
           ] as const
-        ).map((t) => (
+        ).map((o) => (
           <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
+            key={o.key}
+            onClick={() => setTab(o.key)}
             className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 ${
-              tab === t.key ? "bg-[var(--accent)] text-[var(--accent-fg)]" : "text-[var(--muted)]"
+              tab === o.key ? "bg-[var(--accent)] text-[var(--accent-fg)]" : "text-[var(--muted)]"
             }`}
           >
-            <t.icon className="size-4" /> {t.label}
+            <o.icon className="size-4" /> {o.label}
           </button>
         ))}
       </div>
@@ -89,6 +91,7 @@ function ByPlate({
 }) {
   const [plate, setPlate] = useState(initialPlate);
   const [result, setResult] = useState<PlateLookup | null>(null);
+  const { t } = useI18n();
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const norm = normalizePlate(plate);
@@ -104,7 +107,7 @@ function ByPlate({
       setResult(r);
       if (r.fipe.length === 1) onPick(r.fipe[0], r.placa);
     } catch (e) {
-      setErr((e as Error).message);
+      setErr(translateError((e as Error).message));
     } finally {
       setLoading(false);
     }
@@ -113,8 +116,8 @@ function ByPlate({
   if (enabled === false)
     return (
       <p className="text-sm text-[var(--muted)]">
-        A consulta por placa não está configurada neste servidor (variável <code>PLACA_API_TOKEN</code>). Use a busca
-        por modelo.
+        {t("A consulta por placa não está configurada neste servidor (variável", "Plate lookup is not configured on this server (variable")}{" "}
+        <code>PLACA_API_TOKEN</code>). {t("Use a busca por modelo.", "Use the search by model.")}
       </p>
     );
 
@@ -128,13 +131,13 @@ function ByPlate({
           value={plate}
           onChange={(e) => setPlate(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && valid && search()}
-          aria-label="Placa"
+          aria-label={t("Placa", "Plate")}
         />
         <button className="btn btn-primary" disabled={!valid || loading || enabled === null} onClick={search}>
-          {loading ? <Spinner /> : <Search className="size-4" />} Buscar
+          {loading ? <Spinner /> : <Search className="size-4" />} {t("Buscar", "Search")}
         </button>
       </div>
-      {plate && !valid && <p className="mt-1 text-xs text-[var(--bad)]">Formato inválido (ex.: ABC1D23 ou ABC1234)</p>}
+      {plate && !valid && <p className="mt-1 text-xs text-[var(--bad)]">{t("Formato inválido (ex.: ABC1D23 ou ABC1234)", "Invalid format (e.g. ABC1D23 or ABC1234)")}</p>}
       {err && <p className="mt-3 text-sm text-[var(--warn)]">{err}</p>}
 
       {result && (
@@ -149,7 +152,7 @@ function ByPlate({
               {result.municipio && ` · ${result.municipio}/${result.uf}`}
             </span>
           </p>
-          <p className="mt-3 text-xs font-semibold uppercase text-[var(--muted)]">Escolha a versão FIPE</p>
+          <p className="mt-3 text-xs font-semibold uppercase text-[var(--muted)]">{t("Escolha a versão FIPE", "Choose the FIPE version")}</p>
           <QuoteList quotes={result.fipe} onPick={(q) => onPick(q, result.placa)} />
         </div>
       )}
@@ -159,6 +162,7 @@ function ByPlate({
 
 function ByModel({ onPick }: { onPick: (q: FipeQuote) => void }) {
   const [tipo, setTipo] = useState<VehicleType>("carros");
+  const { lang, t } = useI18n();
   const [brands, setBrands] = useState<FipeOption[]>([]);
   const [models, setModels] = useState<FipeOption[]>([]);
   const [years, setYears] = useState<FipeOption[]>([]);
@@ -173,21 +177,21 @@ function ByModel({ onPick }: { onPick: (q: FipeQuote) => void }) {
   useEffect(() => {
     setBrands([]);
     setBrand("");
-    fipeApi.brands(tipo).then(setBrands).catch((e) => setErr(e.message));
+    fipeApi.brands(tipo).then(setBrands).catch((e) => setErr(translateError(e.message)));
   }, [tipo]);
 
   useEffect(() => {
     setModels([]);
     setModelId("");
     setModelFilter("");
-    if (brand) fipeApi.models(tipo, brand).then(setModels).catch((e) => setErr(e.message));
+    if (brand) fipeApi.models(tipo, brand).then(setModels).catch((e) => setErr(translateError(e.message)));
   }, [tipo, brand]);
 
   useEffect(() => {
     setYears([]);
     setYearId("");
     setQuote(null);
-    if (brand && modelId) fipeApi.years(tipo, brand, modelId).then(setYears).catch((e) => setErr(e.message));
+    if (brand && modelId) fipeApi.years(tipo, brand, modelId).then(setYears).catch((e) => setErr(translateError(e.message)));
   }, [tipo, brand, modelId]);
 
   useEffect(() => {
@@ -198,7 +202,7 @@ function ByModel({ onPick }: { onPick: (q: FipeQuote) => void }) {
     fipeApi
       .price(tipo, brand, modelId, yearId)
       .then(setQuote)
-      .catch((e) => setErr(e.message))
+      .catch((e) => setErr(translateError(e.message)))
       .finally(() => setLoading(false));
   }, [tipo, brand, modelId, yearId]);
 
@@ -210,25 +214,29 @@ function ByModel({ onPick }: { onPick: (q: FipeQuote) => void }) {
 
   return (
     <div>
-      {err && <p className="mb-3 text-sm text-[var(--warn)]">{err} — informe o valor manualmente.</p>}
+      {err && (
+        <p className="mb-3 text-sm text-[var(--warn)]">
+          {err} — {t("informe o valor manualmente.", "enter the value manually.")}
+        </p>
+      )}
       <div className="mb-3 flex gap-2">
-        {VEHICLE_TYPES.map((t) => (
+        {VEHICLE_TYPES.map((v) => (
           <button
-            key={t.key}
-            onClick={() => setTipo(t.key)}
+            key={v.key}
+            onClick={() => setTipo(v.key)}
             className={`chip border py-1 ${
-              tipo === t.key
+              tipo === v.key
                 ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
                 : "border-[var(--border)] text-[var(--muted)]"
             }`}
           >
-            {t.label}
+            {lang === "en" ? v.en : v.label}
           </button>
         ))}
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
-        <select className="input" value={brand} onChange={(e) => setBrand(e.target.value)} aria-label="Marca">
-          <option value="">{brands.length ? "Marca…" : "Carregando marcas…"}</option>
+        <select className="input" value={brand} onChange={(e) => setBrand(e.target.value)} aria-label={t("Marca", "Make")}>
+          <option value="">{brands.length ? t("Marca…", "Make…") : t("Carregando marcas…", "Loading makes…")}</option>
           {brands.map((b) => (
             <option key={b.codigo} value={b.codigo}>
               {b.nome}
@@ -237,20 +245,20 @@ function ByModel({ onPick }: { onPick: (q: FipeQuote) => void }) {
         </select>
         <input
           className="input"
-          placeholder="Filtrar modelo (ex.: Onix 1.0)"
+          placeholder={t("Filtrar modelo (ex.: Onix 1.0)", "Filter model (e.g. Onix 1.0)")}
           value={modelFilter}
           disabled={!models.length}
           onChange={(e) => setModelFilter(e.target.value)}
-          aria-label="Filtrar modelo"
+          aria-label={t("Filtrar modelo", "Filter model")}
         />
         <select
           className="input"
           value={modelId}
           onChange={(e) => setModelId(e.target.value)}
           disabled={!models.length}
-          aria-label="Modelo"
+          aria-label={t("Modelo", "Model")}
         >
-          <option value="">{models.length ? `Modelo… (${shownModels.length})` : "Modelo…"}</option>
+          <option value="">{models.length ? `${t("Modelo…", "Model…")} (${shownModels.length})` : t("Modelo…", "Model…")}</option>
           {shownModels.map((m) => (
             <option key={m.codigo} value={m.codigo}>
               {m.nome}
@@ -262,19 +270,19 @@ function ByModel({ onPick }: { onPick: (q: FipeQuote) => void }) {
           value={yearId}
           onChange={(e) => setYearId(e.target.value)}
           disabled={!years.length}
-          aria-label="Ano"
+          aria-label={t("Ano", "Year")}
         >
-          <option value="">Ano…</option>
+          <option value="">{t("Ano…", "Year…")}</option>
           {years.map((y) => (
             <option key={y.codigo} value={y.codigo}>
-              {y.nome.replace(/^32000/, "Zero km")}
+              {y.nome.replace(/^32000/, t("Zero km", "Brand new"))}
             </option>
           ))}
         </select>
       </div>
       {loading && (
         <p className="mt-3 flex items-center gap-2 text-sm text-[var(--muted)]">
-          <Spinner /> Consultando preço…
+          <Spinner /> {t("Consultando preço…", "Looking up price…")}
         </p>
       )}
       {quote && <QuoteList quotes={[quote]} onPick={onPick} />}
@@ -283,6 +291,7 @@ function ByModel({ onPick }: { onPick: (q: FipeQuote) => void }) {
 }
 
 function QuoteList({ quotes, onPick }: { quotes: FipeQuote[]; onPick: (q: FipeQuote) => void }) {
+  const { t } = useI18n();
   return (
     <div className="mt-2 flex flex-col gap-2">
       {quotes.map((q) => (
@@ -299,7 +308,7 @@ function QuoteList({ quotes, onPick }: { quotes: FipeQuote[]; onPick: (q: FipeQu
           </div>
           <div className="shrink-0 text-right">
             <p className="num font-bold">{q.valorTexto}</p>
-            <p className="text-xs font-semibold text-[var(--accent)]">Usar este valor</p>
+            <p className="text-xs font-semibold text-[var(--accent)]">{t("Usar este valor", "Use this value")}</p>
           </div>
         </button>
       ))}

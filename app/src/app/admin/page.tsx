@@ -5,7 +5,8 @@ import { useEffect, useState } from "react";
 import { PublicKey } from "@solana/web3.js";
 import { useAction, useApp, useData } from "@/components/Providers";
 import { Chip, Empty, Loading, PageHeader, PoolMissing, Row, Spinner, WalletGate } from "@/components/ui";
-import { fmtDate, fmtDuration, fmtMoney, shortAddr, toBase } from "@/lib/format";
+import { fmtDate, fmtDuration, fmtInput, fmtMoney, shortAddr, toBase } from "@/lib/format";
+import { useI18n } from "@/lib/i18n";
 import { UNIT } from "@/lib/pricing";
 import type { PoolInfo, PoolParams } from "@/lib/types";
 
@@ -21,11 +22,15 @@ function isPubkey(s: string) {
 }
 
 export default function AdminPage() {
+  const { t } = useI18n();
   return (
     <div>
       <PageHeader
-        title="Governança do pool"
-        subtitle="Parâmetros econômicos, comitê de avaliadores, pausa de emergência e autoridade."
+        title={t("Governança do pool", "Pool governance")}
+        subtitle={t(
+          "Parâmetros econômicos, comitê de avaliadores, pausa de emergência e autoridade.",
+          "Economic parameters, assessor committee, emergency pause and authority.",
+        )}
       />
       <WalletGate>
         <AdminView />
@@ -36,6 +41,7 @@ export default function AdminPage() {
 
 function AdminView() {
   const { client } = useApp();
+  const { t } = useI18n();
   const { data, loading } = useData(async (c) => ({ pool: await c.getPool(), now: await c.now() }));
   const pool = data?.pool;
 
@@ -51,10 +57,20 @@ function AdminView() {
     <div className="flex flex-col gap-6">
       <div className="card flex flex-wrap items-center gap-3 p-4 text-sm">
         <KeyRound className="size-4 text-[var(--accent)]" />
-        <span className="text-[var(--muted)]">Autoridade:</span>
+        <span className="text-[var(--muted)]">{t("Autoridade", "Authority")}:</span>
         <span className="font-mono">{shortAddr(pool.authority)}</span>
-        {isAuthority ? <Chip tone="ok">Você é a autoridade</Chip> : <Chip tone="warn">Somente leitura</Chip>}
-        <span className="ml-auto">{pool.paused ? <Chip tone="bad">Pool pausado</Chip> : <Chip tone="ok">Operando</Chip>}</span>
+        {isAuthority ? (
+          <Chip tone="ok">{t("Você é a autoridade", "You are the authority")}</Chip>
+        ) : (
+          <Chip tone="warn">{t("Somente leitura", "Read only")}</Chip>
+        )}
+        <span className="ml-auto">
+          {pool.paused ? (
+            <Chip tone="bad">{t("Pool pausado", "Pool paused")}</Chip>
+          ) : (
+            <Chip tone="ok">{t("Operando", "Operating")}</Chip>
+          )}
+        </span>
       </div>
 
       {isPendingAuthority && <AcceptAuthority pool={pool} />}
@@ -62,10 +78,17 @@ function AdminView() {
       <PendingChanges pool={pool} now={now} isAuthority={isAuthority} />
 
       {!isAuthority && (
-        <Empty icon={<KeyRound className="size-6" />} title="Carteira sem permissão de governança">
+        <Empty
+          icon={<KeyRound className="size-6" />}
+          title={t("Carteira sem permissão de governança", "Wallet without governance permission")}
+        >
           <p>
-            Apenas a autoridade do pool pode alterar parâmetros. Conecte a carteira{" "}
-            <span className="font-mono">{shortAddr(pool.authority)}</span> ou peça uma transferência de autoridade.
+            {t(
+              "Apenas a autoridade do pool pode alterar parâmetros. Conecte a carteira",
+              "Only the pool authority can change parameters. Connect the wallet",
+            )}{" "}
+            <span className="font-mono">{shortAddr(pool.authority)}</span>{" "}
+            {t("ou peça uma transferência de autoridade.", "or ask for an authority transfer.")}
           </p>
         </Empty>
       )}
@@ -82,49 +105,52 @@ function AdminView() {
   );
 }
 
-type ParamField = { key: keyof PoolParams; label: string; unit: "pct" | "secs" | "money" | "int"; hint: string };
+type Txt = { pt: string; en: string };
+type ParamField = { key: keyof PoolParams; label: Txt; unit: "pct" | "secs" | "money" | "int"; hint: Txt };
 
 const FIELDS: ParamField[] = [
-  { key: "baseRateBps", label: "Taxa base anual", unit: "pct", hint: "Sobre o valor FIPE (máx. 50%)" },
-  { key: "cashbackBps", label: "Cashback", unit: "pct", hint: "Parte do prêmio devolvida sem sinistro" },
-  { key: "protocolFeeBps", label: "Taxa do protocolo", unit: "pct", hint: "Parte do prêmio para a tesouraria (máx. 30%)" },
-  { key: "minCollateralBps", label: "Colateral mínimo", unit: "pct", hint: "Sobre a cobertura ativa" },
-  { key: "withdrawCooldownSecs", label: "Carência de saque (LP)", unit: "secs", hint: "Segundos após o aporte" },
-  { key: "claimVotingSecs", label: "Prazo de votação", unit: "secs", hint: "Janela para os avaliadores" },
-  { key: "secondsPerDay", label: "Segundos por dia", unit: "secs", hint: "86400 em produção; 60 acelera a demo" },
-  { key: "claimWaitingSecs", label: "Carência para sinistros", unit: "secs", hint: "Após a contratação (604800 = 7 dias)" },
-  { key: "installmentGraceSecs", label: "Tolerância de parcela", unit: "secs", hint: "Atraso aceito antes de caducar" },
-  { key: "governanceDelaySecs", label: "Timelock de governança", unit: "secs", hint: "Espera entre propor e aplicar" },
-  { key: "inspectionFee", label: "Taxa de vistoria", unit: "money", hint: "Paga pelo motorista ao avaliador" },
-  { key: "voteReward", label: "Remuneração por voto", unit: "money", hint: "Paga da tesouraria a cada voto" },
-  { key: "minVehicleValue", label: "Valor FIPE mínimo", unit: "money", hint: "Evita apólices de valor irrisório" },
-  { key: "inspectionThreshold", label: "Quórum de vistoria", unit: "int", hint: "Votos para aprovar uma vistoria" },
-  { key: "withdrawNoticeSecs", label: "Aviso prévio de saque (LP)", unit: "secs", hint: "Entre pedir e sacar liquidez" },
-  { key: "maxPolicyCoverageBps", label: "Cobertura máx. por apólice", unit: "pct", hint: "Sobre o patrimônio do pool (até 1000%)" },
+  { key: "baseRateBps", label: { pt: "Taxa base anual", en: "Annual base rate" }, unit: "pct", hint: { pt: "Sobre o valor FIPE (máx. 50%)", en: "On the FIPE value (max. 50%)" } },
+  { key: "cashbackBps", label: { pt: "Cashback", en: "Cashback" }, unit: "pct", hint: { pt: "Parte do prêmio devolvida sem sinistro", en: "Share of the premium returned with no claims" } },
+  { key: "protocolFeeBps", label: { pt: "Taxa do protocolo", en: "Protocol fee" }, unit: "pct", hint: { pt: "Parte do prêmio para a tesouraria (máx. 30%)", en: "Share of the premium to the treasury (max. 30%)" } },
+  { key: "minCollateralBps", label: { pt: "Colateral mínimo", en: "Minimum collateral" }, unit: "pct", hint: { pt: "Sobre a cobertura ativa", en: "On active coverage" } },
+  { key: "withdrawCooldownSecs", label: { pt: "Carência de saque (LP)", en: "Withdrawal cooldown (LP)" }, unit: "secs", hint: { pt: "Segundos após o aporte", en: "Seconds after depositing" } },
+  { key: "claimVotingSecs", label: { pt: "Prazo de votação", en: "Voting window" }, unit: "secs", hint: { pt: "Janela para os avaliadores", en: "Time assessors have to vote" } },
+  { key: "secondsPerDay", label: { pt: "Segundos por dia", en: "Seconds per day" }, unit: "secs", hint: { pt: "86400 em produção; 60 acelera a demo", en: "86400 in production; 60 speeds up the demo" } },
+  { key: "claimWaitingSecs", label: { pt: "Carência para sinistros", en: "Claim waiting period" }, unit: "secs", hint: { pt: "Após a contratação (604800 = 7 dias)", en: "After purchase (604800 = 7 days)" } },
+  { key: "installmentGraceSecs", label: { pt: "Tolerância de parcela", en: "Installment grace period" }, unit: "secs", hint: { pt: "Atraso aceito antes de caducar", en: "Delay allowed before the policy lapses" } },
+  { key: "governanceDelaySecs", label: { pt: "Timelock de governança", en: "Governance timelock" }, unit: "secs", hint: { pt: "Espera entre propor e aplicar", en: "Wait between proposing and applying" } },
+  { key: "inspectionFee", label: { pt: "Taxa de vistoria", en: "Inspection fee" }, unit: "money", hint: { pt: "Paga pelo motorista ao avaliador", en: "Paid by the driver to the assessor" } },
+  { key: "voteReward", label: { pt: "Remuneração por voto", en: "Reward per vote" }, unit: "money", hint: { pt: "Paga da tesouraria a cada voto", en: "Paid from the treasury for each vote" } },
+  { key: "minVehicleValue", label: { pt: "Valor FIPE mínimo", en: "Minimum FIPE value" }, unit: "money", hint: { pt: "Evita apólices de valor irrisório", en: "Prevents negligible-value policies" } },
+  { key: "inspectionThreshold", label: { pt: "Quórum de vistoria", en: "Inspection quorum" }, unit: "int", hint: { pt: "Votos para aprovar uma vistoria", en: "Votes needed to approve an inspection" } },
+  { key: "withdrawNoticeSecs", label: { pt: "Aviso prévio de saque (LP)", en: "Withdrawal notice (LP)" }, unit: "secs", hint: { pt: "Entre pedir e sacar liquidez", en: "Between requesting and withdrawing liquidity" } },
+  { key: "maxPolicyCoverageBps", label: { pt: "Cobertura máx. por apólice", en: "Max. coverage per policy" }, unit: "pct", hint: { pt: "Sobre o patrimônio do pool (até 1000%)", en: "On pool equity (up to 1000%)" } },
 ];
 
 function toInput(p: PoolParams, f: ParamField) {
   const v = p[f.key] as number;
-  if (f.unit === "pct") return String(v / 100).replace(".", ",");
-  if (f.unit === "money") return String(v / UNIT).replace(".", ",");
+  if (f.unit === "pct") return fmtInput(v / 100);
+  if (f.unit === "money") return fmtInput(v / UNIT);
   return String(v);
 }
 
 function ParamsForm({ pool, disabled }: { pool: PoolInfo; disabled: boolean }) {
   const { client } = useApp();
   const { run, busy } = useAction();
+  const { lang, t } = useI18n();
   const [values, setValues] = useState<Record<string, string>>({});
   const [faucet, setFaucet] = useState(pool.params.faucetEnabled);
 
   useEffect(() => {
     setValues(Object.fromEntries(FIELDS.map((f) => [f.key, toInput(pool.params, f)])));
     setFaucet(pool.params.faucetEnabled);
-  }, [pool.params]);
+  }, [pool.params, lang]);
 
   const parsed: PoolParams = { ...pool.params, faucetEnabled: faucet };
   let valid = true;
   for (const f of FIELDS) {
-    const n = Number((values[f.key] ?? "").replace(",", "."));
+    const raw = values[f.key] ?? "";
+    const n = Number(lang === "en" ? raw.replace(/,/g, "") : raw.replace(",", "."));
     if (!Number.isFinite(n) || n < 0) valid = false;
     (parsed as unknown as Record<string, number>)[f.key] =
       f.unit === "pct" ? Math.round(n * 100) : f.unit === "money" ? Math.round(n * UNIT) : Math.round(n);
@@ -133,13 +159,13 @@ function ParamsForm({ pool, disabled }: { pool: PoolInfo; disabled: boolean }) {
   return (
     <section className="card p-5">
       <h2 className="flex items-center gap-2 font-semibold">
-        <Settings2 className="size-5 text-[var(--accent)]" /> Parâmetros econômicos
+        <Settings2 className="size-5 text-[var(--accent)]" /> {t("Parâmetros econômicos", "Economic parameters")}
       </h2>
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         {FIELDS.map((f) => (
           <label key={f.key} className="flex flex-col gap-1 text-sm">
             <span className="font-medium">
-              {f.label}{" "}
+              {f.label[lang]}{" "}
               {f.unit !== "int" && (
                 <span className="text-[var(--muted)]">({f.unit === "pct" ? "%" : f.unit === "money" ? "tBRL" : "s"})</span>
               )}
@@ -151,24 +177,26 @@ function ParamsForm({ pool, disabled }: { pool: PoolInfo; disabled: boolean }) {
               value={values[f.key] ?? ""}
               onChange={(e) => setValues({ ...values, [f.key]: e.target.value })}
             />
-            <span className="text-xs text-[var(--muted)]">{f.hint}</span>
+            <span className="text-xs text-[var(--muted)]">{f.hint[lang]}</span>
           </label>
         ))}
       </div>
       <label className="mt-4 flex items-center gap-2 text-sm">
         <input type="checkbox" checked={faucet} disabled={disabled} onChange={(e) => setFaucet(e.target.checked)} />
-        Faucet de token de teste habilitado
+        {t("Faucet de token de teste habilitado", "Test token faucet enabled")}
       </label>
       <button
         className="btn btn-primary mt-5 w-full"
         disabled={disabled || !valid || !!busy}
-        onClick={() => run("params", () => client.proposeParams(parsed), "Mudança proposta: aguarde o timelock")}
+        onClick={() => run("params", () => client.proposeParams(parsed), t("Mudança proposta: aguarde o timelock", "Change proposed: wait for the timelock"))}
       >
-        {busy === "params" && <Spinner />} Propor parâmetros
+        {busy === "params" && <Spinner />} {t("Propor parâmetros", "Propose parameters")}
       </button>
       <p className="mt-2 text-xs text-[var(--muted)]">
-        Mudanças só valem depois do timelock de {fmtDuration(pool.params.governanceDelaySecs)}, dando tempo para a
-        comunidade reagir.
+        {t(
+          `Mudanças só valem depois do timelock de ${fmtDuration(pool.params.governanceDelaySecs)}, dando tempo para a comunidade reagir.`,
+          `Changes only take effect after the ${fmtDuration(pool.params.governanceDelaySecs)} timelock, giving the community time to react.`,
+        )}
       </p>
     </section>
   );
@@ -177,6 +205,7 @@ function ParamsForm({ pool, disabled }: { pool: PoolInfo; disabled: boolean }) {
 function AssessorsForm({ pool, disabled }: { pool: PoolInfo; disabled: boolean }) {
   const { client } = useApp();
   const { run, busy } = useAction();
+  const { t } = useI18n();
   const [list, setList] = useState<string[]>(pool.assessors);
   const [threshold, setThreshold] = useState(pool.approvalThreshold);
   const [draft, setDraft] = useState("");
@@ -193,18 +222,18 @@ function AssessorsForm({ pool, disabled }: { pool: PoolInfo; disabled: boolean }
   return (
     <section className="card p-5">
       <h2 className="flex items-center gap-2 font-semibold">
-        <Users className="size-5 text-[var(--accent)]" /> Comitê de avaliadores
+        <Users className="size-5 text-[var(--accent)]" /> {t("Comitê de avaliadores", "Assessor committee")}
       </h2>
       <ul className="mt-4 divide-y divide-[var(--border)] text-sm">
         {list.map((a) => (
           <li key={a} className="flex items-center gap-2 py-2">
             <span className="font-mono">{shortAddr(a)}</span>
-            {a === client.wallet && <Chip tone="info">você</Chip>}
+            {a === client.wallet && <Chip tone="info">{t("você", "you")}</Chip>}
             <button
               className="ml-auto text-[var(--muted)] hover:text-[var(--bad)] disabled:opacity-40"
               disabled={disabled}
               onClick={() => setList(list.filter((x) => x !== a))}
-              aria-label="Remover avaliador"
+              aria-label={t("Remover avaliador", "Remove assessor")}
             >
               <Trash2 className="size-4" />
             </button>
@@ -215,7 +244,7 @@ function AssessorsForm({ pool, disabled }: { pool: PoolInfo; disabled: boolean }
         <div className="mt-3 flex gap-2">
           <input
             className="input flex-1 font-mono text-sm"
-            placeholder="Chave pública do avaliador"
+            placeholder={t("Chave pública do avaliador", "Assessor public key")}
             disabled={disabled}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
@@ -227,7 +256,7 @@ function AssessorsForm({ pool, disabled }: { pool: PoolInfo; disabled: boolean }
               setList([...list, draft.trim()]);
               setDraft("");
             }}
-            aria-label="Adicionar avaliador"
+            aria-label={t("Adicionar avaliador", "Add assessor")}
           >
             <UserPlus className="size-4" />
           </button>
@@ -239,12 +268,12 @@ function AssessorsForm({ pool, disabled }: { pool: PoolInfo; disabled: boolean }
           disabled={disabled}
           onClick={() => setList([...list, client.wallet!])}
         >
-          + Adicionar minha carteira
+          + {t("Adicionar minha carteira", "Add my wallet")}
         </button>
       )}
       <div className="mt-4 divide-y divide-[var(--border)] text-sm">
         <Row
-          label="Quórum de aprovação"
+          label={t("Quórum de aprovação", "Approval quorum")}
           value={
             <span className="inline-flex items-center gap-2">
               <input
@@ -256,7 +285,7 @@ function AssessorsForm({ pool, disabled }: { pool: PoolInfo; disabled: boolean }
                 value={threshold}
                 onChange={(e) => setThreshold(Number(e.target.value))}
               />
-              de {list.length}
+              {t("de", "of")} {list.length}
             </span>
           }
         />
@@ -264,9 +293,9 @@ function AssessorsForm({ pool, disabled }: { pool: PoolInfo; disabled: boolean }
       <button
         className="btn btn-primary mt-4 w-full"
         disabled={disabled || !valid || !changed || !!busy}
-        onClick={() => run("assessors", () => client.proposeAssessors(list, threshold), "Novo comitê proposto: aguarde o timelock")}
+        onClick={() => run("assessors", () => client.proposeAssessors(list, threshold), t("Novo comitê proposto: aguarde o timelock", "New committee proposed: wait for the timelock"))}
       >
-        {busy === "assessors" && <Spinner />} Propor comitê
+        {busy === "assessors" && <Spinner />} {t("Propor comitê", "Propose committee")}
       </button>
     </section>
   );
@@ -275,30 +304,33 @@ function AssessorsForm({ pool, disabled }: { pool: PoolInfo; disabled: boolean }
 function DangerZone({ pool, disabled }: { pool: PoolInfo; disabled: boolean }) {
   const { client } = useApp();
   const { run, busy } = useAction();
+  const { t } = useI18n();
   const [newAuth, setNewAuth] = useState("");
   const authOk = client.mode === "demo" ? newAuth.trim().length > 0 : isPubkey(newAuth.trim());
 
   return (
     <section className="card border-[var(--bad)]/40 p-5">
-      <h2 className="font-semibold">Zona de risco</h2>
+      <h2 className="font-semibold">{t("Zona de risco", "Danger zone")}</h2>
       <p className="mt-1 text-sm text-[var(--muted)]">
-        Pausar bloqueia novas apólices e aportes de liquidez; sinistros em andamento continuam. A transferência de
-        autoridade só vale quando a nova carteira assinar o aceite.
+        {t(
+          "Pausar bloqueia novas apólices e aportes de liquidez; sinistros em andamento continuam. A transferência de autoridade só vale quando a nova carteira assinar o aceite.",
+          "Pausing blocks new policies and liquidity deposits; claims in progress continue. An authority transfer only takes effect once the new wallet signs to accept it.",
+        )}
       </p>
       <button
         className={`btn mt-4 w-full ${pool.paused ? "btn-primary" : "btn-danger"}`}
         disabled={disabled || !!busy}
         onClick={() =>
-          run("pause", () => client.setPaused(!pool.paused), pool.paused ? "Pool reativado" : "Pool pausado")
+          run("pause", () => client.setPaused(!pool.paused), pool.paused ? t("Pool reativado", "Pool resumed") : t("Pool pausado", "Pool paused"))
         }
       >
         {busy === "pause" ? <Spinner /> : pool.paused ? <Play className="size-4" /> : <Pause className="size-4" />}
-        {pool.paused ? "Reativar pool" : "Pausar pool"}
+        {pool.paused ? t("Reativar pool", "Resume pool") : t("Pausar pool", "Pause pool")}
       </button>
       <div className="mt-4 flex gap-2">
         <input
           className="input flex-1 font-mono text-sm"
-          placeholder="Propor nova autoridade (chave pública)"
+          placeholder={t("Propor nova autoridade (chave pública)", "Propose new authority (public key)")}
           disabled={disabled}
           value={newAuth}
           onChange={(e) => setNewAuth(e.target.value)}
@@ -307,12 +339,12 @@ function DangerZone({ pool, disabled }: { pool: PoolInfo; disabled: boolean }) {
           className="btn btn-danger"
           disabled={disabled || !authOk || !!busy}
           onClick={() => {
-            run("auth", () => client.proposeAuthority(newAuth.trim()), "Autoridade proposta: a nova carteira precisa aceitar").then(
+            run("auth", () => client.proposeAuthority(newAuth.trim()), t("Autoridade proposta: a nova carteira precisa aceitar", "Authority proposed: the new wallet must accept")).then(
               (sig) => sig && setNewAuth(""),
             );
           }}
         >
-          {busy === "auth" && <Spinner />} Propor
+          {busy === "auth" && <Spinner />} {t("Propor", "Propose")}
         </button>
       </div>
     </section>
@@ -322,56 +354,59 @@ function DangerZone({ pool, disabled }: { pool: PoolInfo; disabled: boolean }) {
 function PendingChanges({ pool, now, isAuthority }: { pool: PoolInfo; now: number; isAuthority: boolean }) {
   const { client } = useApp();
   const { run, busy } = useAction();
+  const { lang, t } = useI18n();
   const hasParams = !!pool.pendingParams;
   const hasAssessors = pool.pendingAssessors.length > 0;
   if (!hasParams && !hasAssessors && !pool.pendingAuthority) return null;
 
   const changed = hasParams
     ? FIELDS.filter((f) => pool.pendingParams![f.key] !== pool.params[f.key]).map(
-        (f) => `${f.label}: ${toInput(pool.params, f)} → ${toInput(pool.pendingParams!, f)}`,
+        (f) => `${f.label[lang]}: ${toInput(pool.params, f)} → ${toInput(pool.pendingParams!, f)}`,
       )
     : [];
 
   return (
     <section className="card p-5">
       <h2 className="flex items-center gap-2 font-semibold">
-        <Clock className="size-5 text-[var(--accent)]" /> Mudanças pendentes (timelock)
+        <Clock className="size-5 text-[var(--accent)]" /> {t("Mudanças pendentes (timelock)", "Pending changes (timelock)")}
       </h2>
       <div className="mt-3 flex flex-col gap-4 text-sm">
         {hasParams && (
           <div className="rounded-xl border border-[var(--border)] p-3">
-            <p className="font-medium">Parâmetros</p>
+            <p className="font-medium">{t("Parâmetros", "Parameters")}</p>
             <ul className="mt-1 list-disc pl-5 text-[var(--muted)]">
-              {(changed.length ? changed : ["Faucet ou valores iguais aos atuais"]).map((c) => (
+              {(changed.length ? changed : [t("Faucet ou valores iguais aos atuais", "Faucet or values equal to the current ones")]).map((c) => (
                 <li key={c}>{c}</li>
               ))}
             </ul>
             <GateRow eta={pool.pendingParamsEta} now={now} busy={!!busy}
-              onApply={() => run("apply-params", () => client.applyParams(), "Parâmetros aplicados")} />
+              onApply={() => run("apply-params", () => client.applyParams(), t("Parâmetros aplicados", "Parameters applied"))} />
           </div>
         )}
         {hasAssessors && (
           <div className="rounded-xl border border-[var(--border)] p-3">
             <p className="font-medium">
-              Comitê: {pool.pendingAssessors.map(shortAddr).join(", ")} · quórum {pool.pendingThreshold}
+              {t("Comitê", "Committee")}: {pool.pendingAssessors.map(shortAddr).join(", ")} · {t("quórum", "quorum")}{" "}
+              {pool.pendingThreshold}
             </p>
             <GateRow eta={pool.pendingAssessorsEta} now={now} busy={!!busy}
-              onApply={() => run("apply-assessors", () => client.applyAssessors(), "Comitê aplicado")} />
+              onApply={() => run("apply-assessors", () => client.applyAssessors(), t("Comitê aplicado", "Committee applied"))} />
           </div>
         )}
         {pool.pendingAuthority && (
           <p className="rounded-xl border border-[var(--border)] p-3">
-            Autoridade proposta: <span className="font-mono">{shortAddr(pool.pendingAuthority)}</span> — aguardando o
-            aceite dessa carteira.
+            {t("Autoridade proposta", "Proposed authority")}:{" "}
+            <span className="font-mono">{shortAddr(pool.pendingAuthority)}</span> —{" "}
+            {t("aguardando o aceite dessa carteira.", "waiting for this wallet to accept.")}
           </p>
         )}
         {isAuthority && (
           <button
             className="btn btn-ghost self-start"
             disabled={!!busy}
-            onClick={() => run("cancel", () => client.cancelPending(), "Mudanças pendentes canceladas")}
+            onClick={() => run("cancel", () => client.cancelPending(), t("Mudanças pendentes canceladas", "Pending changes cancelled"))}
           >
-            {busy === "cancel" && <Spinner />} Cancelar mudanças pendentes
+            {busy === "cancel" && <Spinner />} {t("Cancelar mudanças pendentes", "Cancel pending changes")}
           </button>
         )}
       </div>
@@ -381,13 +416,16 @@ function PendingChanges({ pool, now, isAuthority }: { pool: PoolInfo; now: numbe
 
 function GateRow({ eta, now, busy, onApply }: { eta: number; now: number; busy: boolean; onApply: () => void }) {
   const ready = now >= eta;
+  const { t } = useI18n();
   return (
     <div className="mt-2 flex flex-wrap items-center gap-3">
       <span className="text-xs text-[var(--muted)]">
-        {ready ? "Timelock cumprido" : `Libera em ${fmtDuration(eta - now)} (${fmtDate(eta)})`}
+        {ready
+          ? t("Timelock cumprido", "Timelock complete")
+          : t(`Libera em ${fmtDuration(eta - now)} (${fmtDate(eta)})`, `Unlocks in ${fmtDuration(eta - now)} (${fmtDate(eta)})`)}
       </span>
       <button className="btn btn-primary ml-auto !py-1.5" disabled={!ready || busy} onClick={onApply}>
-        Aplicar
+        {t("Aplicar", "Apply")}
       </button>
     </div>
   );
@@ -396,19 +434,21 @@ function GateRow({ eta, now, busy, onApply }: { eta: number; now: number; busy: 
 function AcceptAuthority({ pool }: { pool: PoolInfo }) {
   const { client } = useApp();
   const { run, busy } = useAction();
+  const { t } = useI18n();
   return (
     <section className="card flex flex-wrap items-center gap-3 border-[var(--accent)] p-4 text-sm">
       <KeyRound className="size-5 text-[var(--accent)]" />
       <span>
-        A autoridade do pool foi proposta para{" "}
-        <span className="font-mono">{shortAddr(pool.pendingAuthority ?? "")}</span>. Assine para aceitar.
+        {t("A autoridade do pool foi proposta para", "Pool authority has been proposed to")}{" "}
+        <span className="font-mono">{shortAddr(pool.pendingAuthority ?? "")}</span>.{" "}
+        {t("Assine para aceitar.", "Sign to accept.")}
       </span>
       <button
         className="btn btn-primary ml-auto"
         disabled={!!busy}
-        onClick={() => run("accept", () => client.acceptAuthority(), "Autoridade aceita")}
+        onClick={() => run("accept", () => client.acceptAuthority(), t("Autoridade aceita", "Authority accepted"))}
       >
-        {busy === "accept" && <Spinner />} Aceitar autoridade
+        {busy === "accept" && <Spinner />} {t("Aceitar autoridade", "Accept authority")}
       </button>
     </section>
   );
@@ -417,24 +457,25 @@ function AcceptAuthority({ pool }: { pool: PoolInfo }) {
 function TreasuryCard({ pool, disabled }: { pool: PoolInfo; disabled: boolean }) {
   const { client } = useApp();
   const { run, busy } = useAction();
+  const { t } = useI18n();
   const [amount, setAmount] = useState("");
   const base = toBase(amount);
   return (
     <section className="card p-5">
       <h2 className="flex items-center gap-2 font-semibold">
-        <Landmark className="size-5 text-[var(--accent)]" /> Tesouraria do protocolo
+        <Landmark className="size-5 text-[var(--accent)]" /> {t("Tesouraria do protocolo", "Protocol treasury")}
       </h2>
       <div className="mt-3 divide-y divide-[var(--border)] text-sm">
-        <Row label="Disponível para saque" value={fmtMoney(pool.treasuryAccrued)} strong />
-        <Row label="Taxas do protocolo arrecadadas" value={fmtMoney(pool.totalProtocolFees)} />
-        <Row label="Pago a avaliadores (vistorias + votos)" value={fmtMoney(pool.totalAssessorRewards)} />
-        <Row label="Taxas de vistoria pendentes" value={fmtMoney(pool.pendingInspectionFees)} />
+        <Row label={t("Disponível para saque", "Available to withdraw")} value={fmtMoney(pool.treasuryAccrued)} strong />
+        <Row label={t("Taxas do protocolo arrecadadas", "Protocol fees collected")} value={fmtMoney(pool.totalProtocolFees)} />
+        <Row label={t("Pago a avaliadores (vistorias + votos)", "Paid to assessors (inspections + votes)")} value={fmtMoney(pool.totalAssessorRewards)} />
+        <Row label={t("Taxas de vistoria pendentes", "Pending inspection fees")} value={fmtMoney(pool.pendingInspectionFees)} />
       </div>
       <div className="mt-4 flex gap-2">
         <input
           className="input num flex-1"
           inputMode="decimal"
-          placeholder="Valor em tBRL"
+          placeholder={t("Valor em tBRL", "Amount in tBRL")}
           disabled={disabled}
           value={amount}
           onChange={(e) => setAmount(e.target.value.replace(/[^\d.,]/g, ""))}
@@ -443,16 +484,19 @@ function TreasuryCard({ pool, disabled }: { pool: PoolInfo; disabled: boolean })
           className="btn btn-primary"
           disabled={disabled || base <= 0 || base > pool.treasuryAccrued || !!busy}
           onClick={() =>
-            run("treasury", () => client.withdrawTreasury(base), "Receita sacada da tesouraria").then(
+            run("treasury", () => client.withdrawTreasury(base), t("Receita sacada da tesouraria", "Revenue withdrawn from the treasury")).then(
               (sig) => sig && setAmount(""),
             )
           }
         >
-          {busy === "treasury" && <Spinner />} Sacar
+          {busy === "treasury" && <Spinner />} {t("Sacar", "Withdraw")}
         </button>
       </div>
       <p className="mt-2 text-xs text-[var(--muted)]">
-        O saque nunca toca no patrimônio dos LPs, no cashback reservado nem nas taxas de vistoria pendentes.
+        {t(
+          "O saque nunca toca no patrimônio dos LPs, no cashback reservado nem nas taxas de vistoria pendentes.",
+          "Withdrawals never touch LP equity, reserved cashback or pending inspection fees.",
+        )}
       </p>
     </section>
   );

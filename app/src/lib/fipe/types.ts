@@ -2,10 +2,10 @@
 
 export type VehicleType = "carros" | "motos" | "caminhoes";
 
-export const VEHICLE_TYPES: { key: VehicleType; label: string }[] = [
-  { key: "carros", label: "Carro" },
-  { key: "motos", label: "Moto" },
-  { key: "caminhoes", label: "Caminhão" },
+export const VEHICLE_TYPES: { key: VehicleType; label: string; en: string }[] = [
+  { key: "carros", label: "Carro", en: "Car" },
+  { key: "motos", label: "Moto", en: "Motorcycle" },
+  { key: "caminhoes", label: "Caminhão", en: "Truck" },
 ];
 
 export function isVehicleType(v: string): v is VehicleType {

@@ -3,6 +3,7 @@
 import { CheckCircle2, ExternalLink, X, XCircle } from "lucide-react";
 import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
 import { explorerTx } from "@/lib/config";
+import { useI18n } from "@/lib/i18n";
 
 interface Toast {
   id: number;
@@ -16,6 +17,7 @@ const Ctx = createContext<{ push: (t: Omit<Toast, "id">) => void } | null>(null)
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const { t: tt } = useI18n();
 
   const dismiss = useCallback((id: number) => setToasts((t) => t.filter((x) => x.id !== id)), []);
 
@@ -54,14 +56,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                   rel="noreferrer"
                   className="mt-1 inline-flex items-center gap-1 text-sm text-[var(--accent)] hover:underline"
                 >
-                  Ver no Explorer <ExternalLink className="size-3" />
+                  {tt("Ver no Explorer", "View on Explorer")} <ExternalLink className="size-3" />
                 </a>
               )}
               {t.sig?.startsWith("demo-") && (
-                <p className="mt-1 text-xs text-[var(--muted)]">Simulação local · {t.sig}</p>
+                <p className="mt-1 text-xs text-[var(--muted)]">{tt("Simulação local", "Local simulation")} · {t.sig}</p>
               )}
             </div>
-            <button onClick={() => dismiss(t.id)} className="text-[var(--muted)] hover:text-[var(--fg)]" aria-label="Fechar">
+            <button onClick={() => dismiss(t.id)} className="text-[var(--muted)] hover:text-[var(--fg)]" aria-label={tt("Fechar", "Close")}>
               <X className="size-4" />
             </button>
           </div>

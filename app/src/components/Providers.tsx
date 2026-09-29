@@ -8,7 +8,9 @@ import { DemoClient } from "@/lib/client/demo";
 import { OnChainClient } from "@/lib/client/onchain";
 import type { AutoShieldClient } from "@/lib/types";
 import { ToastProvider, useToastCtx } from "./Toast";
+import { AuthProvider, usePrivyAnchorWallet } from "./PrivyAuth";
 import { errMsg } from "@/lib/format";
+import { I18nProvider, tr } from "@/lib/i18n";
 
 import "@solana/wallet-adapter-react-ui/styles.css";
 
@@ -27,7 +29,11 @@ const MODE_KEY = "autoshield-mode";
 
 function AppStateProvider({ children }: { children: ReactNode }) {
   const { connection } = useConnection();
-  const wallet = useAnchorWallet();
+  // Carteira de extensao (Phantom, Solflare) tem prioridade; senao, a carteira
+  // embutida do login com Google/e-mail.
+  const adapterWallet = useAnchorWallet();
+  const privyWallet = usePrivyAnchorWallet();
+  const wallet = adapterWallet ?? privyWallet;
   const [mode, setModeState] = useState<Mode>(DEFAULT_MODE);
   const [version, setVersion] = useState(0);
 
@@ -73,6 +79,8 @@ function AppStateProvider({ children }: { children: ReactNode }) {
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
+    <I18nProvider>
+    <AuthProvider>
     <ConnectionProvider endpoint={RPC_URL}>
       <WalletProvider wallets={[]} autoConnect>
         <WalletModalProvider>
@@ -82,6 +90,8 @@ export function Providers({ children }: { children: ReactNode }) {
         </WalletModalProvider>
       </WalletProvider>
     </ConnectionProvider>
+    </AuthProvider>
+    </I18nProvider>
   );
 }
 
@@ -129,11 +139,11 @@ export function useAction() {
       setBusy(label);
       try {
         const sig = await fn();
-        push({ kind: "success", title: success ?? "Transação confirmada", sig });
+        push({ kind: "success", title: success ?? tr("Transação confirmada", "Transaction confirmed"), sig });
         refresh();
         return sig;
       } catch (e) {
-        push({ kind: "error", title: "Falha na operação", body: errMsg(e) });
+        push({ kind: "error", title: tr("Falha na operação", "Operation failed"), body: errMsg(e) });
         return null;
       } finally {
         setBusy(null);
