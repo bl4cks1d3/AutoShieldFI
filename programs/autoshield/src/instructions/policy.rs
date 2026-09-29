@@ -9,7 +9,9 @@ use crate::events::{
     PolicyTransferred,
 };
 use crate::pricing;
-use crate::state::{CoverageTier, DeductibleOption, Policy, PolicyStatus, Pool, VehicleRecord, ACCOUNT_VERSION};
+use crate::state::{
+    CoverageTier, DeductibleOption, DriverRecord, Policy, PolicyStatus, Pool, VehicleRecord, ACCOUNT_VERSION,
+};
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct PurchasePolicyArgs {
@@ -113,6 +115,16 @@ pub struct PurchasePolicy<'info> {
     )]
     pub vehicle: Account<'info, VehicleRecord>,
 
+    /// Historico do motorista: classe de bonus de renovacao.
+    #[account(
+        init_if_needed,
+        payer = owner,
+        space = 8 + DriverRecord::INIT_SPACE,
+        seeds = [DRIVER_SEED, owner.key().as_ref()],
+        bump
+    )]
+    pub driver: Box<Account<'info, DriverRecord>>,
+
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
 }
@@ -150,7 +162,7 @@ pub fn purchase_policy(ctx: Context<PurchasePolicy>, args: PurchasePolicyArgs) -
         AutoShieldError::InvalidParameter
     );
 
-    let quote = pricing::quote(
+    let mut quote = pricing::quote(
         &pool.params,
         args.vehicle_value,
         args.tier,
@@ -159,6 +171,9 @@ pub fn purchase_policy(ctx: Context<PurchasePolicy>, args: PurchasePolicyArgs) -
         args.deductible_option,
     )
     .ok_or(AutoShieldError::MathOverflow)?;
+    // Bonus de renovacao: desconto por anos sem sinistro indenizado.
+    let bonus_class = ctx.accounts.driver.bonus_class;
+    quote.premium = pricing::apply_bonus(quote.premium, bonus_class);
     require!(
         quote.premium >= args.installments as u64,
         AutoShieldError::InvalidVehicleValue
@@ -250,6 +265,7 @@ pub fn purchase_policy(ctx: Context<PurchasePolicy>, args: PurchasePolicyArgs) -
     policy.fipe_code = args.fipe_code;
     policy.fipe_updated_ts = now;
     policy.pending_owner = Pubkey::default();
+    policy.bonus_class = bonus_class;
     policy.bump = ctx.bumps.policy;
 
     let vehicle = &mut ctx.accounts.vehicle;
@@ -257,6 +273,12 @@ pub fn purchase_policy(ctx: Context<PurchasePolicy>, args: PurchasePolicyArgs) -
         vehicle.version = ACCOUNT_VERSION;
         vehicle.plate_hash = args.plate_hash;
         vehicle.bump = ctx.bumps.vehicle;
+    }
+    let driver = &mut ctx.accounts.driver;
+    if driver.owner == Pubkey::default() {
+        driver.version = ACCOUNT_VERSION;
+        driver.owner = ctx.accounts.owner.key();
+        driver.bump = ctx.bumps.driver;
     }
 
     let pool = &mut ctx.accounts.pool;
@@ -378,6 +400,16 @@ pub struct SettlePolicy<'info> {
     )]
     pub owner_token: Account<'info, TokenAccount>,
 
+    /// Historico do titular: encerramento sem sinistro sobe a classe de bonus.
+    #[account(
+        init_if_needed,
+        payer = payer,
+        space = 8 + DriverRecord::INIT_SPACE,
+        seeds = [DRIVER_SEED, owner.key().as_ref()],
+        bump
+    )]
+    pub driver: Box<Account<'info, DriverRecord>>,
+
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
@@ -452,6 +484,21 @@ pub fn settle_policy(ctx: Context<SettlePolicy>) -> Result<()> {
     let vehicle = &mut ctx.accounts.vehicle;
     if vehicle.active_policy == policy_key {
         vehicle.active_policy = Pubkey::default();
+    }
+
+    // Vigencia cumprida, paga e sem sinistro indenizado: conta para o bonus.
+    let clean = ended && ctx.accounts.policy.fully_paid() && !ctx.accounts.policy.had_paid_claim && ctx.accounts.policy.inspected;
+    let days_per_class = ctx.accounts.pool.bonus_days();
+    let duration_days = ctx.accounts.policy.duration_days as u32;
+    let owner_key = ctx.accounts.owner.key();
+    let driver = &mut ctx.accounts.driver;
+    if driver.owner == Pubkey::default() {
+        driver.version = ACCOUNT_VERSION;
+        driver.owner = owner_key;
+        driver.bump = ctx.bumps.driver;
+    }
+    if clean {
+        driver.add_clean_days(duration_days, days_per_class);
     }
 
     emit!(PolicySettled {

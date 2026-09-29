@@ -3,6 +3,8 @@ import type {
   ClaimInfo,
   ClaimKind,
   ClaimInput,
+  DriverInfo,
+  RepairShopInfo,
   PolicyInfo,
   PoolInfo,
   PoolParams,
@@ -20,6 +22,7 @@ import {
   MIN_FIRST_DEPOSIT,
   TIER_COVERS,
   UNIT,
+  APPEAL_WINDOW_DAYS,
   FIPE_PCT_OPTIONS,
   cancellationRefund,
   expectedPayout,
@@ -33,7 +36,7 @@ import {
 // Simulacao local (localStorage) que replica as regras do programa on-chain.
 // Permite demonstrar o fluxo completo sem carteira, SOL ou deploy.
 
-const KEY = "autoshield-demo-v5";
+const KEY = "autoshield-demo-v6";
 export const DEMO_WALLET = "DemoMotorista1111111111111111111111111111111";
 export const DEMO_ASSESSORS = [
   "Avaliador1Demo11111111111111111111111111111",
@@ -51,7 +54,14 @@ interface DemoState {
   stakes: Record<string, StakeInfo>;
   /** Registro unico por veiculo: hash da placa -> apolice vistoriada e ativa. */
   vehicles: Record<string, string>;
+  /** Historico por carteira (bonus de renovacao). */
+  drivers: Record<string, DriverInfo>;
+  shops: RepairShopInfo[];
 }
+
+export const DEMO_SHOP = "OficinaDemo11111111111111111111111111111111";
+const DEFAULT_BONUS_DAYS = 365;
+const MAX_BONUS = 10;
 
 const DEFAULT_PARAMS: PoolParams = {
   baseRateBps: 350,
@@ -110,13 +120,31 @@ function initialState(): DemoState {
       pendingAssessorsEta: 0,
       pendingAuthority: null,
       oracle: DEMO_WALLET,
+      bonusDaysPerClass: DEFAULT_BONUS_DAYS,
     },
     balances: {},
     policies: [],
     claims: [],
     stakes: {},
     vehicles: {},
+    drivers: {},
+    shops: [
+      {
+        address: "OficinaPdaDemo1111111111111111111111111111",
+        wallet: DEMO_SHOP,
+        name: "Oficina Parceira (demo)",
+        city: "São Paulo",
+        active: true,
+        claimsPaid: 0,
+        totalReceived: 0,
+      },
+    ],
   };
+}
+
+function driverOf(s: DemoState, owner: string): DriverInfo {
+  s.drivers[owner] ??= { bonusClass: 0, cleanDays: 0, cleanPolicies: 0, paidClaims: 0 };
+  return s.drivers[owner];
 }
 
 function load(): DemoState {
@@ -363,7 +391,8 @@ export class DemoClient implements AutoShieldClient {
     if (s.vehicles[hash]) fail("Este veículo já possui uma apólice ativa");
     if (!(FIPE_PCT_OPTIONS as readonly number[]).includes(input.fipePct))
       fail("Percentual da FIPE inválido (use 90, 100 ou 110)");
-    const q = quote(params, input.vehicleValue, input.tier, input.durationDays, input.fipePct, input.deductibleOption);
+    const bonusClass = driverOf(s, this.wallet).bonusClass;
+    const q = quote(params, input.vehicleValue, input.tier, input.durationDays, input.fipePct, input.deductibleOption, bonusClass);
     if (q.premium < n) fail("Valor do veículo inválido");
     if (q.premium > input.maxPremium) fail("Prêmio acima do máximo aceito");
     const first = installmentAmount(q.premium, n, 1);
@@ -422,6 +451,7 @@ export class DemoClient implements AutoShieldClient {
       fipeCode: input.fipeCode.slice(0, 16),
       fipeUpdatedTs: now,
       pendingOwner: null,
+      bonusClass,
     };
     this.accountPayment(s, policy, first);
     s.policies.push(policy);
@@ -451,6 +481,8 @@ export class DemoClient implements AutoShieldClient {
   async fileClaim(policyAddr: string, input: ClaimInput) {
     await delay();
     const s = load();
+    if (input.repairShop && !s.shops.some((x) => x.wallet === input.repairShop && x.active))
+      fail("Oficina não credenciada ou inativa");
     const p = s.policies.find((x) => x.address === policyAddr);
     if (!p || p.owner !== this.wallet) fail("Operação não autorizada");
     const now = this.clock(s);
@@ -486,6 +518,10 @@ export class DemoClient implements AutoShieldClient {
       createdTs: now,
       votingDeadline: now + s.pool.params.claimVotingSecs,
       resolvedTs: 0,
+      repairShop: input.repairShop ?? null,
+      appealed: false,
+      appealVoters: [],
+      appealTs: 0,
     });
     p.claimsFiled += 1;
     p.hasOpenClaim = true;
@@ -502,21 +538,28 @@ export class DemoClient implements AutoShieldClient {
     const c = s.claims.find((x) => x.address === claimAddr);
     if (!c) fail("Sinistro não encontrado");
     if (c.claimant === voter) fail("Avaliador não pode votar ou vistoriar a própria apólice");
-    if (c.status !== "pending") fail("O sinistro não está pendente");
+    const appeal = c.status === "appealed";
+    if (c.status !== "pending" && !appeal) fail("O sinistro não está pendente");
     const now = this.clock(s);
     if (now > c.votingDeadline) fail("Período de votação encerrado");
-    if (c.voters.includes(voter)) fail("Avaliador já votou neste sinistro");
+    if (c.voters.includes(voter))
+      fail(appeal ? "Avaliador que votou na primeira rodada não vota no recurso" : "Avaliador já votou neste sinistro");
+    if (c.appealVoters.includes(voter)) fail("Avaliador já votou neste sinistro");
     if (approve && reclassify && reclassify !== c.kind) {
       const pol = s.policies.find((x) => x.address === c.policy)!;
       if (!TIER_COVERS[pol.tier].includes(reclassify)) fail("O plano contratado não cobre este tipo de sinistro");
       c.kind = reclassify;
       c.reclassified = true;
     }
-    c.voters.push(voter);
+    if (appeal) c.appealVoters.push(voter);
+    else c.voters.push(voter);
     if (approve) c.approvals += 1;
     else c.rejections += 1;
-    const maxRej = s.pool.assessors.length - s.pool.approvalThreshold;
-    if (c.approvals >= s.pool.approvalThreshold) {
+    // No recurso, o quorum se ajusta aos avaliadores que nao votaram antes.
+    const eligible = s.pool.assessors.filter((a) => !c.voters.includes(a)).length;
+    const threshold = appeal ? Math.max(1, Math.min(s.pool.approvalThreshold, eligible)) : s.pool.approvalThreshold;
+    const maxRej = (appeal ? eligible : s.pool.assessors.length) - threshold;
+    if (c.approvals >= threshold) {
       c.status = "approved";
       c.resolvedTs = now;
     } else if (c.rejections > maxRej) {
@@ -604,7 +647,19 @@ export class DemoClient implements AutoShieldClient {
     );
     if (payout > this.nav(s)) fail("Liquidez livre insuficiente para pagar o sinistro agora");
     s.pool.vaultBalance -= payout;
-    this.credit(s, c.claimant, payout);
+    // Danos parciais com oficina credenciada: paga direto a oficina.
+    const shop = !totalLoss && c.repairShop ? s.shops.find((x) => x.wallet === c.repairShop) : undefined;
+    this.credit(s, shop ? shop.wallet : c.claimant, payout);
+    if (shop) {
+      shop.claimsPaid += 1;
+      shop.totalReceived += payout;
+    }
+    if (payout > 0) {
+      const d = driverOf(s, c.claimant);
+      d.paidClaims += 1;
+      d.bonusClass = Math.max(0, d.bonusClass - 1);
+      d.cleanDays = d.bonusClass * s.pool.bonusDaysPerClass;
+    }
     s.pool.pendingClaims -= c.amountRequested;
     s.pool.totalActiveCoverage -= payout;
     s.pool.totalClaimsPaid += payout;
@@ -634,7 +689,7 @@ export class DemoClient implements AutoShieldClient {
     await delay();
     const s = load();
     const c = s.claims.find((x) => x.address === claimAddr);
-    if (!c || c.status !== "pending") fail("O sinistro não está pendente");
+    if (!c || (c.status !== "pending" && c.status !== "appealed")) fail("O sinistro não está pendente");
     if (this.clock(s) <= c.votingDeadline) fail("Período de votação ainda em andamento");
     c.status = "rejected";
     c.resolvedTs = this.clock(s);
@@ -672,7 +727,73 @@ export class DemoClient implements AutoShieldClient {
     p.status = "settled";
     p.cashbackRedeemed = pay;
     if (!pay) p.cashbackAmount = 0;
+    // Vigencia cumprida, paga e sem sinistro indenizado: conta para o bonus.
+    if (ended && fullyPaid && !p.hadPaidClaim && p.inspected) {
+      const d = driverOf(s, p.owner);
+      d.cleanDays += p.durationDays;
+      d.cleanPolicies += 1;
+      d.bonusClass = Math.max(d.bonusClass, Math.min(MAX_BONUS, Math.floor(d.cleanDays / s.pool.bonusDaysPerClass)));
+    }
     if (s.vehicles[p.plateHash] === p.address) delete s.vehicles[p.plateHash];
+    return this.tx(s);
+  }
+
+  async getRepairShops() {
+    return load().shops;
+  }
+
+  async getDriver(owner: string) {
+    return load().drivers[owner] ?? null;
+  }
+
+  async appealClaim(claimAddr: string) {
+    await delay();
+    const s = load();
+    const c = s.claims.find((x) => x.address === claimAddr);
+    if (!c) fail("Sinistro não encontrado");
+    const p = s.policies.find((x) => x.address === c.policy);
+    if (!p || p.owner !== this.wallet) fail("Operação não autorizada");
+    if (c.status !== "rejected") fail("O sinistro não foi recusado");
+    if (c.appealed) fail("Este sinistro já teve recurso");
+    const now = this.clock(s);
+    if (now > c.resolvedTs + APPEAL_WINDOW_DAYS * s.pool.params.secondsPerDay) fail("Prazo de recurso encerrado");
+    if (p.status !== "active") fail("A apólice não está ativa");
+    if (p.hasOpenClaim) fail("Já existe um sinistro em aberto para esta apólice");
+    if (!s.pool.assessors.some((a) => !c.voters.includes(a))) fail("Não há avaliadores aptos a julgar o recurso");
+    c.status = "appealed";
+    c.appealed = true;
+    c.appealTs = now;
+    c.approvals = 0;
+    c.rejections = 0;
+    c.votingDeadline = now + s.pool.params.claimVotingSecs;
+    c.resolvedTs = 0;
+    p.hasOpenClaim = true;
+    s.pool.pendingClaims += c.amountRequested;
+    return this.tx(s);
+  }
+
+  async registerShop(wallet: string, name: string, city: string) {
+    await delay();
+    const s = load();
+    if (!wallet || s.shops.some((x) => x.wallet === wallet)) fail("Parâmetro inválido");
+    s.shops.push({
+      address: `OficinaPda${Math.random().toString(36).slice(2, 12)}`,
+      wallet,
+      name: name.slice(0, 48),
+      city: city.slice(0, 32),
+      active: true,
+      claimsPaid: 0,
+      totalReceived: 0,
+    });
+    return this.tx(s);
+  }
+
+  async setShopActive(wallet: string, active: boolean) {
+    await delay();
+    const s = load();
+    const shop = s.shops.find((x) => x.wallet === wallet);
+    if (!shop) fail("Oficina não credenciada ou inativa");
+    shop.active = active;
     return this.tx(s);
   }
 

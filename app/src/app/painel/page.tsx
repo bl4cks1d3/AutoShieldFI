@@ -37,7 +37,7 @@ import { displayPlate } from "@/lib/plate";
 import { policyStatus } from "@/lib/policyStatus";
 import { DEDUCTIBLE_BPS, installmentAmount, MAX_INSTALLMENTS, paidUntil, UNIT } from "@/lib/pricing";
 import { ROLES, TONE, type Tone } from "@/lib/roles";
-import type { AutoShieldClient, ClaimInfo, ClaimKind, ClaimStatus, PolicyInfo, PoolInfo, StakeInfo } from "@/lib/types";
+import type { AutoShieldClient, ClaimInfo, ClaimKind, ClaimStatus, DriverInfo, PolicyInfo, PoolInfo, StakeInfo } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
 // Pecas visuais do painel
@@ -185,11 +185,12 @@ interface DashData {
   stake: StakeInfo | null;
   allPolicies: PolicyInfo[];
   allClaims: ClaimInfo[];
+  driver: DriverInfo | null;
 }
 
 async function load(c: AutoShieldClient, getSol: (w: string) => Promise<number>): Promise<DashData> {
   const w = c.wallet;
-  const [pool, now, balance, sol, myPolicies, myClaims, stake, allPolicies, allClaims] = await Promise.all([
+  const [pool, now, balance, sol, myPolicies, myClaims, stake, allPolicies, allClaims, driver] = await Promise.all([
     c.getPool(),
     c.now(),
     w ? c.getBalance(w) : Promise.resolve(0),
@@ -199,8 +200,9 @@ async function load(c: AutoShieldClient, getSol: (w: string) => Promise<number>)
     w ? c.getStake(w) : Promise.resolve(null),
     c.getPolicies(),
     c.getClaims(),
+    w ? c.getDriver(w) : Promise.resolve(null),
   ]);
-  return { pool, now, balance, sol, myPolicies, myClaims, stake, allPolicies, allClaims };
+  return { pool, now, balance, sol, myPolicies, myClaims, stake, allPolicies, allClaims, driver };
 }
 
 // ---------------------------------------------------------------------------
@@ -279,7 +281,7 @@ const KIND_ICON: Record<ClaimKind, LucideIcon> = {
   other: FileWarning,
 };
 
-const CLAIM_TONE: Record<ClaimStatus, Tone> = { pending: "warn", approved: "info", rejected: "bad", paid: "ok" };
+const CLAIM_TONE: Record<ClaimStatus, Tone> = { pending: "warn", approved: "info", rejected: "bad", paid: "ok", appealed: "info" };
 
 function DriverView({ d }: { d: D }) {
   const { lang, t } = useI18n();
@@ -295,9 +297,16 @@ function DriverView({ d }: { d: D }) {
           label={t("Saldo na carteira", "Wallet balance")}
           value={fmtMoney(d.balance, false)}
           sub={
-            d.sol !== null
-              ? t(`${fmtNum(d.sol / LAMPORTS_PER_SOL, 3)} SOL para taxas`, `${fmtNum(d.sol / LAMPORTS_PER_SOL, 3)} SOL for fees`)
-              : t("Modo demonstração — dados simulados no navegador", "Demo mode — data simulated in your browser")
+            <>
+              {d.sol !== null
+                ? t(`${fmtNum(d.sol / LAMPORTS_PER_SOL, 3)} SOL para taxas`, `${fmtNum(d.sol / LAMPORTS_PER_SOL, 3)} SOL for fees`)
+                : t("Modo demonstração — dados simulados no navegador", "Demo mode — data simulated in your browser")}
+              {" · "}
+              <span className={d.driver?.bonusClass ? "font-semibold text-[var(--ok)]" : ""}>
+                {t(`Bônus classe ${d.driver?.bonusClass ?? 0}`, `Bonus class ${d.driver?.bonusClass ?? 0}`)}
+                {d.driver?.bonusClass ? ` (−${d.driver.bonusClass * 4}%)` : ""}
+              </span>
+            </>
           }
           actions={<FundingActions />}
         />

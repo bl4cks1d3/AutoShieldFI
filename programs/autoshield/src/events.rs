@@ -129,3 +129,17 @@ pub struct FipeUpdated {
     pub vehicle_value: u64,
     pub coverage_limit: u64,
 }
+
+#[event]
+pub struct ClaimAppealed {
+    pub claim: Pubkey,
+    pub claimant: Pubkey,
+    pub voting_deadline: i64,
+}
+
+#[event]
+pub struct RepairShopUpdated {
+    pub shop: Pubkey,
+    pub wallet: Pubkey,
+    pub active: bool,
+}

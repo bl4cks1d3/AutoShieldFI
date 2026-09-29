@@ -12,6 +12,7 @@ import { normalizePlate, PLATE_RE, PRESETS } from "@/lib/fipe";
 import { fmtDuration, fmtInput, fmtMoney, toBase } from "@/lib/format";
 import { kindLabel, tierDesc, tierLabel, useI18n } from "@/lib/i18n";
 import {
+  BONUS_PCT_PER_CLASS,
   DEDUCTIBLE_BPS_BY_OPTION,
   FIPE_PCT_OPTIONS,
   installmentAmount,
@@ -30,6 +31,7 @@ export default function CotarPage() {
   const { client } = useApp();
   const { data: pool, loading } = useData((c) => c.getPool());
   const { data: balance } = useData((c) => (c.wallet ? c.getBalance(c.wallet) : Promise.resolve(0)), [client.wallet]);
+  const { data: driver } = useData((c) => (c.wallet ? c.getDriver(c.wallet) : Promise.resolve(null)), [client.wallet]);
   const { run, busy } = useAction();
   const { lang, t } = useI18n();
 
@@ -57,7 +59,8 @@ export default function CotarPage() {
   if (!pool) return <PoolMissing />;
 
   const vehicleValue = toBase(value);
-  const q = quote(pool.params, vehicleValue, tier, days, fipePct, deductibleOption);
+  const bonusClass = driver?.bonusClass ?? 0;
+  const q = quote(pool.params, vehicleValue, tier, days, fipePct, deductibleOption, bonusClass);
   const plateNorm = normalizePlate(plate);
   const plateOk = PLATE_RE.test(plateNorm);
   const options = installmentOptions(days);
@@ -209,11 +212,15 @@ export default function CotarPage() {
             <h2 className="flex items-center gap-2 font-semibold">
               <ShieldCheck className="size-5 text-[var(--accent)]" /> {t("Plano de cobertura", "Coverage plan")}
             </h2>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {(["theftOnly", "basic", "standard", "premium"] as Tier[]).map((tr) => (
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {(["theftOnly", "basic", "standard", "premium", "appDriver"] as Tier[]).map((tr) => (
                 <button
                   key={tr}
-                  onClick={() => setTier(tr)}
+                  onClick={() => {
+                    setTier(tr);
+                    // Motorista de app: contratacao mensal por padrao.
+                    if (tr === "appDriver") setDays(30);
+                  }}
                   className={`rounded-xl border p-4 text-left transition ${
                     tier === tr ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--border)] hover:border-[var(--accent)]"
                   }`}
@@ -337,6 +344,12 @@ export default function CotarPage() {
             <div className="mt-3 divide-y divide-[var(--border)] text-sm">
               <Row label={t(`Cobertura (${fipePct}% da FIPE)`, `Coverage (${fipePct}% of FIPE)`)} value={fmtMoney(q.coverageLimit)} />
               <Row label={t("Taxa base anual", "Annual base rate")} value={`${(pool.params.baseRateBps / 100).toFixed(2)}%`} />
+              {bonusClass > 0 && (
+                <Row
+                  label={t(`Bônus de renovação (classe ${bonusClass})`, `Renewal bonus (class ${bonusClass})`)}
+                  value={<span className="text-[var(--ok)]">−{bonusClass * BONUS_PCT_PER_CLASS}%</span>}
+                />
+              )}
               <Row label={`${t("Plano", "Plan")} ${tierLabel(tier, lang)}`} value={`×${(TIER_MULTIPLIER[tier] / 100).toFixed(1)}`} />
               <Row
                 label={`${t("Franquia", "Deductible")} (${DEDUCTIBLE_BPS_BY_OPTION[deductibleOption] / 100}%)`}

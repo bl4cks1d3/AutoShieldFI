@@ -18,7 +18,10 @@ import type {
   PurchaseInput,
   StakeInfo,
   ClaimKind,
+  DriverInfo,
+  RepairShopInfo,
 } from "../types";
+import { isTotalLoss } from "../pricing";
 import { PROGRAM_ID } from "../config";
 import { lookupPlate, plateHash, rememberPlate, toHex } from "../plate";
 
@@ -179,6 +182,7 @@ export class OnChainClient implements AutoShieldClient {
       pendingAssessorsEta: n(p.pendingAssessorsEta),
       pendingAuthority: p.pendingAuthority.equals(PublicKey.default) ? null : p.pendingAuthority.toBase58(),
       oracle: p.oracle.toBase58(),
+      bonusDaysPerClass: p.bonusDaysPerClass || 365,
     };
   }
 
@@ -234,6 +238,7 @@ export class OnChainClient implements AutoShieldClient {
       fipeCode: p.fipeCode,
       fipeUpdatedTs: n(p.fipeUpdatedTs),
       pendingOwner: p.pendingOwner.equals(PublicKey.default) ? null : p.pendingOwner.toBase58(),
+      bonusClass: p.bonusClass,
     };
   }
 
@@ -259,6 +264,10 @@ export class OnChainClient implements AutoShieldClient {
       createdTs: n(c.createdTs),
       votingDeadline: n(c.votingDeadline),
       resolvedTs: n(c.resolvedTs),
+      repairShop: c.repairShop.equals(PublicKey.default) ? null : c.repairShop.toBase58(),
+      appealed: c.appealed,
+      appealVoters: c.appealVoters.map((v: PublicKey) => v.toBase58()),
+      appealTs: n(c.appealTs),
     };
   }
 
@@ -274,6 +283,35 @@ export class OnChainClient implements AutoShieldClient {
     const filters = owner ? [{ memcmp: { offset: 41, bytes: owner } }] : [];
     const all = await this.program.account.claim.all(filters);
     return all.map((a) => this.mapClaim(a.publicKey, a.account)).sort((a, b) => b.createdTs - a.createdTs);
+  }
+
+  private shopPda(wallet: PublicKey): PublicKey {
+    return PublicKey.findProgramAddressSync([Buffer.from("shop"), wallet.toBuffer()], this.programId)[0];
+  }
+
+  async getRepairShops(): Promise<RepairShopInfo[]> {
+    const all = await this.program.account.repairShop.all();
+    return all
+      .map(({ publicKey, account: s }) => ({
+        address: publicKey.toBase58(),
+        wallet: s.wallet.toBase58(),
+        name: s.name,
+        city: s.city,
+        active: s.active,
+        claimsPaid: s.claimsPaid,
+        totalReceived: n(s.totalReceived),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  async getDriver(owner: string): Promise<DriverInfo | null> {
+    const [pda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("driver"), new PublicKey(owner).toBuffer()],
+      this.programId,
+    );
+    const d = await this.program.account.driverRecord.fetchNullable(pda);
+    if (!d) return null;
+    return { bonusClass: d.bonusClass, cleanDays: d.cleanDays, cleanPolicies: d.cleanPolicies, paidClaims: d.paidClaims };
   }
 
   async getStake(owner: string): Promise<StakeInfo | null> {
@@ -408,7 +446,13 @@ export class OnChainClient implements AutoShieldClient {
         description: input.description,
         evidenceUri: input.evidenceUri,
       })
-      .accountsPartial({ owner: me, pool: this.poolPda, policy, claim })
+      .accountsPartial({
+        owner: me,
+        pool: this.poolPda,
+        policy,
+        claim,
+        repairShop: input.repairShop ? this.shopPda(new PublicKey(input.repairShop)) : null,
+      })
       .rpc();
   }
 
@@ -449,7 +493,12 @@ export class OnChainClient implements AutoShieldClient {
   async payClaim(claimAddr: string): Promise<string> {
     const claim = new PublicKey(claimAddr);
     const c = await this.program.account.claim.fetch(claim);
+    const p = await this.program.account.policy.fetch(c.policy);
     const mint = await this.mint();
+    // Danos parciais com oficina credenciada: o contrato paga direto a oficina.
+    const totalLoss = isTotalLoss(enumKey<ClaimKind>(c.kind), n(c.amountRequested), n(p.coverageLimit));
+    const toShop = !totalLoss && !c.repairShop.equals(PublicKey.default);
+    const payee = toShop ? c.repairShop : c.claimant;
     return this.program.methods
       .payClaim()
       .accountsPartial({
@@ -459,8 +508,10 @@ export class OnChainClient implements AutoShieldClient {
         vault: this.vaultPda,
         policy: c.policy,
         claim,
-        vehicle: this.vehiclePda((await this.program.account.policy.fetch(c.policy)).plateHash),
+        vehicle: this.vehiclePda(p.plateHash),
         claimant: c.claimant,
+        payee,
+        repairShop: toShop ? this.shopPda(c.repairShop) : null,
       })
       .rpc();
   }
@@ -511,6 +562,30 @@ export class OnChainClient implements AutoShieldClient {
         policy,
         vehicle: this.vehiclePda(p.plateHash),
       })
+      .rpc();
+  }
+
+  async appealClaim(claimAddr: string): Promise<string> {
+    const claim = new PublicKey(claimAddr);
+    const c = await this.program.account.claim.fetch(claim);
+    return this.program.methods
+      .appealClaim()
+      .accountsPartial({ owner: this.me(), pool: this.poolPda, policy: c.policy, claim })
+      .rpc();
+  }
+
+  async registerShop(wallet: string, name: string, city: string): Promise<string> {
+    const w = new PublicKey(wallet);
+    return this.program.methods
+      .registerShop(w, name.slice(0, 48), city.slice(0, 32))
+      .accountsPartial({ authority: this.me(), pool: this.poolPda, shop: this.shopPda(w) })
+      .rpc();
+  }
+
+  async setShopActive(wallet: string, active: boolean): Promise<string> {
+    return this.program.methods
+      .setShopActive(active)
+      .accountsPartial({ authority: this.me(), pool: this.poolPda, shop: this.shopPda(new PublicKey(wallet)) })
       .rpc();
   }
 

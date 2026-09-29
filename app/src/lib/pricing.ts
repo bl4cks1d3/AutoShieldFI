@@ -33,6 +33,7 @@ export const TIER_MULTIPLIER: Record<Tier, number> = {
   standard: 100,
   premium: 140,
   theftOnly: 35,
+  appDriver: 180,
 };
 
 export const TIER_COVERS: Record<Tier, ClaimKind[]> = {
@@ -40,7 +41,20 @@ export const TIER_COVERS: Record<Tier, ClaimKind[]> = {
   standard: ["theft", "naturalEvent", "collision"],
   premium: ["theft", "naturalEvent", "collision", "thirdParty", "other"],
   theftOnly: ["theft"],
+  appDriver: ["theft", "naturalEvent", "collision", "thirdParty"],
 };
+
+/** Recurso contra sinistro recusado: ate 7 dias (da apolice) apos a recusa. */
+export const APPEAL_WINDOW_DAYS = 7;
+/** Bonus de renovacao: 4% por classe, ate a classe 10. */
+export const BONUS_PCT_PER_CLASS = 4;
+export const MAX_BONUS_CLASS = 10;
+
+/** Desconto de bonus aplicado ao premio (espelha pricing::apply_bonus). */
+export function applyBonus(premium: number, bonusClass: number): number {
+  const c = Math.min(Math.max(0, bonusClass), MAX_BONUS_CLASS);
+  return Number((BigInt(premium) * BigInt(100 - c * BONUS_PCT_PER_CLASS)) / 100n);
+}
 
 export interface Quote {
   premium: number;
@@ -63,16 +77,20 @@ export function quote(
   durationDays: number,
   fipePct = 100,
   deductibleOption: DeductibleOption = "normal",
+  bonusClass = 0,
 ): Quote {
   const coverage = coverageFor(vehicleValue, fipePct);
   const c = BigInt(coverage);
-  const premium = Number(
-    (c *
-      BigInt(params.baseRateBps) *
-      BigInt(TIER_MULTIPLIER[tier]) *
-      BigInt(DEDUCTIBLE_PRICE_PCT[deductibleOption]) *
-      BigInt(durationDays)) /
-      BigInt(10_000 * 100 * 100 * 365),
+  const premium = applyBonus(
+    Number(
+      (c *
+        BigInt(params.baseRateBps) *
+        BigInt(TIER_MULTIPLIER[tier]) *
+        BigInt(DEDUCTIBLE_PRICE_PCT[deductibleOption]) *
+        BigInt(durationDays)) /
+        BigInt(10_000 * 100 * 100 * 365),
+    ),
+    bonusClass,
   );
   const deductible = Number((c * BigInt(DEDUCTIBLE_BPS_BY_OPTION[deductibleOption])) / 10_000n);
   const cashback = Number((BigInt(premium) * BigInt(params.cashbackBps)) / 10_000n);

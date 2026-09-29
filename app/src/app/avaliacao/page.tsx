@@ -54,10 +54,12 @@ function AssessorView() {
 
   const isAssessor = pool.assessors.includes(identity);
   const policyById = new Map(policies.map((p) => [p.address, p]));
-  const shown = claims.filter((c) => filter === "all" || c.status === filter);
+  // Recursos entram na fila "em analise" junto com os sinistros pendentes.
+  const inQueue = (c: ClaimInfo, k: string) => k === "all" || c.status === k || (k === "pending" && c.status === "appealed");
+  const shown = claims.filter((c) => inQueue(c, filter));
   const toInspect = policies.filter((p) => p.status === "active" && !p.inspected);
   const count = (k: string) =>
-    k === "inspection" ? toInspect.length : k === "all" ? claims.length : claims.filter((c) => c.status === k).length;
+    k === "inspection" ? toInspect.length : k === "all" ? claims.length : claims.filter((c) => inQueue(c, k)).length;
 
   return (
     <div className="flex flex-col gap-4">
@@ -153,10 +155,13 @@ function ReviewCard({
   const { client } = useApp();
   const { run, busy } = useAction();
   const { lang, t } = useI18n();
-  const voted = c.voters.includes(identity);
+  const appeal = c.status === "appealed";
+  // No recurso, quem votou na primeira rodada fica de fora.
+  const firstRoundVoter = appeal && c.voters.includes(identity);
+  const voted = appeal ? c.appealVoters.includes(identity) || firstRoundVoter : c.voters.includes(identity);
   const ownClaim = c.claimant === identity;
   const [kind, setKind] = useState<ClaimKind>(c.kind);
-  const open = c.status === "pending" && now <= c.votingDeadline;
+  const open = (c.status === "pending" || appeal) && now <= c.votingDeadline;
   const est = policy
     ? expectedPayout(
         open ? kind : c.kind,
@@ -217,7 +222,7 @@ function ReviewCard({
           label={t("Votos", "Votes")}
           value={t(`${c.approvals} a favor · ${c.rejections} contra`, `${c.approvals} for · ${c.rejections} against`)}
         />
-        {c.status === "pending" && (
+        {(c.status === "pending" || appeal) && (
           <Row
             label={t("Prazo", "Deadline")}
             value={
@@ -256,7 +261,24 @@ function ReviewCard({
             </button>
           </>
         )}
-        {open && voted && <p className="text-sm text-[var(--muted)]">{t("Você já votou neste sinistro.", "You have already voted on this claim.")}</p>}
+        {open && voted && (
+          <p className="text-sm text-[var(--muted)]">
+            {firstRoundVoter
+              ? t(
+                  "Recurso: você votou na primeira rodada, então outro avaliador julga.",
+                  "Appeal: you voted in the first round, so another assessor judges it.",
+                )
+              : t("Você já votou neste sinistro.", "You have already voted on this claim.")}
+          </p>
+        )}
+        {appeal && (
+          <p className="w-full text-xs text-[var(--info)]">
+            {t(
+              "Sinistro em recurso: o motorista contestou a recusa. Votam só avaliadores que não votaram antes.",
+              "Claim under appeal: the driver contested the rejection. Only assessors who did not vote before can vote.",
+            )}
+          </p>
+        )}
         {c.status === "approved" && (
           <button
             className="btn btn-primary w-full"
@@ -266,7 +288,7 @@ function ReviewCard({
             {busy === `pay-${c.address}` && <Spinner />} {t("Executar pagamento", "Execute payout")}
           </button>
         )}
-        {c.status === "pending" && !open && (
+        {(c.status === "pending" || appeal) && !open && (
           <button
             className="btn btn-ghost w-full"
             disabled={!!busy}

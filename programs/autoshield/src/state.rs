@@ -53,7 +53,10 @@ pub struct Pool {
     pub oracle: Pubkey,
     pub bump: u8,
     pub vault_bump: u8,
-    pub _reserved: [u8; 128],
+    /// Dias de cobertura sem sinistro para subir uma classe de bonus (0 = 365).
+    /// Ocupa bytes que eram reservados: o layout do pool nao muda.
+    pub bonus_days_per_class: u16,
+    pub _reserved: [u8; 126],
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, PartialEq, Eq, InitSpace)]
@@ -146,6 +149,14 @@ impl Pool {
             .checked_add(self.pending_claims)
     }
 
+    pub fn bonus_days(&self) -> u32 {
+        if self.bonus_days_per_class == 0 {
+            DEFAULT_BONUS_DAYS_PER_CLASS
+        } else {
+            self.bonus_days_per_class as u32
+        }
+    }
+
     pub fn is_assessor(&self, key: &Pubkey) -> bool {
         self.assessors.iter().any(|a| a == key)
     }
@@ -169,6 +180,9 @@ pub enum CoverageTier {
     Premium,
     /// Somente roubo e furto: o plano mais barato (motos e carros mais antigos).
     TheftOnly,
+    /// Motorista de aplicativo: roubo, colisao, terceiros e natureza, com
+    /// preco ajustado ao uso profissional; pensado para contratacao mensal.
+    AppDriver,
 }
 
 impl CoverageTier {
@@ -179,6 +193,7 @@ impl CoverageTier {
             CoverageTier::Standard => 100,
             CoverageTier::Premium => 140,
             CoverageTier::TheftOnly => 35,
+            CoverageTier::AppDriver => 180,
         }
     }
 
@@ -189,6 +204,7 @@ impl CoverageTier {
             (_, ClaimKind::NaturalEvent) => true,
             (CoverageTier::Standard | CoverageTier::Premium, ClaimKind::Collision) => true,
             (CoverageTier::Premium, ClaimKind::ThirdParty | ClaimKind::Other) => true,
+            (CoverageTier::AppDriver, ClaimKind::Collision | ClaimKind::ThirdParty) => true,
             _ => false,
         }
     }
@@ -299,6 +315,8 @@ pub struct Policy {
     pub fipe_updated_ts: i64,
     /// Comprador indicado na venda do veiculo (aguardando aceite).
     pub pending_owner: Pubkey,
+    /// Classe de bonus do titular na contratacao (desconto de 4% por classe).
+    pub bonus_class: u8,
     pub bump: u8,
     pub _reserved: [u8; 64],
 }
@@ -362,6 +380,8 @@ pub enum ClaimStatus {
     Approved,
     Rejected,
     Paid,
+    /// Em recurso: nova votacao por avaliadores que nao votaram na primeira rodada.
+    Appealed,
 }
 
 #[account]
@@ -394,8 +414,73 @@ pub struct Claim {
     pub created_ts: i64,
     pub voting_deadline: i64,
     pub resolved_ts: i64,
+    /// Oficina credenciada que recebe a indenizacao de danos parciais
+    /// (`Pubkey::default()` = paga ao motorista).
+    pub repair_shop: Pubkey,
+    /// Recurso ja usado (so um por sinistro).
+    pub appealed: bool,
+    #[max_len(MAX_ASSESSORS)]
+    pub appeal_voters: Vec<Pubkey>,
+    pub appeal_ts: i64,
     pub bump: u8,
     pub _reserved: [u8; 64],
+}
+
+impl Claim {
+    /// Avaliadores aptos a votar no recurso: os que nao votaram na primeira rodada.
+    pub fn appeal_eligible(&self, pool: &Pool) -> u8 {
+        pool.assessors.iter().filter(|a| !self.voters.contains(a)).count() as u8
+    }
+}
+
+/// Oficina credenciada pela governanca para receber indenizacoes de danos parciais.
+#[account]
+#[derive(InitSpace)]
+pub struct RepairShop {
+    pub version: u8,
+    pub wallet: Pubkey,
+    #[max_len(MAX_SHOP_NAME_LEN)]
+    pub name: String,
+    #[max_len(MAX_SHOP_CITY_LEN)]
+    pub city: String,
+    pub active: bool,
+    pub claims_paid: u32,
+    pub total_received: u64,
+    pub bump: u8,
+    pub _reserved: [u8; 32],
+}
+
+/// Historico do motorista (por carteira): classe de bonus de renovacao.
+#[account]
+#[derive(InitSpace)]
+pub struct DriverRecord {
+    pub version: u8,
+    pub owner: Pubkey,
+    /// 0 a MAX_BONUS_CLASS; cada classe da BONUS_PCT_PER_CLASS% de desconto.
+    pub bonus_class: u8,
+    /// Dias de cobertura encerrada sem sinistro indenizado, acumulados.
+    pub clean_days: u32,
+    pub clean_policies: u32,
+    pub paid_claims: u32,
+    pub bump: u8,
+    pub _reserved: [u8; 32],
+}
+
+impl DriverRecord {
+    /// Encerramento sem sinistro: acumula dias e recalcula a classe.
+    pub fn add_clean_days(&mut self, days: u32, days_per_class: u32) {
+        self.clean_days = self.clean_days.saturating_add(days);
+        self.clean_policies = self.clean_policies.saturating_add(1);
+        let class = (self.clean_days / days_per_class.max(1)).min(MAX_BONUS_CLASS as u32) as u8;
+        self.bonus_class = self.bonus_class.max(class);
+    }
+
+    /// Sinistro indenizado: desce uma classe (regra de mercado).
+    pub fn register_paid_claim(&mut self, days_per_class: u32) {
+        self.paid_claims = self.paid_claims.saturating_add(1);
+        self.bonus_class = self.bonus_class.saturating_sub(1);
+        self.clean_days = self.bonus_class as u32 * days_per_class;
+    }
 }
 
 /// Registro unico por veiculo (placa): garante no maximo uma apolice ativa e
@@ -493,6 +578,7 @@ mod tests {
             fipe_code: String::new(),
             fipe_updated_ts: 0,
             pending_owner: Pubkey::default(),
+            bonus_class: 0,
             bump: 0,
             _reserved: [0; 64],
         }
@@ -523,6 +609,39 @@ mod tests {
         assert!(!p.is_total_loss(ClaimKind::Collision, 74_999));
         assert!(p.is_total_loss(ClaimKind::Collision, 75_000));
         assert!(p.is_total_loss(ClaimKind::NaturalEvent, 90_000));
+    }
+
+    #[test]
+    fn bonus_class_rises_with_clean_years_and_drops_on_claim() {
+        let mut d = DriverRecord {
+            version: ACCOUNT_VERSION,
+            owner: Pubkey::default(),
+            bonus_class: 0,
+            clean_days: 0,
+            clean_policies: 0,
+            paid_claims: 0,
+            bump: 0,
+            _reserved: [0; 32],
+        };
+        d.add_clean_days(200, 365);
+        assert_eq!(d.bonus_class, 0);
+        d.add_clean_days(200, 365);
+        assert_eq!(d.bonus_class, 1);
+        for _ in 0..30 {
+            d.add_clean_days(365, 365);
+        }
+        assert_eq!(d.bonus_class, MAX_BONUS_CLASS);
+        d.register_paid_claim(365);
+        assert_eq!(d.bonus_class, MAX_BONUS_CLASS - 1);
+        assert_eq!(d.clean_days, (MAX_BONUS_CLASS as u32 - 1) * 365);
+    }
+
+    #[test]
+    fn app_driver_covers_work_risks() {
+        assert!(CoverageTier::AppDriver.covers(ClaimKind::Collision));
+        assert!(CoverageTier::AppDriver.covers(ClaimKind::ThirdParty));
+        assert!(CoverageTier::AppDriver.covers(ClaimKind::Theft));
+        assert!(!CoverageTier::AppDriver.covers(ClaimKind::Other));
     }
 
     #[test]

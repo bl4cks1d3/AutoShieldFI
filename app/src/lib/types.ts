@@ -1,10 +1,11 @@
 // Tipos normalizados usados pela interface. Valores monetarios sao sempre
 // inteiros em unidades base do token (6 casas decimais).
 
-export type Tier = "basic" | "standard" | "premium" | "theftOnly";
+export type Tier = "basic" | "standard" | "premium" | "theftOnly" | "appDriver";
 export type DeductibleOption = "reduced" | "normal" | "increased";
 export type ClaimKind = "theft" | "collision" | "thirdParty" | "naturalEvent" | "other";
-export type ClaimStatus = "pending" | "approved" | "rejected" | "paid";
+/** appealed = em recurso (nova votacao por quem nao votou na primeira rodada). */
+export type ClaimStatus = "pending" | "approved" | "rejected" | "paid" | "appealed";
 /** cancelled = recusada na vistoria; cancelledByOwner = arrependimento ou cancelamento pelo titular. */
 export type PolicyStatus = "active" | "settled" | "cancelled" | "cancelledByOwner";
 
@@ -62,6 +63,8 @@ export interface PoolInfo {
   pendingAuthority: string | null;
   /** Carteira do servico que atualiza o valor FIPE das apolices. */
   oracle: string;
+  /** Dias de cobertura sem sinistro para subir uma classe de bonus. */
+  bonusDaysPerClass: number;
 }
 
 export interface PolicyInfo {
@@ -111,6 +114,8 @@ export interface PolicyInfo {
   fipeUpdatedTs: number;
   /** Comprador indicado na venda do veiculo, aguardando aceite. */
   pendingOwner: string | null;
+  /** Classe de bonus do titular na contratacao (4% de desconto por classe). */
+  bonusClass: number;
 }
 
 export interface ClaimInfo {
@@ -135,6 +140,29 @@ export interface ClaimInfo {
   createdTs: number;
   votingDeadline: number;
   resolvedTs: number;
+  /** Carteira da oficina credenciada que recebe a indenizacao (danos parciais). */
+  repairShop: string | null;
+  appealed: boolean;
+  appealVoters: string[];
+  appealTs: number;
+}
+
+export interface RepairShopInfo {
+  address: string;
+  wallet: string;
+  name: string;
+  city: string;
+  active: boolean;
+  claimsPaid: number;
+  totalReceived: number;
+}
+
+/** Historico do motorista: classe de bonus de renovacao. */
+export interface DriverInfo {
+  bonusClass: number;
+  cleanDays: number;
+  cleanPolicies: number;
+  paidClaims: number;
 }
 
 export interface StakeInfo {
@@ -165,6 +193,8 @@ export interface ClaimInput {
   amount: number;
   description: string;
   evidenceUri: string;
+  /** Carteira da oficina credenciada escolhida (danos parciais), ou null. */
+  repairShop?: string | null;
 }
 
 export interface AutoShieldClient {
@@ -180,6 +210,8 @@ export interface AutoShieldClient {
   getPolicies(owner?: string): Promise<PolicyInfo[]>;
   getClaims(owner?: string): Promise<ClaimInfo[]>;
   getStake(owner: string): Promise<StakeInfo | null>;
+  getRepairShops(): Promise<RepairShopInfo[]>;
+  getDriver(owner: string): Promise<DriverInfo | null>;
 
   faucet(amount: number): Promise<string>;
   deposit(amount: number): Promise<string>;
@@ -203,6 +235,11 @@ export interface AutoShieldClient {
   proposeTransfer(policy: string, newOwner: string | null): Promise<string>;
   /** ...e o comprador aceita. */
   acceptTransfer(policy: string): Promise<string>;
+  /** Recurso contra sinistro recusado (uma vez, ate 7 dias apos a recusa). */
+  appealClaim(claim: string): Promise<string>;
+  /** Governanca: credenciamento de oficinas. */
+  registerShop(wallet: string, name: string, city: string): Promise<string>;
+  setShopActive(wallet: string, active: boolean): Promise<string>;
 
   // Governanca: mudancas passam por timelock (propor -> aguardar -> aplicar).
   proposeParams(params: PoolParams): Promise<string>;

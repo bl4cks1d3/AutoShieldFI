@@ -1,6 +1,6 @@
 "use client";
 
-import { Clock, KeyRound, Landmark, Pause, Play, Settings2, Trash2, UserPlus, Users } from "lucide-react";
+import { Clock, KeyRound, Landmark, Pause, Play, Settings2, Trash2, UserPlus, Users, Wrench } from "lucide-react";
 import { useEffect, useState } from "react";
 import { PublicKey } from "@solana/web3.js";
 import { useAction, useApp, useData } from "@/components/Providers";
@@ -98,6 +98,7 @@ function AdminView() {
         <div className="flex flex-col gap-6">
           <AssessorsForm pool={pool} disabled={!isAuthority} />
           <TreasuryCard pool={pool} disabled={!isAuthority} />
+          <ShopsCard disabled={!isAuthority} />
           <DangerZone pool={pool} disabled={!isAuthority} />
         </div>
       </div>
@@ -498,6 +499,104 @@ function TreasuryCard({ pool, disabled }: { pool: PoolInfo; disabled: boolean })
           "Withdrawals never touch LP equity, reserved cashback or pending inspection fees.",
         )}
       </p>
+    </section>
+  );
+}
+
+/** Oficinas credenciadas: recebem direto a indenizacao de danos parciais. */
+function ShopsCard({ disabled }: { disabled: boolean }) {
+  const { client } = useApp();
+  const { run, busy } = useAction();
+  const { t } = useI18n();
+  const { data: shops } = useData((c) => c.getRepairShops());
+  const [wallet, setWallet] = useState("");
+  const [name, setName] = useState("");
+  const [city, setCity] = useState("");
+  const walletOk = client.mode === "demo" ? wallet.trim().length > 0 : isPubkey(wallet.trim());
+  const valid = walletOk && name.trim().length > 1 && !(shops ?? []).some((s) => s.wallet === wallet.trim());
+
+  return (
+    <section className="card p-5">
+      <h2 className="flex items-center gap-2 font-semibold">
+        <Wrench className="size-5 text-[var(--accent)]" /> {t("Oficinas credenciadas", "Accredited repair shops")}
+      </h2>
+      <p className="mt-1 text-xs text-[var(--muted)]">
+        {t(
+          "Nos danos parciais, o motorista pode escolher uma oficina credenciada e a indenização vai direto para ela.",
+          "For partial damage, drivers can pick an accredited shop and the payout goes straight to it.",
+        )}
+      </p>
+      <ul className="mt-3 divide-y divide-[var(--border)] text-sm">
+        {(shops ?? []).map((s) => (
+          <li key={s.wallet} className="flex items-center gap-2 py-2">
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-medium">
+                {s.name}
+                {s.city ? <span className="text-[var(--muted)]"> · {s.city}</span> : null}
+              </p>
+              <p className="text-xs text-[var(--muted)]">
+                <span className="font-mono">{shortAddr(s.wallet)}</span> · {s.claimsPaid} {t("reparos", "repairs")} ·{" "}
+                {fmtMoney(s.totalReceived)}
+              </p>
+            </div>
+            <Chip tone={s.active ? "ok" : "neutral"}>{s.active ? t("Ativa", "Active") : t("Suspensa", "Suspended")}</Chip>
+            <button
+              className="text-xs font-semibold text-[var(--accent)] hover:underline disabled:opacity-40"
+              disabled={disabled || !!busy}
+              onClick={() =>
+                run(
+                  `shop-${s.wallet}`,
+                  () => client.setShopActive(s.wallet, !s.active),
+                  s.active ? t("Oficina suspensa", "Shop suspended") : t("Oficina reativada", "Shop reactivated"),
+                )
+              }
+            >
+              {s.active ? t("Suspender", "Suspend") : t("Reativar", "Reactivate")}
+            </button>
+          </li>
+        ))}
+        {shops && shops.length === 0 && (
+          <li className="py-2 text-[var(--muted)]">{t("Nenhuma oficina credenciada ainda.", "No accredited shops yet.")}</li>
+        )}
+      </ul>
+      <div className="mt-3 grid gap-2">
+        <input
+          className="input font-mono text-sm"
+          placeholder={t("Carteira da oficina", "Shop wallet")}
+          disabled={disabled}
+          value={wallet}
+          onChange={(e) => setWallet(e.target.value)}
+        />
+        <div className="flex gap-2">
+          <input
+            className="input flex-1 text-sm"
+            placeholder={t("Nome", "Name")}
+            maxLength={48}
+            disabled={disabled}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <input
+            className="input w-36 text-sm"
+            placeholder={t("Cidade", "City")}
+            maxLength={32}
+            disabled={disabled}
+            value={city}
+            onChange={(e) => setCity(e.target.value)}
+          />
+        </div>
+        <button
+          className="btn btn-primary"
+          disabled={disabled || !valid || !!busy}
+          onClick={() =>
+            run("shop-new", () => client.registerShop(wallet.trim(), name.trim(), city.trim()), t("Oficina credenciada", "Shop accredited")).then(
+              (sig) => sig && (setWallet(""), setName(""), setCity("")),
+            )
+          }
+        >
+          {busy === "shop-new" && <Spinner />} {t("Credenciar oficina", "Accredit shop")}
+        </button>
+      </div>
     </section>
   );
 }

@@ -54,6 +54,7 @@ const STATUS_STYLE: Record<ClaimStatus, string> = {
   approved: "bg-[var(--info-soft)] text-[var(--info)]",
   rejected: "bg-[var(--bad-soft)] text-[var(--bad)]",
   paid: "bg-[var(--ok-soft)] text-[var(--ok)]",
+  appealed: "bg-[var(--info-soft)] text-[var(--info)]",
 };
 
 export function ClaimStatusChip({ status }: { status: ClaimStatus }) {

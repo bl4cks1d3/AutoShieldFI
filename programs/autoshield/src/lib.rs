@@ -71,6 +71,19 @@ pub mod autoshield {
         instructions::admin::set_oracle(ctx, oracle)
     }
 
+    pub fn set_bonus_days(ctx: Context<AdminAction>, days: u16) -> Result<()> {
+        instructions::admin::set_bonus_days(ctx, days)
+    }
+
+    /// Credencia uma oficina para receber indenizacoes de danos parciais.
+    pub fn register_shop(ctx: Context<RegisterShop>, wallet: Pubkey, name: String, city: String) -> Result<()> {
+        instructions::admin::register_shop(ctx, wallet, name, city)
+    }
+
+    pub fn set_shop_active(ctx: Context<SetShopActive>, active: bool) -> Result<()> {
+        instructions::admin::set_shop_active(ctx, active)
+    }
+
     pub fn propose_authority(ctx: Context<AdminAction>, new_authority: Pubkey) -> Result<()> {
         instructions::admin::propose_authority(ctx, new_authority)
     }
@@ -169,6 +182,11 @@ pub mod autoshield {
 
     pub fn expire_claim(ctx: Context<ExpireClaim>) -> Result<()> {
         instructions::claims::expire_claim(ctx)
+    }
+
+    /// Recurso contra sinistro recusado (uma vez, ate 7 dias apos a recusa).
+    pub fn appeal_claim(ctx: Context<AppealClaim>) -> Result<()> {
+        instructions::claims::appeal_claim(ctx)
     }
 
     pub fn close_claim(ctx: Context<CloseClaim>) -> Result<()> {

@@ -4,8 +4,10 @@ use anchor_spl::token::{self, Mint, Token, TokenAccount, TransferChecked};
 
 use crate::constants::*;
 use crate::errors::AutoShieldError;
-use crate::events::{AssessorPaid, ClaimFiled, ClaimPaid, ClaimVoted};
-use crate::state::{Claim, ClaimKind, ClaimStatus, Policy, PolicyStatus, Pool, VehicleRecord, ACCOUNT_VERSION};
+use crate::events::{AssessorPaid, ClaimAppealed, ClaimFiled, ClaimPaid, ClaimVoted};
+use crate::state::{
+    Claim, ClaimKind, ClaimStatus, DriverRecord, Policy, PolicyStatus, Pool, RepairShop, VehicleRecord, ACCOUNT_VERSION,
+};
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct FileClaimArgs {
@@ -38,6 +40,9 @@ pub struct FileClaim<'info> {
         bump
     )]
     pub claim: Box<Account<'info, Claim>>,
+
+    /// Oficina credenciada escolhida para o reparo (opcional).
+    pub repair_shop: Option<Account<'info, RepairShop>>,
 
     pub system_program: Program<'info, System>,
 }
@@ -79,6 +84,13 @@ pub fn file_claim(ctx: Context<FileClaim>, args: FileClaimArgs) -> Result<()> {
         args.evidence_uri.len() <= MAX_URI_LEN,
         AutoShieldError::StringTooLong
     );
+    let repair_shop = match &ctx.accounts.repair_shop {
+        Some(shop) => {
+            require!(shop.active, AutoShieldError::RepairShopInactive);
+            shop.wallet
+        }
+        None => Pubkey::default(),
+    };
 
     let pool = &mut ctx.accounts.pool;
     let claim_id = pool.claim_count;
@@ -119,6 +131,10 @@ pub fn file_claim(ctx: Context<FileClaim>, args: FileClaimArgs) -> Result<()> {
     claim.created_ts = now;
     claim.voting_deadline = voting_deadline;
     claim.resolved_ts = 0;
+    claim.repair_shop = repair_shop;
+    claim.appealed = false;
+    claim.appeal_voters = Vec::new();
+    claim.appeal_ts = 0;
     claim.bump = ctx.bumps.claim;
 
     emit!(ClaimFiled {
@@ -180,18 +196,36 @@ pub fn vote_claim(
         AutoShieldError::AssessorConflict
     );
 
+    let appeal = ctx.accounts.claim.status == ClaimStatus::Appealed;
+    // No recurso votam so os avaliadores que nao votaram na primeira rodada;
+    // o quorum se ajusta a quantos estao aptos.
+    let (threshold, max_rejections) = if appeal {
+        let eligible = ctx.accounts.claim.appeal_eligible(pool);
+        let t = pool.approval_threshold.min(eligible).max(1);
+        (t, eligible.saturating_sub(t))
+    } else {
+        let t = pool.approval_threshold;
+        (t, (pool.assessors.len() as u8).saturating_sub(t))
+    };
     let claim = &mut ctx.accounts.claim;
     require!(
-        claim.status == ClaimStatus::Pending,
+        claim.status == ClaimStatus::Pending || appeal,
         AutoShieldError::ClaimNotPending
     );
     require!(now <= claim.voting_deadline, AutoShieldError::VotingClosed);
+    if claim.voters.contains(&assessor) {
+        return if appeal {
+            err!(AutoShieldError::AppealConflict)
+        } else {
+            err!(AutoShieldError::AlreadyVoted)
+        };
+    }
     require!(
-        !claim.voters.contains(&assessor),
+        !claim.appeal_voters.contains(&assessor),
         AutoShieldError::AlreadyVoted
     );
     require!(
-        claim.voters.len() < MAX_ASSESSORS,
+        claim.voters.len() < MAX_ASSESSORS && claim.appeal_voters.len() < MAX_ASSESSORS,
         AutoShieldError::InvalidParameter
     );
 
@@ -205,15 +239,17 @@ pub fn vote_claim(
             claim.reclassified = true;
         }
     }
-    claim.voters.push(assessor);
+    if appeal {
+        claim.appeal_voters.push(assessor);
+    } else {
+        claim.voters.push(assessor);
+    }
     if approve {
         claim.approvals += 1;
     } else {
         claim.rejections += 1;
     }
 
-    let threshold = pool.approval_threshold;
-    let max_rejections = (pool.assessors.len() as u8).saturating_sub(threshold);
     if claim.approvals >= threshold {
         claim.status = ClaimStatus::Approved;
         claim.resolved_ts = now;
@@ -288,7 +324,7 @@ pub fn expire_claim(ctx: Context<ExpireClaim>) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;
     let claim = &mut ctx.accounts.claim;
     require!(
-        claim.status == ClaimStatus::Pending,
+        matches!(claim.status, ClaimStatus::Pending | ClaimStatus::Appealed),
         AutoShieldError::ClaimNotPending
     );
     require!(now > claim.voting_deadline, AutoShieldError::VotingStillOpen);
@@ -328,13 +364,31 @@ pub struct PayClaim<'info> {
     /// CHECK: validado via has_one no sinistro.
     pub claimant: UncheckedAccount<'info>,
 
+    /// Quem recebe: a oficina credenciada (danos parciais com oficina escolhida)
+    /// ou o proprio motorista. CHECK: validado no handler.
+    pub payee: UncheckedAccount<'info>,
+
     #[account(
         init_if_needed,
         payer = payer,
         associated_token::mint = stable_mint,
-        associated_token::authority = claimant,
+        associated_token::authority = payee,
     )]
-    pub claimant_token: Account<'info, TokenAccount>,
+    pub payee_token: Box<Account<'info, TokenAccount>>,
+
+    /// Historico do motorista: sinistro indenizado desce uma classe de bonus.
+    #[account(
+        init_if_needed,
+        payer = payer,
+        space = 8 + DriverRecord::INIT_SPACE,
+        seeds = [DRIVER_SEED, claimant.key().as_ref()],
+        bump
+    )]
+    pub driver: Box<Account<'info, DriverRecord>>,
+
+    /// Oficina que recebe (so quando o sinistro escolheu uma); atualiza as estatisticas.
+    #[account(mut)]
+    pub repair_shop: Option<Box<Account<'info, RepairShop>>>,
 
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
@@ -370,6 +424,14 @@ pub fn pay_claim(ctx: Context<PayClaim>) -> Result<()> {
         AutoShieldError::InsufficientLiquidityForClaim
     );
     let requested = claim.amount_requested;
+    // Danos parciais com oficina credenciada: paga direto a oficina.
+    let to_shop = !total_loss && claim.repair_shop != Pubkey::default();
+    let expected_payee = if to_shop { claim.repair_shop } else { claim.claimant };
+    require!(ctx.accounts.payee.key() == expected_payee, AutoShieldError::InvalidPayee);
+    if to_shop {
+        let shop = ctx.accounts.repair_shop.as_ref().ok_or(AutoShieldError::InvalidPayee)?;
+        require!(shop.wallet == claim.repair_shop, AutoShieldError::InvalidPayee);
+    }
 
     if payout > 0 {
         let bump = ctx.accounts.pool.bump;
@@ -380,7 +442,7 @@ pub fn pay_claim(ctx: Context<PayClaim>) -> Result<()> {
                 TransferChecked {
                     from: ctx.accounts.vault.to_account_info(),
                     mint: ctx.accounts.stable_mint.to_account_info(),
-                    to: ctx.accounts.claimant_token.to_account_info(),
+                    to: ctx.accounts.payee_token.to_account_info(),
                     authority: ctx.accounts.pool.to_account_info(),
                 },
                 signer_seeds,
@@ -432,6 +494,22 @@ pub fn pay_claim(ctx: Context<PayClaim>) -> Result<()> {
         }
     }
 
+    if payout > 0 {
+        let days_per_class = ctx.accounts.pool.bonus_days();
+        let claimant = ctx.accounts.claimant.key();
+        let driver = &mut ctx.accounts.driver;
+        if driver.owner == Pubkey::default() {
+            driver.version = ACCOUNT_VERSION;
+            driver.owner = claimant;
+            driver.bump = ctx.bumps.driver;
+        }
+        driver.register_paid_claim(days_per_class);
+    }
+    if let (true, Some(shop)) = (to_shop, ctx.accounts.repair_shop.as_mut()) {
+        shop.claims_paid = shop.claims_paid.saturating_add(1);
+        shop.total_received = shop.total_received.saturating_add(payout);
+    }
+
     let claim = &mut ctx.accounts.claim;
     claim.status = ClaimStatus::Paid;
     claim.total_loss = total_loss;
@@ -466,5 +544,68 @@ pub struct CloseClaim<'info> {
 }
 
 pub fn close_claim(_ctx: Context<CloseClaim>) -> Result<()> {
+    Ok(())
+}
+
+/// Recurso contra sinistro recusado: o motorista pede nova analise uma unica
+/// vez, ate APPEAL_WINDOW_DAYS dias apos a recusa. A nova votacao e feita por
+/// avaliadores que nao votaram na primeira rodada.
+#[derive(Accounts)]
+pub struct AppealClaim<'info> {
+    pub owner: Signer<'info>,
+
+    #[account(mut, seeds = [POOL_SEED], bump = pool.bump)]
+    pub pool: Account<'info, Pool>,
+
+    #[account(mut, has_one = pool, has_one = owner @ AutoShieldError::Unauthorized, address = claim.policy)]
+    pub policy: Box<Account<'info, Policy>>,
+
+    #[account(mut, has_one = pool, has_one = policy)]
+    pub claim: Box<Account<'info, Claim>>,
+}
+
+pub fn appeal_claim(ctx: Context<AppealClaim>) -> Result<()> {
+    let now = Clock::get()?.unix_timestamp;
+    let pool = &ctx.accounts.pool;
+    let claim = &ctx.accounts.claim;
+    let policy = &ctx.accounts.policy;
+    require!(claim.status == ClaimStatus::Rejected, AutoShieldError::ClaimNotRejected);
+    require!(!claim.appealed, AutoShieldError::AlreadyAppealed);
+    require!(
+        now <= claim
+            .resolved_ts
+            .saturating_add(APPEAL_WINDOW_DAYS.saturating_mul(pool.params.seconds_per_day)),
+        AutoShieldError::AppealWindowClosed
+    );
+    require!(policy.status == PolicyStatus::Active, AutoShieldError::PolicyNotActive);
+    require!(!policy.has_open_claim, AutoShieldError::ClaimAlreadyOpen);
+    require!(claim.appeal_eligible(pool) > 0, AutoShieldError::NoAppealAssessors);
+
+    let voting_deadline = now
+        .checked_add(pool.params.claim_voting_secs)
+        .ok_or(AutoShieldError::MathOverflow)?;
+    let amount = claim.amount_requested;
+
+    let pool = &mut ctx.accounts.pool;
+    pool.pending_claims = pool
+        .pending_claims
+        .checked_add(amount)
+        .ok_or(AutoShieldError::MathOverflow)?;
+    ctx.accounts.policy.has_open_claim = true;
+
+    let claim = &mut ctx.accounts.claim;
+    claim.status = ClaimStatus::Appealed;
+    claim.appealed = true;
+    claim.appeal_ts = now;
+    claim.approvals = 0;
+    claim.rejections = 0;
+    claim.voting_deadline = voting_deadline;
+    claim.resolved_ts = 0;
+
+    emit!(ClaimAppealed {
+        claim: claim.key(),
+        claimant: claim.claimant,
+        voting_deadline,
+    });
     Ok(())
 }

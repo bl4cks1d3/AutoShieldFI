@@ -102,4 +102,18 @@ pub enum AutoShieldError {
     FipeChangeTooLarge,
     #[msg("Nao ha transferencia pendente para esta carteira")]
     NotPendingOwner,
+    #[msg("Oficina nao credenciada ou inativa")]
+    RepairShopInactive,
+    #[msg("Destinatario do pagamento invalido")]
+    InvalidPayee,
+    #[msg("O sinistro nao foi recusado")]
+    ClaimNotRejected,
+    #[msg("Este sinistro ja teve recurso")]
+    AlreadyAppealed,
+    #[msg("Prazo de recurso encerrado")]
+    AppealWindowClosed,
+    #[msg("Nao ha avaliadores aptos a julgar o recurso")]
+    NoAppealAssessors,
+    #[msg("Avaliador que votou na primeira rodada nao vota no recurso")]
+    AppealConflict,
 }

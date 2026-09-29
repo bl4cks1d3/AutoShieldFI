@@ -8,9 +8,9 @@ import { useAction, useApp, useData } from "@/components/Providers";
 import { ClaimStatusChip, Empty, EvidenceLink, Loading, PageHeader, Row, Spinner, WalletGate } from "@/components/ui";
 import { fmtDate, fmtDuration, fmtMoney, shortAddr, toBase } from "@/lib/format";
 import { kindLabel, useI18n } from "@/lib/i18n";
-import { expectedPayout, TIER_COVERS } from "@/lib/pricing";
+import { APPEAL_WINDOW_DAYS, expectedPayout, TIER_COVERS } from "@/lib/pricing";
 import { displayPlate, policyPhase } from "@/lib/plate";
-import type { ClaimInfo, ClaimKind, PolicyInfo } from "@/lib/types";
+import type { ClaimInfo, ClaimKind, PolicyInfo, PoolInfo } from "@/lib/types";
 
 export default function SinistrosPage() {
   const { t } = useI18n();
@@ -94,6 +94,7 @@ function ClaimsView() {
                 c={c}
                 policy={policyById.get(c.policy)}
                 threshold={data.pool?.approvalThreshold ?? 0}
+                pool={data.pool}
                 now={data.now}
               />
             ))}
@@ -118,6 +119,9 @@ function ClaimForm({ policies }: { policies: PolicyInfo[] }) {
   const { lang, t } = useI18n();
   const [policyAddr, setPolicyAddr] = useState("");
   const [kind, setKind] = useState<ClaimKind>("collision");
+  const [shop, setShop] = useState("");
+  const { data: shops } = useData((c) => c.getRepairShops());
+  const activeShops = (shops ?? []).filter((s) => s.active);
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [files, setFiles] = useState<File[]>([]);
@@ -194,6 +198,8 @@ function ClaimForm({ policies }: { policies: PolicyInfo[] }) {
           amount: amountBase,
           description: description.trim().slice(0, 200),
           evidenceUri: await buildEvidenceUri(),
+          // Oficina so vale para danos parciais (perda total e paga ao motorista).
+          repairShop: shop && !est?.totalLoss ? shop : null,
         }),
       t("Sinistro registrado! Aguardando avaliadores.", "Claim filed! Waiting for assessors."),
     );
@@ -319,6 +325,27 @@ function ClaimForm({ policies }: { policies: PolicyInfo[] }) {
           </p>
         </div>
 
+        {kind !== "theft" && activeShops.length > 0 && (
+          <div>
+            <label className="label" htmlFor="shop">{t("Oficina credenciada (opcional)", "Accredited repair shop (optional)")}</label>
+            <select id="shop" className="input" value={shop} onChange={(e) => setShop(e.target.value)}>
+              <option value="">{t("Receber a indenização eu mesmo", "Receive the payout myself")}</option>
+              {activeShops.map((s) => (
+                <option key={s.wallet} value={s.wallet}>
+                  {s.name}
+                  {s.city ? ` · ${s.city}` : ""}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-[var(--muted)]">
+              {t(
+                "Com oficina credenciada, a indenização de danos parciais é paga direto a ela: você não adianta o conserto.",
+                "With an accredited shop, the partial-damage payout goes straight to it: you don't pay for the repair upfront.",
+              )}
+            </p>
+          </div>
+        )}
+
         {policy && amountBase > 0 && (
           <div className="rounded-xl bg-[var(--bg-soft)] p-3 text-sm">
             <Row label={t("Valor solicitado", "Amount requested")} value={fmtMoney(amountBase)} />
@@ -351,15 +378,41 @@ function ClaimForm({ policies }: { policies: PolicyInfo[] }) {
   );
 }
 
-function ClaimCard({ c, policy, threshold, now }: { c: ClaimInfo; policy?: PolicyInfo; threshold: number; now: number }) {
+function ClaimCard({
+  c,
+  policy,
+  threshold,
+  pool,
+  now,
+}: {
+  c: ClaimInfo;
+  policy?: PolicyInfo;
+  threshold: number;
+  pool: PoolInfo | null;
+  now: number;
+}) {
   const { client } = useApp();
   const { run, busy } = useAction();
   const { lang, t } = useI18n();
+  const { data: shops } = useData((cl) => cl.getRepairShops());
+  const shopName = c.repairShop ? (shops?.find((s) => s.wallet === c.repairShop)?.name ?? shortAddr(c.repairShop)) : null;
+  const appealEnd = c.resolvedTs + APPEAL_WINDOW_DAYS * (pool?.params.secondsPerDay ?? 86400);
+  const canAppeal =
+    c.status === "rejected" && !c.appealed && now <= appealEnd && policy?.status === "active" && !policy.hasOpenClaim;
 
   const steps = useMemo(() => {
-    const decided = c.status !== "pending";
+    const decided = c.status !== "pending" && c.status !== "appealed";
     return [
       { label: t("Registrado on-chain", "Recorded on-chain"), done: true, ts: c.createdTs },
+      ...(c.appealed
+        ? [
+            {
+              label: t("Recurso aberto: nova votação por outros avaliadores", "Appeal filed: new vote by other assessors"),
+              done: true,
+              ts: c.appealTs,
+            },
+          ]
+        : []),
       {
         label:
           c.status === "rejected"
@@ -394,6 +447,14 @@ function ClaimCard({ c, policy, threshold, now }: { c: ClaimInfo; policy?: Polic
         <ClaimStatusChip status={c.status} />
       </div>
       <p className="mt-2 text-sm text-[var(--muted)]">{c.description}</p>
+      {shopName && (
+        <p className="mt-1 text-xs text-[var(--info)]">
+          {t("Oficina credenciada", "Accredited shop")}: <b>{shopName}</b>{" "}
+          {c.status === "paid" && !c.totalLoss
+            ? t("— indenização paga direto à oficina.", "— payout sent straight to the shop.")
+            : t("— recebe a indenização de danos parciais.", "— receives the partial-damage payout.")}
+        </p>
+      )}
       {c.reclassified && (
         <p className="mt-1 text-xs text-[var(--warn)]">
           {t("Reclassificado pelos avaliadores: declarado como", "Reclassified by the assessors: originally filed as")}{" "}
@@ -420,7 +481,25 @@ function ClaimCard({ c, policy, threshold, now }: { c: ClaimInfo; policy?: Polic
         ))}
       </ol>
 
-      {c.status === "pending" && (
+      {canAppeal && (
+        <div className="mt-4 rounded-xl bg-[var(--bg-soft)] p-3 text-sm">
+          <p className="text-xs text-[var(--muted)]">
+            {t(
+              `Discorda da recusa? Você pode recorrer uma vez até ${fmtDate(appealEnd)}. O recurso é julgado por avaliadores que não votaram antes.`,
+              `Disagree with the rejection? You can appeal once until ${fmtDate(appealEnd)}. The appeal is judged by assessors who did not vote before.`,
+            )}
+          </p>
+          <button
+            className="btn btn-primary mt-2 w-full"
+            disabled={!!busy}
+            onClick={() => run(`appeal-${c.address}`, () => client.appealClaim(c.address), t("Recurso enviado", "Appeal filed"))}
+          >
+            {busy === `appeal-${c.address}` && <Spinner />} {t("Recorrer da decisão", "Appeal the decision")}
+          </button>
+        </div>
+      )}
+
+      {(c.status === "pending" || c.status === "appealed") && (
         <p className="mt-3 text-xs text-[var(--muted)]">
           {t("Janela de votação", "Voting window")}:{" "}
           {now > c.votingDeadline
@@ -438,7 +517,7 @@ function ClaimCard({ c, policy, threshold, now }: { c: ClaimInfo; policy?: Polic
           {busy === `pay-${c.address}` && <Spinner />} {t("Receber indenização", "Receive payout")}
         </button>
       )}
-      {c.status === "pending" && now > c.votingDeadline && (
+      {(c.status === "pending" || c.status === "appealed") && now > c.votingDeadline && (
         <button
           className="btn btn-ghost mt-4 w-full"
           disabled={!!busy}

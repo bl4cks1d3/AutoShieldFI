@@ -51,3 +51,16 @@ pub const MAX_FIPE_CHANGE_BPS: u64 = 2_000;
 
 /// Codigo FIPE + ano, ex.: "005340-6|2014-3".
 pub const MAX_FIPE_CODE_LEN: usize = 16;
+
+pub const SHOP_SEED: &[u8] = b"shop";
+pub const DRIVER_SEED: &[u8] = b"driver";
+pub const MAX_SHOP_NAME_LEN: usize = 48;
+pub const MAX_SHOP_CITY_LEN: usize = 32;
+
+/// Recurso contra sinistro recusado: ate 7 dias (da apolice) apos a recusa.
+pub const APPEAL_WINDOW_DAYS: i64 = 7;
+
+/// Bonus de renovacao: 4% de desconto por classe, ate a classe 10 (40%).
+pub const BONUS_PCT_PER_CLASS: u64 = 4;
+pub const MAX_BONUS_CLASS: u8 = 10;
+pub const DEFAULT_BONUS_DAYS_PER_CLASS: u32 = 365;

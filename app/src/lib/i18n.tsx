@@ -94,6 +94,7 @@ const TIER: Labels<Tier> = {
   standard: { pt: "Essencial", en: "Essential" },
   premium: { pt: "Completo", en: "Complete" },
   theftOnly: { pt: "Roubo e furto", en: "Theft only" },
+  appDriver: { pt: "Motorista de App", en: "Ride-hailing driver" },
 };
 
 const TIER_DESC: Labels<Tier> = {
@@ -104,6 +105,10 @@ const TIER_DESC: Labels<Tier> = {
     en: "Essential + third-party damage and other events",
   },
   theftOnly: { pt: "Só roubo e furto — o mais barato", en: "Theft only — the cheapest plan" },
+  appDriver: {
+    pt: "Uber, 99, iFood: roubo, colisão, terceiros e natureza — contratação mensal",
+    en: "Uber, 99, iFood: theft, collision, third party and natural events — monthly",
+  },
 };
 
 const KIND: Labels<ClaimKind> = {
@@ -119,6 +124,7 @@ const STATUS: Labels<ClaimStatus> = {
   approved: { pt: "Aprovado", en: "Approved" },
   rejected: { pt: "Recusado", en: "Rejected" },
   paid: { pt: "Pago", en: "Paid" },
+  appealed: { pt: "Em recurso", en: "Under appeal" },
 };
 
 export const tierLabel = (t: Tier, lang: Lang = current) => TIER[t][lang];
@@ -188,6 +194,17 @@ const ERRORS_EN: Record<string, string> = Object.fromEntries(
       ["Saque não solicitado ou acima das cotas solicitadas", "Withdrawal not requested or above the requested shares"],
       ["Aviso prévio de saque ainda em andamento", "Withdrawal notice period still running"],
       ["Conta ainda em uso e não pode ser fechada", "Account is still in use and cannot be closed"],
+      ["Oficina não credenciada ou inativa", "Repair shop not accredited or inactive"],
+      ["Destinatário do pagamento inválido", "Invalid payment recipient"],
+      ["O sinistro não foi recusado", "The claim was not rejected"],
+      ["Este sinistro já teve recurso", "This claim has already been appealed"],
+      ["Prazo de recurso encerrado", "The appeal window has closed"],
+      ["Não há avaliadores aptos a julgar o recurso", "There are no assessors eligible to judge the appeal"],
+      ["Avaliador que votou na primeira rodada não vota no recurso", "Assessors who voted in the first round cannot vote on the appeal"],
+      ["Percentual da FIPE inválido (use 90, 100 ou 110)", "Invalid FIPE percentage (use 90, 100 or 110)"],
+      ["Assinante não é o oráculo de preços do pool", "Signer is not the pool's price oracle"],
+      ["Variação do valor FIPE acima do limite por atualização", "FIPE value change above the per-update limit"],
+      ["Não há transferência pendente para esta carteira", "There is no pending transfer for this wallet"],
       ["Placa inválida", "Invalid plate"],
       ["Prêmio acima do máximo aceito", "Premium above the accepted maximum"],
       ["Sinistro não encontrado", "Claim not found"],

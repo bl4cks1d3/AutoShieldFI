@@ -81,6 +81,67 @@ export type Autoshield = {
       "args": []
     },
     {
+      "name": "appealClaim",
+      "docs": [
+        "Recurso contra sinistro recusado (uma vez, ate 7 dias apos a recusa)."
+      ],
+      "discriminator": [
+        221,
+        74,
+        143,
+        16,
+        105,
+        155,
+        1,
+        186
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "policy"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  118,
+                  50
+                ]
+              }
+            ]
+          },
+          "relations": [
+            "policy",
+            "claim"
+          ]
+        },
+        {
+          "name": "policy",
+          "writable": true,
+          "relations": [
+            "claim"
+          ]
+        },
+        {
+          "name": "claim",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "applyAssessors",
       "discriminator": [
         71,
@@ -882,6 +943,13 @@ export type Autoshield = {
           "writable": true
         },
         {
+          "name": "repairShop",
+          "docs": [
+            "Oficina credenciada escolhida para o reparo (opcional)."
+          ],
+          "optional": true
+        },
+        {
           "name": "systemProgram",
           "address": "11111111111111111111111111111111"
         }
@@ -1459,13 +1527,20 @@ export type Autoshield = {
           ]
         },
         {
-          "name": "claimantToken",
+          "name": "payee",
+          "docs": [
+            "Quem recebe: a oficina credenciada (danos parciais com oficina escolhida)",
+            "ou o proprio motorista. CHECK: validado no handler."
+          ]
+        },
+        {
+          "name": "payeeToken",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "account",
-                "path": "claimant"
+                "path": "payee"
               },
               {
                 "kind": "const",
@@ -1547,6 +1622,40 @@ export type Autoshield = {
               ]
             }
           }
+        },
+        {
+          "name": "driver",
+          "docs": [
+            "Historico do motorista: sinistro indenizado desce uma classe de bonus."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  114,
+                  105,
+                  118,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "claimant"
+              }
+            ]
+          }
+        },
+        {
+          "name": "repairShop",
+          "docs": [
+            "Oficina que recebe (so quando o sinistro escolheu uma); atualiza as estatisticas."
+          ],
+          "writable": true,
+          "optional": true
         },
         {
           "name": "tokenProgram",
@@ -1934,6 +2043,32 @@ export type Autoshield = {
           }
         },
         {
+          "name": "driver",
+          "docs": [
+            "Historico do motorista: classe de bonus de renovacao."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  114,
+                  105,
+                  118,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
           "name": "tokenProgram",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         },
@@ -1950,6 +2085,90 @@ export type Autoshield = {
               "name": "purchasePolicyArgs"
             }
           }
+        }
+      ]
+    },
+    {
+      "name": "registerShop",
+      "docs": [
+        "Credencia uma oficina para receber indenizacoes de danos parciais."
+      ],
+      "discriminator": [
+        206,
+        29,
+        211,
+        170,
+        44,
+        208,
+        166,
+        77
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  118,
+                  50
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "shop",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  104,
+                  111,
+                  112
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "wallet"
+              }
+            ]
+          }
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "wallet",
+          "type": "pubkey"
+        },
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "city",
+          "type": "string"
         }
       ]
     },
@@ -2023,6 +2242,54 @@ export type Autoshield = {
         {
           "name": "shares",
           "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "setBonusDays",
+      "discriminator": [
+        187,
+        113,
+        245,
+        229,
+        157,
+        22,
+        33,
+        53
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  118,
+                  50
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "days",
+          "type": "u16"
         }
       ]
     },
@@ -2118,6 +2385,75 @@ export type Autoshield = {
       "args": [
         {
           "name": "paused",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "setShopActive",
+      "discriminator": [
+        7,
+        147,
+        53,
+        27,
+        163,
+        232,
+        127,
+        126
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  118,
+                  50
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "shop",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  104,
+                  111,
+                  112
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "shop.wallet",
+                "account": "repairShop"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "active",
           "type": "bool"
         }
       ]
@@ -2299,6 +2635,32 @@ export type Autoshield = {
                 89
               ]
             }
+          }
+        },
+        {
+          "name": "driver",
+          "docs": [
+            "Historico do titular: encerramento sem sinistro sobe a classe de bonus."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  114,
+                  105,
+                  118,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
           }
         },
         {
@@ -2750,6 +3112,19 @@ export type Autoshield = {
       ]
     },
     {
+      "name": "driverRecord",
+      "discriminator": [
+        235,
+        231,
+        253,
+        241,
+        0,
+        133,
+        110,
+        113
+      ]
+    },
+    {
       "name": "policy",
       "discriminator": [
         222,
@@ -2773,6 +3148,19 @@ export type Autoshield = {
         177,
         109,
         188
+      ]
+    },
+    {
+      "name": "repairShop",
+      "discriminator": [
+        152,
+        147,
+        244,
+        87,
+        214,
+        169,
+        146,
+        199
       ]
     },
     {
@@ -2814,6 +3202,19 @@ export type Autoshield = {
         106,
         147,
         3
+      ]
+    },
+    {
+      "name": "claimAppealed",
+      "discriminator": [
+        177,
+        88,
+        89,
+        193,
+        90,
+        73,
+        241,
+        174
       ]
     },
     {
@@ -3009,6 +3410,19 @@ export type Autoshield = {
         198,
         254,
         229
+      ]
+    },
+    {
+      "name": "repairShopUpdated",
+      "discriminator": [
+        20,
+        113,
+        249,
+        147,
+        59,
+        24,
+        60,
+        117
       ]
     },
     {
@@ -3275,6 +3689,41 @@ export type Autoshield = {
       "code": 6049,
       "name": "notPendingOwner",
       "msg": "Nao ha transferencia pendente para esta carteira"
+    },
+    {
+      "code": 6050,
+      "name": "repairShopInactive",
+      "msg": "Oficina nao credenciada ou inativa"
+    },
+    {
+      "code": 6051,
+      "name": "invalidPayee",
+      "msg": "Destinatario do pagamento invalido"
+    },
+    {
+      "code": 6052,
+      "name": "claimNotRejected",
+      "msg": "O sinistro nao foi recusado"
+    },
+    {
+      "code": 6053,
+      "name": "alreadyAppealed",
+      "msg": "Este sinistro ja teve recurso"
+    },
+    {
+      "code": 6054,
+      "name": "appealWindowClosed",
+      "msg": "Prazo de recurso encerrado"
+    },
+    {
+      "code": 6055,
+      "name": "noAppealAssessors",
+      "msg": "Nao ha avaliadores aptos a julgar o recurso"
+    },
+    {
+      "code": 6056,
+      "name": "appealConflict",
+      "msg": "Avaliador que votou na primeira rodada nao vota no recurso"
     }
   ],
   "types": [
@@ -3414,6 +3863,31 @@ export type Autoshield = {
             "type": "i64"
           },
           {
+            "name": "repairShop",
+            "docs": [
+              "Oficina credenciada que recebe a indenizacao de danos parciais",
+              "(`Pubkey::default()` = paga ao motorista)."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "appealed",
+            "docs": [
+              "Recurso ja usado (so um por sinistro)."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "appealVoters",
+            "type": {
+              "vec": "pubkey"
+            }
+          },
+          {
+            "name": "appealTs",
+            "type": "i64"
+          },
+          {
             "name": "bump",
             "type": "u8"
           },
@@ -3425,6 +3899,26 @@ export type Autoshield = {
                 64
               ]
             }
+          }
+        ]
+      }
+    },
+    {
+      "name": "claimAppealed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "claim",
+            "type": "pubkey"
+          },
+          {
+            "name": "claimant",
+            "type": "pubkey"
+          },
+          {
+            "name": "votingDeadline",
+            "type": "i64"
           }
         ]
       }
@@ -3520,6 +4014,9 @@ export type Autoshield = {
           },
           {
             "name": "paid"
+          },
+          {
+            "name": "appealed"
           }
         ]
       }
@@ -3568,6 +4065,9 @@ export type Autoshield = {
           },
           {
             "name": "theftOnly"
+          },
+          {
+            "name": "appDriver"
           }
         ]
       }
@@ -3588,6 +4088,60 @@ export type Autoshield = {
           },
           {
             "name": "increased"
+          }
+        ]
+      }
+    },
+    {
+      "name": "driverRecord",
+      "docs": [
+        "Historico do motorista (por carteira): classe de bonus de renovacao."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "version",
+            "type": "u8"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "bonusClass",
+            "docs": [
+              "0 a MAX_BONUS_CLASS; cada classe da BONUS_PCT_PER_CLASS% de desconto."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "cleanDays",
+            "docs": [
+              "Dias de cobertura encerrada sem sinistro indenizado, acumulados."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "cleanPolicies",
+            "type": "u32"
+          },
+          {
+            "name": "paidClaims",
+            "type": "u32"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "reserved",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
           }
         ]
       }
@@ -3977,6 +4531,13 @@ export type Autoshield = {
             "type": "pubkey"
           },
           {
+            "name": "bonusClass",
+            "docs": [
+              "Classe de bonus do titular na contratacao (desconto de 4% por classe)."
+            ],
+            "type": "u8"
+          },
+          {
             "name": "bump",
             "type": "u8"
           },
@@ -4314,11 +4875,19 @@ export type Autoshield = {
             "type": "u8"
           },
           {
+            "name": "bonusDaysPerClass",
+            "docs": [
+              "Dias de cobertura sem sinistro para subir uma classe de bonus (0 = 365).",
+              "Ocupa bytes que eram reservados: o layout do pool nao muda."
+            ],
+            "type": "u16"
+          },
+          {
             "name": "reserved",
             "type": {
               "array": [
                 "u8",
-                128
+                126
               ]
             }
           }
@@ -4560,6 +5129,78 @@ export type Autoshield = {
               "Codigo FIPE e ano, para o oraculo atualizar o valor mes a mes (opcional)."
             ],
             "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "repairShop",
+      "docs": [
+        "Oficina credenciada pela governanca para receber indenizacoes de danos parciais."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "version",
+            "type": "u8"
+          },
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "city",
+            "type": "string"
+          },
+          {
+            "name": "active",
+            "type": "bool"
+          },
+          {
+            "name": "claimsPaid",
+            "type": "u32"
+          },
+          {
+            "name": "totalReceived",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "reserved",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "repairShopUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "shop",
+            "type": "pubkey"
+          },
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "active",
+            "type": "bool"
           }
         ]
       }

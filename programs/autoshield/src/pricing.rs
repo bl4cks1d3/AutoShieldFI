@@ -18,6 +18,12 @@ pub fn deductible_for(coverage: u64, option: DeductibleOption) -> Option<u64> {
     u64::try_from((coverage as u128).checked_mul(option.bps() as u128)? / BPS_DENOMINATOR as u128).ok()
 }
 
+/// Desconto de bonus de renovacao: BONUS_PCT_PER_CLASS% por classe.
+pub fn apply_bonus(premium: u64, bonus_class: u8) -> u64 {
+    let class = bonus_class.min(MAX_BONUS_CLASS) as u64;
+    (premium as u128 * (100 - class * BONUS_PCT_PER_CLASS) as u128 / 100) as u64
+}
+
 /// Calcula o premio de uma apolice.
 ///
 /// cobertura = valor_fipe * %FIPE
@@ -104,6 +110,14 @@ mod tests {
         assert!(CoverageTier::Standard.covers(Collision));
         assert!(!CoverageTier::Standard.covers(ThirdParty));
         assert!(CoverageTier::Premium.covers(ThirdParty));
+    }
+
+    #[test]
+    fn bonus_discount() {
+        assert_eq!(apply_bonus(1_000, 0), 1_000);
+        assert_eq!(apply_bonus(1_000, 3), 880);
+        assert_eq!(apply_bonus(1_000, 10), 600);
+        assert_eq!(apply_bonus(1_000, 200), 600);
     }
 
     #[test]

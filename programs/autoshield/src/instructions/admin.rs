@@ -3,9 +3,11 @@ use anchor_spl::token::{self, Mint, Token, TokenAccount, TransferChecked};
 
 use crate::constants::*;
 use crate::errors::AutoShieldError;
-use crate::events::{GovernanceChangeApplied, GovernanceChangeProposed, PoolInitialized, TreasuryWithdrawn};
+use crate::events::{
+    GovernanceChangeApplied, GovernanceChangeProposed, PoolInitialized, RepairShopUpdated, TreasuryWithdrawn,
+};
 use crate::program::Autoshield;
-use crate::state::{Pool, PoolParams, ACCOUNT_VERSION};
+use crate::state::{Pool, PoolParams, RepairShop, ACCOUNT_VERSION};
 
 /// Somente a autoridade de upgrade do programa pode criar o pool. Sem isso,
 /// qualquer pessoa poderia inicializa-lo logo apos o deploy e tomar o controle.
@@ -179,6 +181,78 @@ pub fn set_paused(ctx: Context<AdminAction>, paused: bool) -> Result<()> {
 pub fn set_oracle(ctx: Context<AdminAction>, oracle: Pubkey) -> Result<()> {
     require!(oracle != Pubkey::default(), AutoShieldError::InvalidParameter);
     ctx.accounts.pool.oracle = oracle;
+    Ok(())
+}
+
+/// Dias de cobertura sem sinistro para subir uma classe de bonus (365 no mercado;
+/// valores menores so para demonstracao).
+pub fn set_bonus_days(ctx: Context<AdminAction>, days: u16) -> Result<()> {
+    require!(days > 0, AutoShieldError::InvalidParameter);
+    ctx.accounts.pool.bonus_days_per_class = days;
+    Ok(())
+}
+
+#[derive(Accounts)]
+#[instruction(wallet: Pubkey)]
+pub struct RegisterShop<'info> {
+    #[account(mut)]
+    pub authority: Signer<'info>,
+
+    #[account(seeds = [POOL_SEED], bump = pool.bump, has_one = authority @ AutoShieldError::Unauthorized)]
+    pub pool: Account<'info, Pool>,
+
+    #[account(
+        init,
+        payer = authority,
+        space = 8 + RepairShop::INIT_SPACE,
+        seeds = [SHOP_SEED, wallet.as_ref()],
+        bump
+    )]
+    pub shop: Account<'info, RepairShop>,
+
+    pub system_program: Program<'info, System>,
+}
+
+/// Credencia uma oficina: danos parciais podem ser pagos direto a ela.
+pub fn register_shop(ctx: Context<RegisterShop>, wallet: Pubkey, name: String, city: String) -> Result<()> {
+    require!(wallet != Pubkey::default(), AutoShieldError::InvalidParameter);
+    require!(!name.is_empty() && name.len() <= MAX_SHOP_NAME_LEN, AutoShieldError::StringTooLong);
+    require!(city.len() <= MAX_SHOP_CITY_LEN, AutoShieldError::StringTooLong);
+    let shop = &mut ctx.accounts.shop;
+    shop.version = ACCOUNT_VERSION;
+    shop.wallet = wallet;
+    shop.name = name;
+    shop.city = city;
+    shop.active = true;
+    shop.bump = ctx.bumps.shop;
+    emit!(RepairShopUpdated {
+        shop: shop.key(),
+        wallet,
+        active: true,
+    });
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct SetShopActive<'info> {
+    pub authority: Signer<'info>,
+
+    #[account(seeds = [POOL_SEED], bump = pool.bump, has_one = authority @ AutoShieldError::Unauthorized)]
+    pub pool: Account<'info, Pool>,
+
+    #[account(mut, seeds = [SHOP_SEED, shop.wallet.as_ref()], bump = shop.bump)]
+    pub shop: Account<'info, RepairShop>,
+}
+
+/// Suspende ou reativa o credenciamento de uma oficina.
+pub fn set_shop_active(ctx: Context<SetShopActive>, active: bool) -> Result<()> {
+    let shop = &mut ctx.accounts.shop;
+    shop.active = active;
+    emit!(RepairShopUpdated {
+        shop: shop.key(),
+        wallet: shop.wallet,
+        active,
+    });
     Ok(())
 }
 

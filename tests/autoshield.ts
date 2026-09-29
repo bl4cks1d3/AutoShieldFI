@@ -33,7 +33,7 @@ const PARAMS = {
   faucetEnabled: true,
 };
 
-type Tier = { basic: {} } | { standard: {} } | { premium: {} } | { theftOnly: {} };
+type Tier = { basic: {} } | { standard: {} } | { premium: {} } | { theftOnly: {} } | { appDriver: {} };
 type Deductible = { reduced: {} } | { normal: {} } | { increased: {} };
 
 function quotePremium(value: BN, tierMult: number, days: number): BN {
@@ -86,6 +86,8 @@ describe("autoshield", () => {
   const driver7 = Keypair.generate();
   const buyer = Keypair.generate();
   const oracle = Keypair.generate();
+  const driver8 = Keypair.generate();
+  const shopWallet = Keypair.generate();
 
   const ata = (owner: PublicKey) => getAssociatedTokenAddressSync(mintPda, owner);
   const balance = async (owner: PublicKey) => {
@@ -188,11 +190,18 @@ describe("autoshield", () => {
     for (const v of voters) await inspect(v, policy, approve);
   }
 
-  async function fileClaim(driver: Keypair, policy: PublicKey, index: number, kind: object, amount: BN) {
+  async function fileClaim(
+    driver: Keypair,
+    policy: PublicKey,
+    index: number,
+    kind: object,
+    amount: BN,
+    shop: PublicKey | null = null,
+  ) {
     const claim = claimPda(policy, index);
     await program.methods
       .fileClaim({ kind: kind as any, amount, description: "Colisao traseira no semaforo", evidenceUri: "sha256:abc123" })
-      .accountsPartial({ owner: driver.publicKey, pool: poolPda, policy, claim })
+      .accountsPartial({ owner: driver.publicKey, pool: poolPda, policy, claim, repairShop: shop })
       .signers([driver])
       .rpc();
     return claim;
@@ -205,7 +214,14 @@ describe("autoshield", () => {
       .signers([assessor])
       .rpc();
 
-  const payClaim = async (payer: Keypair, policy: PublicKey, claim: PublicKey, claimant: PublicKey) =>
+  const payClaim = async (
+    payer: Keypair,
+    policy: PublicKey,
+    claim: PublicKey,
+    claimant: PublicKey,
+    payee: PublicKey = claimant,
+    shop: PublicKey | null = null,
+  ) =>
     program.methods
       .payClaim()
       .accountsPartial({
@@ -215,9 +231,16 @@ describe("autoshield", () => {
         claim,
         vehicle: vehiclePdaFromHash((await program.account.policy.fetch(policy)).plateHash),
         claimant,
+        payee,
+        repairShop: shop,
       })
       .signers([payer])
       .rpc();
+
+  const shopPda = (wallet: PublicKey) =>
+    PublicKey.findProgramAddressSync([Buffer.from("shop"), wallet.toBuffer()], pid)[0];
+  const driverPda = (owner: PublicKey) =>
+    PublicKey.findProgramAddressSync([Buffer.from("driver"), owner.toBuffer()], pid)[0];
 
   const cancelPolicy = async (driver: Keypair, policy: PublicKey) =>
     program.methods
@@ -301,7 +324,7 @@ describe("autoshield", () => {
 
   before(async () => {
     // Em sequencia: o validador local no WSL nao confirma muitos airdrops em paralelo.
-    for (const k of [lp, driver1, driver2, driver3, driver4, driver5, driver6, driver7, buyer, oracle, squatter, outsider, newAdmin, ...assessors]) {
+    for (const k of [lp, driver1, driver2, driver3, driver4, driver5, driver6, driver7, driver8, buyer, oracle, shopWallet, squatter, outsider, newAdmin, ...assessors]) {
       await airdrop(k.publicKey);
     }
   });
@@ -311,6 +334,7 @@ describe("autoshield", () => {
       await program.methods.initTestMint().accounts({ payer: admin.publicKey }).rpc();
       await expectError(initPool(outsider.publicKey, [outsider]), "Unauthorized");
       await initPool(admin.publicKey);
+      await program.methods.setBonusDays(30).accountsPartial({ authority: admin.publicKey, pool: poolPda }).rpc();
       const p = await pool();
       expect(p.authority.toBase58()).to.eq(admin.publicKey.toBase58());
       expect(p.version).to.eq(2);
@@ -319,7 +343,7 @@ describe("autoshield", () => {
     });
 
     it("faucet distribui tBRL e respeita o limite", async () => {
-      for (const k of [lp, driver1, driver2, driver3, driver4, driver5, driver6, driver7, squatter, assessors[2]]) {
+      for (const k of [lp, driver1, driver2, driver3, driver4, driver5, driver6, driver7, driver8, squatter, assessors[2]]) {
         await faucet(k, brl(150_000));
       }
       await expectError(faucet(outsider, brl(200_001)), "FaucetLimit");
@@ -830,6 +854,110 @@ describe("autoshield", () => {
           .rpc(),
         "AccountNotClosable",
       );
+    });
+  });
+
+  describe("fase 2: oficina credenciada, recurso, bonus e motorista de app", () => {
+    let repairPolicy: PublicKey;
+
+    it("recompoe a liquidez do pool para as novas apolices", async () => {
+      await faucet(lp, brl(200_000));
+      await deposit(lp, brl(200_000));
+    });
+
+    it("bonus de renovacao: vigencia sem sinistro sobe a classe e da desconto", async () => {
+      // policy2 (driver2, 30 dias, sem sinistro) foi liquidada no encerramento: 30 dias = 1 classe
+      const rec = await program.account.driverRecord.fetch(driverPda(driver2.publicKey));
+      expect(rec.bonusClass).to.eq(1);
+      expect(rec.cleanPolicies).to.eq(1);
+      const policy = await buy(driver2, 20, brl(40_000), { basic: {} }, 30, "BON2A00");
+      const p = await program.account.policy.fetch(policy);
+      expect(p.bonusClass).to.eq(1);
+      expect(p.premiumTotal.eq(quotePremium(brl(40_000), 60, 30).muln(96).divn(100))).to.be.true;
+      // sinistro indenizado nao deixa a classe negativa e fica registrado
+      const rec1 = await program.account.driverRecord.fetch(driverPda(driver1.publicKey));
+      expect(rec1.bonusClass).to.eq(0);
+      expect(rec1.paidClaims).to.eq(1);
+    });
+
+    it("plano motorista de app custa 1,8x e cobre colisao e terceiros", async () => {
+      const policy = await buy(driver8, 1, brl(60_000), { appDriver: {} }, 30, "APP8A00");
+      const p = await program.account.policy.fetch(policy);
+      expect(p.tier).to.have.property("appDriver");
+      expect(p.premiumTotal.eq(quotePremium(brl(60_000), 180, 30))).to.be.true;
+    });
+
+    it("somente a autoridade credencia oficinas", async () => {
+      const register = (auth: Keypair | null) =>
+        program.methods
+          .registerShop(shopWallet.publicKey, "Oficina Boa Vista", "Goiania")
+          .accountsPartial({ authority: auth ? auth.publicKey : admin.publicKey, pool: poolPda, shop: shopPda(shopWallet.publicKey) })
+          .signers(auth ? [auth] : [])
+          .rpc();
+      await expectError(register(outsider), "Unauthorized");
+      await register(null);
+      const s = await program.account.repairShop.fetch(shopPda(shopWallet.publicKey));
+      expect(s.active).to.be.true;
+      expect(s.name).to.eq("Oficina Boa Vista");
+    });
+
+    it("dano parcial com oficina credenciada e pago direto a oficina", async () => {
+      repairPolicy = await buy(driver8, 2, brl(50_000), { standard: {} }, 60, "OFC8A00");
+      await inspectBy([assessors[0], assessors[1]], repairPolicy, true);
+      await waitUntil((await program.account.policy.fetch(repairPolicy)).claimsAllowedFrom.toNumber());
+      const shop = shopPda(shopWallet.publicKey);
+      const claim = await fileClaim(driver8, repairPolicy, 0, { collision: {} }, brl(8_000), shop);
+      expect((await program.account.claim.fetch(claim)).repairShop.toBase58()).to.eq(shopWallet.publicKey.toBase58());
+      await vote(assessors[0], repairPolicy, claim, true);
+      await vote(assessors[1], repairPolicy, claim, true);
+      await expectError(payClaim(outsider, repairPolicy, claim, driver8.publicKey), "InvalidPayee");
+      const driverBefore = await balance(driver8.publicKey);
+      await payClaim(outsider, repairPolicy, claim, driver8.publicKey, shopWallet.publicKey, shop);
+      // 8.000 - franquia de 5% (2.500) = 5.500 para a oficina; nada para o motorista
+      expect((await balance(shopWallet.publicKey)).eq(brl(5_500))).to.be.true;
+      expect((await balance(driver8.publicKey)).eq(driverBefore)).to.be.true;
+      const s = await program.account.repairShop.fetch(shop);
+      expect(s.claimsPaid).to.eq(1);
+      expect(s.totalReceived.eq(brl(5_500))).to.be.true;
+    });
+
+    it("oficina suspensa nao pode ser escolhida", async () => {
+      await program.methods
+        .setShopActive(false)
+        .accountsPartial({ authority: admin.publicKey, pool: poolPda, shop: shopPda(shopWallet.publicKey) })
+        .rpc();
+      await expectError(
+        fileClaim(driver8, repairPolicy, 1, { collision: {} }, brl(1_000), shopPda(shopWallet.publicKey)),
+        "RepairShopInactive",
+      );
+    });
+
+    it("recurso: sinistro recusado e reavaliado por quem nao votou antes", async () => {
+      const claim = await fileClaim(driver8, repairPolicy, 1, { collision: {} }, brl(6_000));
+      await vote(assessors[0], repairPolicy, claim, false);
+      await vote(assessors[1], repairPolicy, claim, false);
+      expect((await program.account.claim.fetch(claim)).status).to.have.property("rejected");
+      const appeal = (k: Keypair) =>
+        program.methods
+          .appealClaim()
+          .accountsPartial({ owner: k.publicKey, pool: poolPda, policy: repairPolicy, claim })
+          .signers([k])
+          .rpc();
+      await expectError(appeal(outsider), "Unauthorized");
+      await appeal(driver8);
+      const c = await program.account.claim.fetch(claim);
+      expect(c.status).to.have.property("appealed");
+      expect(c.appealed).to.be.true;
+      expect((await program.account.policy.fetch(repairPolicy)).hasOpenClaim).to.be.true;
+      // quem votou na primeira rodada nao julga o recurso
+      await expectError(vote(assessors[0], repairPolicy, claim, true), "AppealConflict");
+      // resta 1 avaliador apto: o quorum do recurso se ajusta a 1
+      await vote(assessors[2], repairPolicy, claim, true);
+      expect((await program.account.claim.fetch(claim)).status).to.have.property("approved");
+      const before = await balance(driver8.publicKey);
+      await payClaim(outsider, repairPolicy, claim, driver8.publicKey);
+      expect((await balance(driver8.publicKey)).sub(before).eq(brl(3_500))).to.be.true;
+      await expectError(appeal(driver8), "ClaimNotRejected");
     });
   });
 });

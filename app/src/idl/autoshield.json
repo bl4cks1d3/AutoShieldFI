@@ -75,6 +75,67 @@
       "args": []
     },
     {
+      "name": "appeal_claim",
+      "docs": [
+        "Recurso contra sinistro recusado (uma vez, ate 7 dias apos a recusa)."
+      ],
+      "discriminator": [
+        221,
+        74,
+        143,
+        16,
+        105,
+        155,
+        1,
+        186
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "policy"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  118,
+                  50
+                ]
+              }
+            ]
+          },
+          "relations": [
+            "policy",
+            "claim"
+          ]
+        },
+        {
+          "name": "policy",
+          "writable": true,
+          "relations": [
+            "claim"
+          ]
+        },
+        {
+          "name": "claim",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "apply_assessors",
       "discriminator": [
         71,
@@ -876,6 +937,13 @@
           "writable": true
         },
         {
+          "name": "repair_shop",
+          "docs": [
+            "Oficina credenciada escolhida para o reparo (opcional)."
+          ],
+          "optional": true
+        },
+        {
           "name": "system_program",
           "address": "11111111111111111111111111111111"
         }
@@ -1453,13 +1521,20 @@
           ]
         },
         {
-          "name": "claimant_token",
+          "name": "payee",
+          "docs": [
+            "Quem recebe: a oficina credenciada (danos parciais com oficina escolhida)",
+            "ou o proprio motorista. CHECK: validado no handler."
+          ]
+        },
+        {
+          "name": "payee_token",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "account",
-                "path": "claimant"
+                "path": "payee"
               },
               {
                 "kind": "const",
@@ -1541,6 +1616,40 @@
               ]
             }
           }
+        },
+        {
+          "name": "driver",
+          "docs": [
+            "Historico do motorista: sinistro indenizado desce uma classe de bonus."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  114,
+                  105,
+                  118,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "claimant"
+              }
+            ]
+          }
+        },
+        {
+          "name": "repair_shop",
+          "docs": [
+            "Oficina que recebe (so quando o sinistro escolheu uma); atualiza as estatisticas."
+          ],
+          "writable": true,
+          "optional": true
         },
         {
           "name": "token_program",
@@ -1928,6 +2037,32 @@
           }
         },
         {
+          "name": "driver",
+          "docs": [
+            "Historico do motorista: classe de bonus de renovacao."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  114,
+                  105,
+                  118,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
           "name": "token_program",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         },
@@ -1944,6 +2079,90 @@
               "name": "PurchasePolicyArgs"
             }
           }
+        }
+      ]
+    },
+    {
+      "name": "register_shop",
+      "docs": [
+        "Credencia uma oficina para receber indenizacoes de danos parciais."
+      ],
+      "discriminator": [
+        206,
+        29,
+        211,
+        170,
+        44,
+        208,
+        166,
+        77
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  118,
+                  50
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "shop",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  104,
+                  111,
+                  112
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "wallet"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "wallet",
+          "type": "pubkey"
+        },
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "city",
+          "type": "string"
         }
       ]
     },
@@ -2017,6 +2236,54 @@
         {
           "name": "shares",
           "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "set_bonus_days",
+      "discriminator": [
+        187,
+        113,
+        245,
+        229,
+        157,
+        22,
+        33,
+        53
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  118,
+                  50
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "days",
+          "type": "u16"
         }
       ]
     },
@@ -2112,6 +2379,75 @@
       "args": [
         {
           "name": "paused",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "set_shop_active",
+      "discriminator": [
+        7,
+        147,
+        53,
+        27,
+        163,
+        232,
+        127,
+        126
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  118,
+                  50
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "shop",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  104,
+                  111,
+                  112
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "shop.wallet",
+                "account": "RepairShop"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "active",
           "type": "bool"
         }
       ]
@@ -2293,6 +2629,32 @@
                 89
               ]
             }
+          }
+        },
+        {
+          "name": "driver",
+          "docs": [
+            "Historico do titular: encerramento sem sinistro sobe a classe de bonus."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  114,
+                  105,
+                  118,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
           }
         },
         {
@@ -2744,6 +3106,19 @@
       ]
     },
     {
+      "name": "DriverRecord",
+      "discriminator": [
+        235,
+        231,
+        253,
+        241,
+        0,
+        133,
+        110,
+        113
+      ]
+    },
+    {
       "name": "Policy",
       "discriminator": [
         222,
@@ -2767,6 +3142,19 @@
         177,
         109,
         188
+      ]
+    },
+    {
+      "name": "RepairShop",
+      "discriminator": [
+        152,
+        147,
+        244,
+        87,
+        214,
+        169,
+        146,
+        199
       ]
     },
     {
@@ -2808,6 +3196,19 @@
         106,
         147,
         3
+      ]
+    },
+    {
+      "name": "ClaimAppealed",
+      "discriminator": [
+        177,
+        88,
+        89,
+        193,
+        90,
+        73,
+        241,
+        174
       ]
     },
     {
@@ -3003,6 +3404,19 @@
         198,
         254,
         229
+      ]
+    },
+    {
+      "name": "RepairShopUpdated",
+      "discriminator": [
+        20,
+        113,
+        249,
+        147,
+        59,
+        24,
+        60,
+        117
       ]
     },
     {
@@ -3269,6 +3683,41 @@
       "code": 6049,
       "name": "NotPendingOwner",
       "msg": "Nao ha transferencia pendente para esta carteira"
+    },
+    {
+      "code": 6050,
+      "name": "RepairShopInactive",
+      "msg": "Oficina nao credenciada ou inativa"
+    },
+    {
+      "code": 6051,
+      "name": "InvalidPayee",
+      "msg": "Destinatario do pagamento invalido"
+    },
+    {
+      "code": 6052,
+      "name": "ClaimNotRejected",
+      "msg": "O sinistro nao foi recusado"
+    },
+    {
+      "code": 6053,
+      "name": "AlreadyAppealed",
+      "msg": "Este sinistro ja teve recurso"
+    },
+    {
+      "code": 6054,
+      "name": "AppealWindowClosed",
+      "msg": "Prazo de recurso encerrado"
+    },
+    {
+      "code": 6055,
+      "name": "NoAppealAssessors",
+      "msg": "Nao ha avaliadores aptos a julgar o recurso"
+    },
+    {
+      "code": 6056,
+      "name": "AppealConflict",
+      "msg": "Avaliador que votou na primeira rodada nao vota no recurso"
     }
   ],
   "types": [
@@ -3408,6 +3857,31 @@
             "type": "i64"
           },
           {
+            "name": "repair_shop",
+            "docs": [
+              "Oficina credenciada que recebe a indenizacao de danos parciais",
+              "(`Pubkey::default()` = paga ao motorista)."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "appealed",
+            "docs": [
+              "Recurso ja usado (so um por sinistro)."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "appeal_voters",
+            "type": {
+              "vec": "pubkey"
+            }
+          },
+          {
+            "name": "appeal_ts",
+            "type": "i64"
+          },
+          {
             "name": "bump",
             "type": "u8"
           },
@@ -3419,6 +3893,26 @@
                 64
               ]
             }
+          }
+        ]
+      }
+    },
+    {
+      "name": "ClaimAppealed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "claim",
+            "type": "pubkey"
+          },
+          {
+            "name": "claimant",
+            "type": "pubkey"
+          },
+          {
+            "name": "voting_deadline",
+            "type": "i64"
           }
         ]
       }
@@ -3514,6 +4008,9 @@
           },
           {
             "name": "Paid"
+          },
+          {
+            "name": "Appealed"
           }
         ]
       }
@@ -3562,6 +4059,9 @@
           },
           {
             "name": "TheftOnly"
+          },
+          {
+            "name": "AppDriver"
           }
         ]
       }
@@ -3582,6 +4082,60 @@
           },
           {
             "name": "Increased"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DriverRecord",
+      "docs": [
+        "Historico do motorista (por carteira): classe de bonus de renovacao."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "version",
+            "type": "u8"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "bonus_class",
+            "docs": [
+              "0 a MAX_BONUS_CLASS; cada classe da BONUS_PCT_PER_CLASS% de desconto."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "clean_days",
+            "docs": [
+              "Dias de cobertura encerrada sem sinistro indenizado, acumulados."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "clean_policies",
+            "type": "u32"
+          },
+          {
+            "name": "paid_claims",
+            "type": "u32"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "_reserved",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
           }
         ]
       }
@@ -3971,6 +4525,13 @@
             "type": "pubkey"
           },
           {
+            "name": "bonus_class",
+            "docs": [
+              "Classe de bonus do titular na contratacao (desconto de 4% por classe)."
+            ],
+            "type": "u8"
+          },
+          {
             "name": "bump",
             "type": "u8"
           },
@@ -4308,11 +4869,19 @@
             "type": "u8"
           },
           {
+            "name": "bonus_days_per_class",
+            "docs": [
+              "Dias de cobertura sem sinistro para subir uma classe de bonus (0 = 365).",
+              "Ocupa bytes que eram reservados: o layout do pool nao muda."
+            ],
+            "type": "u16"
+          },
+          {
             "name": "_reserved",
             "type": {
               "array": [
                 "u8",
-                128
+                126
               ]
             }
           }
@@ -4554,6 +5123,78 @@
               "Codigo FIPE e ano, para o oraculo atualizar o valor mes a mes (opcional)."
             ],
             "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RepairShop",
+      "docs": [
+        "Oficina credenciada pela governanca para receber indenizacoes de danos parciais."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "version",
+            "type": "u8"
+          },
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "city",
+            "type": "string"
+          },
+          {
+            "name": "active",
+            "type": "bool"
+          },
+          {
+            "name": "claims_paid",
+            "type": "u32"
+          },
+          {
+            "name": "total_received",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "_reserved",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "RepairShopUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "shop",
+            "type": "pubkey"
+          },
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "active",
+            "type": "bool"
           }
         ]
       }
