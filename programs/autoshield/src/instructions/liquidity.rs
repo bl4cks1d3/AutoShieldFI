@@ -147,6 +147,16 @@ pub fn withdraw_liquidity(ctx: Context<WithdrawLiquidity>, shares: u64) -> Resul
     let position = &ctx.accounts.position;
     let pool = &ctx.accounts.pool;
     require!(position.shares >= shares, AutoShieldError::InsufficientShares);
+    // Aviso previo: o saque precisa ter sido pedido e o prazo cumprido. Durante o
+    // aviso as cotas seguem expostas, entao o LP nao escapa de sinistros recentes.
+    require!(
+        shares <= position.pending_withdraw_shares,
+        AutoShieldError::WithdrawNotRequested
+    );
+    require!(
+        now >= position.withdraw_available_at,
+        AutoShieldError::WithdrawNoticeActive
+    );
     require!(
         now >= position
             .last_deposit_ts
@@ -190,6 +200,7 @@ pub fn withdraw_liquidity(ctx: Context<WithdrawLiquidity>, shares: u64) -> Resul
 
     let position = &mut ctx.accounts.position;
     position.shares -= shares;
+    position.pending_withdraw_shares -= shares;
     position.total_withdrawn = position
         .total_withdrawn
         .checked_add(amount)
@@ -202,5 +213,55 @@ pub fn withdraw_liquidity(ctx: Context<WithdrawLiquidity>, shares: u64) -> Resul
         amount,
         shares,
     });
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct RequestWithdrawal<'info> {
+    pub owner: Signer<'info>,
+
+    #[account(seeds = [POOL_SEED], bump = pool.bump)]
+    pub pool: Account<'info, Pool>,
+
+    #[account(
+        mut,
+        seeds = [STAKE_SEED, pool.key().as_ref(), owner.key().as_ref()],
+        bump = position.bump,
+        has_one = owner @ AutoShieldError::Unauthorized
+    )]
+    pub position: Account<'info, StakePosition>,
+}
+
+/// Pede o saque de `shares` cotas; libera apos `withdraw_notice_secs`.
+/// Um novo pedido substitui o anterior e reinicia o prazo.
+pub fn request_withdrawal(ctx: Context<RequestWithdrawal>, shares: u64) -> Result<()> {
+    require!(shares > 0, AutoShieldError::ZeroAmount);
+    let now = Clock::get()?.unix_timestamp;
+    let notice = ctx.accounts.pool.params.withdraw_notice_secs;
+    let position = &mut ctx.accounts.position;
+    require!(position.shares >= shares, AutoShieldError::InsufficientShares);
+    position.pending_withdraw_shares = shares;
+    position.withdraw_available_at = now
+        .checked_add(notice)
+        .ok_or(AutoShieldError::MathOverflow)?;
+    Ok(())
+}
+
+/// Fecha uma posicao zerada e devolve o aluguel ao LP.
+#[derive(Accounts)]
+pub struct ClosePosition<'info> {
+    #[account(mut)]
+    pub owner: Signer<'info>,
+
+    #[account(
+        mut,
+        close = owner,
+        has_one = owner @ AutoShieldError::Unauthorized,
+        constraint = position.shares == 0 @ AutoShieldError::AccountNotClosable
+    )]
+    pub position: Account<'info, StakePosition>,
+}
+
+pub fn close_position(_ctx: Context<ClosePosition>) -> Result<()> {
     Ok(())
 }

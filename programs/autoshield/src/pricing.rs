@@ -64,6 +64,9 @@ mod tests {
             inspection_fee: 0,
             vote_reward: 0,
             min_vehicle_value: 1,
+            inspection_threshold: 1,
+            withdraw_notice_secs: 0,
+            max_policy_coverage_bps: 100_000,
             faucet_enabled: true,
         }
     }

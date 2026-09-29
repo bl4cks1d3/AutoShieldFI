@@ -1,5 +1,4 @@
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program::hash::hash;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{self, Mint, Token, TokenAccount, TransferChecked};
 
@@ -7,16 +6,14 @@ use crate::constants::*;
 use crate::errors::AutoShieldError;
 use crate::events::{AssessorPaid, InstallmentPaid, PolicyInspected, PolicyPurchased, PolicySettled};
 use crate::pricing;
-use crate::state::{
-    normalize_plate, CoverageTier, Policy, PolicyStatus, Pool, VehicleRecord, ACCOUNT_VERSION,
-};
+use crate::state::{CoverageTier, Policy, PolicyStatus, Pool, VehicleRecord, ACCOUNT_VERSION};
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct PurchasePolicyArgs {
     /// Nonce escolhido pelo cliente para derivar o PDA da apolice.
     pub nonce: u64,
-    pub plate: String,
-    /// sha256 da placa normalizada (maiusculas, so letras e digitos).
+    /// sha256 da placa normalizada (maiusculas, so letras e digitos). A placa em
+    /// texto nao e enviada; a vistoria confere se o hash bate com o documento.
     pub plate_hash: [u8; 32],
     pub model: String,
     pub year: u16,
@@ -129,15 +126,7 @@ pub fn purchase_policy(ctx: Context<PurchasePolicy>, args: PurchasePolicyArgs) -
         args.vehicle_value >= pool.params.min_vehicle_value,
         AutoShieldError::InvalidVehicleValue
     );
-    let plate = normalize_plate(&args.plate);
-    require!(
-        !plate.is_empty() && plate.len() <= MAX_PLATE_LEN,
-        AutoShieldError::StringTooLong
-    );
-    require!(
-        hash(plate.as_bytes()).to_bytes() == args.plate_hash,
-        AutoShieldError::PlateHashMismatch
-    );
+    require!(args.plate_hash != [0u8; 32], AutoShieldError::PlateHashMismatch);
     // Um veiculo com apolice ja vistoriada e ativa nao pode ser segurado de novo.
     // A trava so acontece na vistoria aprovada: contratar a placa de outra pessoa
     // nao bloqueia o dono real.
@@ -181,6 +170,12 @@ pub fn purchase_policy(ctx: Context<PurchasePolicy>, args: PurchasePolicyArgs) -
         .required_capital(coverage_after)
         .ok_or(AutoShieldError::MathOverflow)?;
     require!(nav_after >= required, AutoShieldError::InsufficientPoolCapital);
+    // Limite de exposicao: nenhuma apolice isolada pode concentrar risco demais.
+    require!(
+        (quote.coverage_limit as u128) * (BPS_DENOMINATOR as u128)
+            <= (nav_after as u128) * (pool.params.max_policy_coverage_bps as u128),
+        AutoShieldError::ExposureLimit
+    );
 
     token::transfer_checked(
         CpiContext::new(
@@ -214,7 +209,6 @@ pub fn purchase_policy(ctx: Context<PurchasePolicy>, args: PurchasePolicyArgs) -
     policy.pool = pool_key;
     policy.id = policy_id;
     policy.nonce = args.nonce;
-    policy.plate = plate;
     policy.plate_hash = args.plate_hash;
     policy.model = args.model;
     policy.year = args.year;
@@ -387,7 +381,11 @@ pub fn settle_policy(ctx: Context<SettlePolicy>) -> Result<()> {
     let pay_cashback =
         ended && policy.fully_paid() && !policy.had_paid_claim && policy.inspected && cashback > 0;
     let remaining = policy.remaining_coverage();
-    let unused_fee = if policy.inspected { 0 } else { policy.inspection_fee };
+    let unused_fee = if policy.inspected {
+        0
+    } else {
+        policy.inspection_fee.saturating_sub(policy.inspection_fee_paid)
+    };
 
     if pay_cashback {
         let bump = ctx.accounts.pool.bump;
@@ -519,11 +517,9 @@ fn vault_transfer<'info>(
 
 pub fn inspect_policy(ctx: Context<InspectPolicy>, approve: bool) -> Result<()> {
     let assessor = ctx.accounts.assessor.key();
+    let pool = &ctx.accounts.pool;
     let policy = &ctx.accounts.policy;
-    require!(
-        ctx.accounts.pool.is_assessor(&assessor),
-        AutoShieldError::NotAssessor
-    );
+    require!(pool.is_assessor(&assessor), AutoShieldError::NotAssessor);
     require!(policy.owner != assessor, AutoShieldError::AssessorConflict);
     require!(
         policy.status == PolicyStatus::Active,
@@ -531,22 +527,39 @@ pub fn inspect_policy(ctx: Context<InspectPolicy>, approve: bool) -> Result<()> 
     );
     require!(!policy.inspected, AutoShieldError::AlreadyInspected);
     require!(!policy.has_open_claim, AutoShieldError::ClaimAlreadyOpen);
-    if approve {
+    require!(
+        !policy.inspection_voters.contains(&assessor),
+        AutoShieldError::AlreadyVoted
+    );
+    require!(
+        policy.inspection_voters.len() < MAX_ASSESSORS,
+        AutoShieldError::InvalidParameter
+    );
+
+    let quorum = pool.inspection_quorum();
+    let max_rejections = (pool.assessors.len() as u8).saturating_sub(quorum);
+    let approvals = policy.inspection_approvals + approve as u8;
+    let rejections = policy.inspection_rejections + (!approve) as u8;
+    let approved = approvals >= quorum;
+    let rejected = !approved && rejections > max_rejections;
+    if approved {
         require!(
             ctx.accounts.vehicle.active_policy == Pubkey::default(),
             AutoShieldError::VehicleAlreadyInsured
         );
     }
 
-    let fee = policy.inspection_fee;
-    let refund = if approve { 0 } else { policy.premium_paid };
+    // Cada voto recebe uma fracao da taxa de vistoria (taxa / quorum).
+    let fee_left = policy.inspection_fee.saturating_sub(policy.inspection_fee_paid);
+    let share = (policy.inspection_fee / quorum as u64).min(fee_left);
+    let refund = if rejected { policy.premium_paid } else { 0 };
     vault_transfer(
         &ctx.accounts.token_program,
         &ctx.accounts.vault,
         &ctx.accounts.stable_mint,
         &ctx.accounts.assessor_token,
         &ctx.accounts.pool,
-        fee,
+        share,
     )?;
     vault_transfer(
         &ctx.accounts.token_program,
@@ -560,16 +573,28 @@ pub fn inspect_policy(ctx: Context<InspectPolicy>, approve: bool) -> Result<()> 
     let policy_key = ctx.accounts.policy.key();
     let pool = &mut ctx.accounts.pool;
     let policy = &mut ctx.accounts.policy;
-    pool.pending_inspection_fees = pool.pending_inspection_fees.saturating_sub(fee);
-    pool.total_assessor_rewards = pool.total_assessor_rewards.saturating_add(fee);
+    pool.pending_inspection_fees = pool.pending_inspection_fees.saturating_sub(share);
+    pool.total_assessor_rewards = pool.total_assessor_rewards.saturating_add(share);
+    policy.inspection_fee_paid = policy.inspection_fee_paid.saturating_add(share);
+    policy.inspection_voters.push(assessor);
+    policy.inspection_approvals = approvals;
+    policy.inspection_rejections = rejections;
     policy.inspector = assessor;
 
-    if approve {
+    if approved || rejected {
+        // Sobra da taxa (votos que nao chegaram a ser necessarios) vira receita.
+        let leftover = policy.inspection_fee.saturating_sub(policy.inspection_fee_paid);
+        pool.pending_inspection_fees = pool.pending_inspection_fees.saturating_sub(leftover);
+        pool.treasury_accrued = pool.treasury_accrued.saturating_add(leftover);
+        policy.inspection_fee_paid = policy.inspection_fee;
+    }
+
+    if approved {
         policy.inspected = true;
         let vehicle = &mut ctx.accounts.vehicle;
         vehicle.active_policy = policy_key;
         vehicle.policies_count = vehicle.policies_count.saturating_add(1);
-    } else {
+    } else if rejected {
         // Estorna tudo o que esta apolice gerou na contabilidade do pool.
         pool.total_active_coverage = pool
             .total_active_coverage
@@ -583,17 +608,42 @@ pub fn inspect_policy(ctx: Context<InspectPolicy>, approve: bool) -> Result<()> 
         policy.cashback_amount = 0;
     }
 
-    emit!(PolicyInspected {
-        policy: policy_key,
-        inspector: assessor,
-        approved: approve,
-    });
-    if fee > 0 {
+    if share > 0 {
         emit!(AssessorPaid {
             assessor,
-            amount: fee,
+            amount: share,
             kind: 0,
         });
     }
+    if approved || rejected {
+        emit!(PolicyInspected {
+            policy: policy_key,
+            inspector: assessor,
+            approved,
+        });
+    }
+    Ok(())
+}
+
+/// Fecha uma apolice encerrada ou cancelada e devolve o aluguel (SOL) ao titular.
+#[derive(Accounts)]
+pub struct ClosePolicy<'info> {
+    pub caller: Signer<'info>,
+
+    #[account(
+        mut,
+        close = owner,
+        has_one = owner,
+        constraint = policy.status != PolicyStatus::Active @ AutoShieldError::AccountNotClosable,
+        constraint = !policy.has_open_claim @ AutoShieldError::AccountNotClosable
+    )]
+    pub policy: Account<'info, Policy>,
+
+    /// CHECK: recebe o aluguel; validado via has_one.
+    #[account(mut)]
+    pub owner: UncheckedAccount<'info>,
+}
+
+pub fn close_policy(_ctx: Context<ClosePolicy>) -> Result<()> {
     Ok(())
 }

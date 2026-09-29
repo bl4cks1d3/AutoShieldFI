@@ -105,6 +105,8 @@ pub fn file_claim(ctx: Context<FileClaim>, args: FileClaimArgs) -> Result<()> {
     claim.id = claim_id;
     claim.index = index;
     claim.kind = args.kind;
+    claim.original_kind = args.kind;
+    claim.reclassified = false;
     claim.amount_requested = args.amount;
     claim.payout_amount = 0;
     claim.description = args.description;
@@ -161,7 +163,13 @@ pub struct VoteClaim<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn vote_claim(ctx: Context<VoteClaim>, approve: bool) -> Result<()> {
+/// `reclassify`: ao aprovar, o avaliador pode corrigir o tipo do sinistro
+/// (ex.: "roubo" declarado que na verdade e dano parcial, sujeito a franquia).
+pub fn vote_claim(
+    ctx: Context<VoteClaim>,
+    approve: bool,
+    reclassify: Option<ClaimKind>,
+) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;
     let assessor = ctx.accounts.assessor.key();
     let pool = &ctx.accounts.pool;
@@ -186,6 +194,16 @@ pub fn vote_claim(ctx: Context<VoteClaim>, approve: bool) -> Result<()> {
         AutoShieldError::InvalidParameter
     );
 
+    if let (true, Some(kind)) = (approve, reclassify) {
+        require!(
+            ctx.accounts.policy.tier.covers(kind),
+            AutoShieldError::ClaimTypeNotCovered
+        );
+        if claim.kind != kind {
+            claim.kind = kind;
+            claim.reclassified = true;
+        }
+    }
     claim.voters.push(assessor);
     if approve {
         claim.approvals += 1;
@@ -403,5 +421,28 @@ pub fn pay_claim(ctx: Context<PayClaim>) -> Result<()> {
         claimant: claim.claimant,
         payout,
     });
+    Ok(())
+}
+
+/// Fecha um sinistro resolvido (pago ou recusado) e devolve o aluguel ao titular.
+#[derive(Accounts)]
+pub struct CloseClaim<'info> {
+    pub caller: Signer<'info>,
+
+    #[account(
+        mut,
+        close = claimant,
+        has_one = claimant,
+        constraint = matches!(claim.status, ClaimStatus::Paid | ClaimStatus::Rejected)
+            @ AutoShieldError::AccountNotClosable
+    )]
+    pub claim: Account<'info, Claim>,
+
+    /// CHECK: recebe o aluguel; validado via has_one.
+    #[account(mut)]
+    pub claimant: UncheckedAccount<'info>,
+}
+
+pub fn close_claim(_ctx: Context<CloseClaim>) -> Result<()> {
     Ok(())
 }

@@ -17,6 +17,9 @@
  *   MIN_VEHICLE_VALUE valor FIPE minimo em tBRL (padrao 5000)
  *   GOVERNANCE_DELAY_SECS timelock de governanca (padrao 1 dia)
  *   INSTALLMENT_GRACE_SECS tolerancia de atraso da parcela (padrao 5 dias)
+ *   INSPECTION_THRESHOLD votos para aprovar uma vistoria (padrao: min(2, avaliadores))
+ *   WITHDRAW_NOTICE_SECS aviso previo de saque dos LPs (padrao 2 dias)
+ *   MAX_POLICY_COVERAGE_BPS cobertura maxima por apolice vs patrimonio (padrao 20000 = 200%)
  *
  * O pool so pode ser criado pela autoridade de upgrade do programa. Se ele ja
  * existir com outra autoridade, o script aborta sem depositar nada.
@@ -77,6 +80,9 @@ async function main() {
           inspectionFee: new BN(env("INSPECTION_FEE", 50) * UNIT),
           voteReward: new BN(env("VOTE_REWARD", 10) * UNIT),
           minVehicleValue: new BN(env("MIN_VEHICLE_VALUE", 5000) * UNIT),
+          inspectionThreshold: env("INSPECTION_THRESHOLD", Math.min(2, assessors.length)),
+          withdrawNoticeSecs: new BN(env("WITHDRAW_NOTICE_SECS", 2 * 86400)),
+          maxPolicyCoverageBps: env("MAX_POLICY_COVERAGE_BPS", 20_000),
           faucetEnabled: true,
         },
         assessors,

@@ -11,7 +11,6 @@ pub const BPS_DENOMINATOR: u64 = 10_000;
 pub const DAYS_PER_YEAR: u64 = 365;
 
 pub const MAX_ASSESSORS: usize = 5;
-pub const MAX_PLATE_LEN: usize = 10;
 pub const MAX_MODEL_LEN: usize = 48;
 pub const MAX_DESCRIPTION_LEN: usize = 200;
 pub const MAX_URI_LEN: usize = 200;

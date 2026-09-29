@@ -86,4 +86,12 @@ pub enum AutoShieldError {
     FirstDepositTooSmall,
     #[msg("Liquidez livre insuficiente para pagar o sinistro agora")]
     InsufficientLiquidityForClaim,
+    #[msg("Cobertura acima do limite de exposicao do pool por apolice")]
+    ExposureLimit,
+    #[msg("Saque nao solicitado ou acima das cotas solicitadas")]
+    WithdrawNotRequested,
+    #[msg("Aviso previo de saque ainda em andamento")]
+    WithdrawNoticeActive,
+    #[msg("Conta ainda em uso e nao pode ser fechada")]
+    AccountNotClosable,
 }

@@ -21,12 +21,15 @@ const PARAMS = {
   withdrawCooldownSecs: new BN(0),
   claimVotingSecs: new BN(20),
   secondsPerDay: new BN(1),
-  claimWaitingSecs: new BN(3),
+  claimWaitingSecs: new BN(6),
   installmentGraceSecs: new BN(2),
   governanceDelaySecs: new BN(3),
   inspectionFee: brl(50),
   voteReward: brl(10),
   minVehicleValue: brl(5_000),
+  inspectionThreshold: 2,
+  withdrawNoticeSecs: new BN(2),
+  maxPolicyCoverageBps: 60_000,
   faucetEnabled: true,
 };
 
@@ -96,8 +99,9 @@ describe("autoshield", () => {
       [Buffer.from("policy"), owner.toBuffer(), nonce.toArrayLike(Buffer, "le", 8)],
       pid,
     )[0];
-  const vehiclePda = (plate: string) =>
-    PublicKey.findProgramAddressSync([Buffer.from("vehicle"), Buffer.from(plateHash(plate))], pid)[0];
+  const vehiclePdaFromHash = (hash: number[] | Uint8Array) =>
+    PublicKey.findProgramAddressSync([Buffer.from("vehicle"), Buffer.from(hash)], pid)[0];
+  const vehiclePda = (plate: string) => vehiclePdaFromHash(plateHash(plate));
   const claimPda = (policy: PublicKey, index: number) =>
     PublicKey.findProgramAddressSync([Buffer.from("claim"), policy.toBuffer(), Buffer.from([index])], pid)[0];
   const stakePda = (owner: PublicKey) =>
@@ -132,7 +136,6 @@ describe("autoshield", () => {
     await program.methods
       .purchasePolicy({
         nonce: n,
-        plate,
         plateHash: plateHash(plate),
         model: "VW Gol 1.0",
         year: 2020,
@@ -162,11 +165,16 @@ describe("autoshield", () => {
         assessor: assessor.publicKey,
         ...tokenAccts,
         policy,
-        vehicle: vehiclePda(p.plate),
+        vehicle: vehiclePdaFromHash(p.plateHash),
         owner: p.owner,
       })
       .signers([assessor])
       .rpc();
+  }
+
+  /** Vistoria por quorum (2 de 3): aprova ou recusa com dois avaliadores. */
+  async function inspectBy(voters: Keypair[], policy: PublicKey, approve: boolean) {
+    for (const v of voters) await inspect(v, policy, approve);
   }
 
   async function fileClaim(driver: Keypair, policy: PublicKey, index: number, kind: object, amount: BN) {
@@ -179,9 +187,9 @@ describe("autoshield", () => {
     return claim;
   }
 
-  const vote = (assessor: Keypair, policy: PublicKey, claim: PublicKey, approve: boolean) =>
+  const vote = (assessor: Keypair, policy: PublicKey, claim: PublicKey, approve: boolean, reclassify: object | null = null) =>
     program.methods
-      .voteClaim(approve)
+      .voteClaim(approve, reclassify as any)
       .accountsPartial({ assessor: assessor.publicKey, ...tokenAccts, policy, claim })
       .signers([assessor])
       .rpc();
@@ -201,7 +209,7 @@ describe("autoshield", () => {
         payer: outsider.publicKey,
         ...tokenAccts,
         policy,
-        vehicle: vehiclePda(p.plate),
+        vehicle: vehiclePdaFromHash(p.plateHash),
         owner: p.owner,
       })
       .signers([outsider])
@@ -219,6 +227,13 @@ describe("autoshield", () => {
     program.methods
       .depositLiquidity(amount)
       .accountsPartial({ owner: k.publicKey, ...tokenAccts, ownerToken: ata(k.publicKey) })
+      .signers([k])
+      .rpc();
+
+  const requestWithdraw = (k: Keypair, shares: BN) =>
+    program.methods
+      .requestWithdrawal(shares)
+      .accountsPartial({ owner: k.publicKey, pool: poolPda, position: stakePda(k.publicKey) })
       .signers([k])
       .rpc();
 
@@ -297,7 +312,10 @@ describe("autoshield", () => {
       expect(p.premiumTotal.eq(premium)).to.be.true;
       expect(p.premiumPaid.eq(premium)).to.be.true;
       expect(p.installments).to.eq(1);
-      expect(p.plate).to.eq("ABC1D23");
+      // a placa nunca vai em texto para a blockchain (so o hash)
+      const raw = (await conn.getAccountInfo(policy1))!.data.toString("latin1");
+      expect(raw).to.not.contain("ABC1D23");
+      expect(Buffer.from(p.plateHash).equals(Buffer.from(plateHash("ABC1D23")))).to.be.true;
       expect(p.cashbackAmount.eq(bps(premium, 2000))).to.be.true;
       expect(p.protocolFeesPaid.eq(bps(premium, 500))).to.be.true;
       expect(before.sub(await balance(driver1.publicKey)).eq(premium.add(brl(50)))).to.be.true;
@@ -309,15 +327,15 @@ describe("autoshield", () => {
       expect(vehicle.activePolicy.toBase58()).to.eq(PublicKey.default.toBase58());
     });
 
-    it("recusa valor de veiculo abaixo do minimo e hash de placa falso", async () => {
+    it("recusa valor de veiculo abaixo do minimo e hash de placa vazio", async () => {
       await expectError(buy(driver2, 50, brl(4_000), { basic: {} }, 30, "MIN0A00"), "InvalidVehicleValue");
+      const zero = new Array(32).fill(0);
       const policy = policyPda(driver2.publicKey, new BN(6));
       await expectError(
         program.methods
           .purchasePolicy({
             nonce: new BN(6),
-            plate: "ZZZ1Z11",
-            plateHash: plateHash("AAA1A11"),
+            plateHash: zero,
             model: "Fraude",
             year: 2020,
             vehicleValue: brl(10_000),
@@ -331,7 +349,7 @@ describe("autoshield", () => {
             ...tokenAccts,
             ownerToken: ata(driver2.publicKey),
             policy,
-            vehicle: vehiclePda("AAA1A11"),
+            vehicle: vehiclePdaFromHash(zero),
           })
           .signers([driver2])
           .rpc(),
@@ -343,14 +361,20 @@ describe("autoshield", () => {
       const squatterBefore = await balance(squatter.publicKey);
       const fake = await buy(squatter, 1, brl(5_000), { basic: {} }, 30, "abc-1d23");
       const assessorBefore = await balance(assessors[1].publicKey);
-      // dono real vistoriado primeiro: trava a placa
+      // dono real vistoriado primeiro por quorum (2 de 3): trava a placa
       await inspect(assessors[0], policy1, true);
+      expect((await program.account.vehicleRecord.fetch(vehiclePda("ABC1D23"))).activePolicy.toBase58()).to.eq(
+        PublicKey.default.toBase58(),
+      );
+      await expectError(inspect(assessors[0], policy1, true), "AlreadyVoted");
+      await inspect(assessors[1], policy1, true);
       const vehicle = await program.account.vehicleRecord.fetch(vehiclePda("ABC1D23"));
       expect(vehicle.activePolicy.toBase58()).to.eq(policy1.toBase58());
-      // a vistoria do golpista nao pode ser aprovada; recusada devolve so o premio
-      await expectError(inspect(assessors[1], fake, true), "VehicleAlreadyInsured");
+      // o golpista e recusado pelo quorum; recebe de volta so o premio
       await inspect(assessors[1], fake, false);
+      await inspect(assessors[2], fake, false);
       expect(squatterBefore.sub(await balance(squatter.publicKey)).eq(brl(50))).to.be.true;
+      // cada voto recebe metade da taxa de vistoria (taxa / quorum)
       expect((await balance(assessors[1].publicKey)).sub(assessorBefore).eq(brl(50))).to.be.true;
       expect((await program.account.policy.fetch(fake)).status).to.have.property("cancelled");
       // com a placa travada, nova contratacao e recusada de cara
@@ -361,9 +385,9 @@ describe("autoshield", () => {
       policy2 = await buy(driver2, 1, brl(40_000), { basic: {} }, 30, "XYZ9A87");
       await expectError(fileClaim(driver2, policy2, 0, { theft: {} }, brl(1_000)), "PolicyNotInspected");
       await expectError(inspect(outsider, policy2, true), "NotAssessor");
-      await inspect(assessors[0], policy2, true);
-      await expectError(inspect(assessors[1], policy2, true), "AlreadyInspected");
-      await expectError(fileClaim(driver1, policy1, 0, { collision: {} }, brl(1_000)), "ClaimWaitingPeriod");
+      await inspectBy([assessors[0], assessors[1]], policy2, true);
+      await expectError(inspect(assessors[2], policy2, true), "AlreadyInspected");
+      await expectError(fileClaim(driver2, policy2, 0, { theft: {} }, brl(1_000)), "ClaimWaitingPeriod");
       const p2 = await program.account.policy.fetch(policy2);
       await waitUntil(p2.claimsAllowedFrom.toNumber());
       await expectError(fileClaim(driver2, policy2, 0, { collision: {} }, brl(1_000)), "ClaimTypeNotCovered");
@@ -397,7 +421,7 @@ describe("autoshield", () => {
 
     it("sinistro rejeitado pelos avaliadores libera a apolice", async () => {
       policy3 = await buy(driver3, 7, brl(30_000), { premium: {} }, 60, "QWE4R56");
-      await inspect(assessors[2], policy3, true);
+      await inspectBy([assessors[1], assessors[2]], policy3, true);
       await waitUntil((await program.account.policy.fetch(policy3)).claimsAllowedFrom.toNumber());
       const claim = await fileClaim(driver3, policy3, 0, { thirdParty: {} }, brl(5_000));
       await vote(assessors[0], policy3, claim, false);
@@ -407,10 +431,24 @@ describe("autoshield", () => {
       await expectError(payClaim(driver3, policy3, claim, driver3.publicKey), "ClaimNotApproved");
     });
 
+    it("avaliador reclassifica roubo declarado como colisao e a franquia e aplicada", async () => {
+      const claim = await fileClaim(driver3, policy3, 1, { theft: {} }, brl(5_000));
+      await vote(assessors[0], policy3, claim, true, { collision: {} });
+      await vote(assessors[2], policy3, claim, true, { collision: {} });
+      const c = await program.account.claim.fetch(claim);
+      expect(c.kind).to.have.property("collision");
+      expect(c.originalKind).to.have.property("theft");
+      expect(c.reclassified).to.be.true;
+      const before = await balance(driver3.publicKey);
+      await payClaim(outsider, policy3, claim, driver3.publicKey);
+      // franquia de 5% sobre 30.000 = 1.500
+      expect((await balance(driver3.publicKey)).sub(before).eq(brl(3_500))).to.be.true;
+    });
+
     it("avaliador nao vota nem vistoria a propria apolice", async () => {
       ownPolicy = await buy(assessors[2], 1, brl(20_000), { premium: {} }, 60, "AVL1A11");
       await expectError(inspect(assessors[2], ownPolicy, true), "AssessorConflict");
-      await inspect(assessors[0], ownPolicy, true);
+      await inspectBy([assessors[0], assessors[1]], ownPolicy, true);
       await waitUntil((await program.account.policy.fetch(ownPolicy)).claimsAllowedFrom.toNumber());
       const claim = await fileClaim(assessors[2], ownPolicy, 0, { theft: {} }, brl(20_000));
       await expectError(vote(assessors[2], ownPolicy, claim, true), "AssessorConflict");
@@ -419,8 +457,9 @@ describe("autoshield", () => {
     });
 
     it("sinistro maior que a liquidez livre nao e pago pela metade", async () => {
+      await expectError(buy(driver4, 9, brl(700_000), { basic: {} }, 60, "EXP0A00"), "ExposureLimit");
       bigPolicy = await buy(driver4, 1, brl(500_000), { basic: {} }, 60, "BIG0A00");
-      await inspect(assessors[0], bigPolicy, true);
+      await inspectBy([assessors[0], assessors[1]], bigPolicy, true);
       await waitUntil((await program.account.policy.fetch(bigPolicy)).claimsAllowedFrom.toNumber());
       const claim = await fileClaim(driver4, bigPolicy, 0, { theft: {} }, brl(400_000));
       await vote(assessors[0], bigPolicy, claim, true);
@@ -468,7 +507,7 @@ describe("autoshield", () => {
 
     it("parcela em atraso faz a apolice caducar: sem sinistro, sem pagamento tardio, sem cashback", async () => {
       lapsing = await buy(driver5, 3, brl(30_000), { standard: {} }, 60, "LAP5E00", 2);
-      await inspect(assessors[1], lapsing, true);
+      await inspectBy([assessors[0], assessors[1]], lapsing, true);
       const p = await program.account.policy.fetch(lapsing);
       const paidUntil = p.startTs.toNumber() + p.installmentPeriod.toNumber();
       await waitUntil(paidUntil);
@@ -593,13 +632,55 @@ describe("autoshield", () => {
 
       // apolice parcelada de 360 dias continua ativa: o LP saca somente o excedente
       const pos = await program.account.stakePosition.fetch(stakePda(lp.publicKey));
+      await expectError(withdraw(lp, pos.shares), "WithdrawNotRequested");
+      await requestWithdraw(lp, pos.shares);
+      await sleep(3000);
       await expectError(withdraw(lp, pos.shares), "WithdrawBreaksSolvency");
       const p = await pool();
       const nav = (await vaultBalance()).sub(p.reservedCashback).sub(p.treasuryAccrued).sub(p.pendingInspectionFees);
       const required = p.totalActiveCoverage.muln(1000).divn(10_000).add(p.pendingClaims);
       const freeShares = nav.sub(required).mul(p.totalShares).div(nav).subn(1);
+      // novo pedido substitui o anterior e reinicia o aviso previo
+      await requestWithdraw(lp, freeShares);
+      await expectError(withdraw(lp, freeShares), "WithdrawNoticeActive");
+      await sleep(3000);
       await withdraw(lp, freeShares);
       expect((await pool()).totalShares.gte(DEAD_SHARES)).to.be.true;
+    });
+
+    it("fecha contas encerradas e devolve o aluguel em SOL", async () => {
+      const claim0 = claimPda(policy1, 0);
+      const before = await conn.getBalance(driver1.publicKey);
+      await program.methods
+        .closeClaim()
+        .accountsPartial({ caller: outsider.publicKey, claim: claim0, claimant: driver1.publicKey })
+        .signers([outsider])
+        .rpc();
+      await program.methods
+        .closePolicy()
+        .accountsPartial({ caller: outsider.publicKey, policy: policy1, owner: driver1.publicKey })
+        .signers([outsider])
+        .rpc();
+      expect(await conn.getAccountInfo(policy1)).to.be.null;
+      expect(await conn.getAccountInfo(claim0)).to.be.null;
+      expect((await conn.getBalance(driver1.publicKey)) - before).to.be.greaterThan(0);
+      // apolice ativa e posicao com cotas nao podem ser fechadas
+      await expectError(
+        program.methods
+          .closePolicy()
+          .accountsPartial({ caller: outsider.publicKey, policy: monthly, owner: driver5.publicKey })
+          .signers([outsider])
+          .rpc(),
+        "AccountNotClosable",
+      );
+      await expectError(
+        program.methods
+          .closePosition()
+          .accountsPartial({ owner: lp.publicKey, position: stakePda(lp.publicKey) })
+          .signers([lp])
+          .rpc(),
+        "AccountNotClosable",
+      );
     });
   });
 });

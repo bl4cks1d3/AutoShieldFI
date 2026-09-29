@@ -84,6 +84,14 @@ pub struct PoolParams {
     pub vote_reward: u64,
     /// Valor FIPE minimo aceito.
     pub min_vehicle_value: u64,
+    /// Votos de avaliadores necessarios para aprovar uma vistoria.
+    pub inspection_threshold: u8,
+    /// Aviso previo entre pedir e executar um saque de liquidez (segundos).
+    /// Durante o aviso as cotas continuam expostas aos sinistros.
+    pub withdraw_notice_secs: i64,
+    /// Cobertura maxima de uma apolice em relacao ao patrimonio do pool (bps;
+    /// pode passar de 10.000 = 100% porque o colateral e fracionario).
+    pub max_policy_coverage_bps: u32,
     /// Habilita o faucet de token de teste (somente devnet/localnet).
     pub faucet_enabled: bool,
 }
@@ -105,6 +113,11 @@ impl PoolParams {
             && self.installment_grace_secs >= 0
             && self.governance_delay_secs >= 0
             && self.min_vehicle_value > 0
+            && self.inspection_threshold > 0
+            && (self.inspection_threshold as usize) <= MAX_ASSESSORS
+            && self.withdraw_notice_secs >= 0
+            && self.max_policy_coverage_bps > 0
+            && self.max_policy_coverage_bps <= 100_000
     }
 }
 
@@ -133,6 +146,14 @@ impl Pool {
 
     pub fn is_assessor(&self, key: &Pubkey) -> bool {
         self.assessors.iter().any(|a| a == key)
+    }
+
+    /// Quorum efetivo de vistoria (nunca maior que o comite atual).
+    pub fn inspection_quorum(&self) -> u8 {
+        self.params
+            .inspection_threshold
+            .min(self.assessors.len() as u8)
+            .max(1)
     }
 }
 
@@ -183,9 +204,8 @@ pub struct Policy {
     pub pool: Pubkey,
     pub id: u64,
     pub nonce: u64,
-    #[max_len(MAX_PLATE_LEN)]
-    pub plate: String,
-    /// sha256 da placa normalizada: chave do registro unico do veiculo.
+    /// sha256 da placa normalizada. A placa em texto nunca vai para a
+    /// blockchain (pseudonimizacao, LGPD); o avaliador confere o hash na vistoria.
     pub plate_hash: [u8; 32],
     #[max_len(MAX_MODEL_LEN)]
     pub model: String,
@@ -220,7 +240,14 @@ pub struct Policy {
     pub cashback_redeemed: bool,
     /// Vistoria previa feita por um avaliador (exigida antes de sinistros).
     pub inspected: bool,
+    /// Ultimo avaliador que votou na vistoria.
     pub inspector: Pubkey,
+    pub inspection_approvals: u8,
+    pub inspection_rejections: u8,
+    #[max_len(MAX_ASSESSORS)]
+    pub inspection_voters: Vec<Pubkey>,
+    /// Parte da taxa de vistoria ja repassada aos avaliadores.
+    pub inspection_fee_paid: u64,
     /// Primeiro instante em que um sinistro e aceito (inicio + carencia).
     pub claims_allowed_from: i64,
     pub bump: u8,
@@ -291,6 +318,9 @@ pub struct Claim {
     pub id: u64,
     pub index: u8,
     pub kind: ClaimKind,
+    /// Tipo informado pelo motorista (antes de eventual reclassificacao).
+    pub original_kind: ClaimKind,
+    pub reclassified: bool,
     pub amount_requested: u64,
     pub payout_amount: u64,
     #[max_len(MAX_DESCRIPTION_LEN)]
@@ -344,6 +374,9 @@ pub struct StakePosition {
     pub total_deposited: u64,
     pub total_withdrawn: u64,
     pub last_deposit_ts: i64,
+    /// Cotas com saque pedido e o instante em que podem ser sacadas.
+    pub pending_withdraw_shares: u64,
+    pub withdraw_available_at: i64,
     pub bump: u8,
     pub _reserved: [u8; 32],
 }
@@ -366,7 +399,6 @@ mod tests {
             pool: Pubkey::default(),
             id: 0,
             nonce: 0,
-            plate: String::new(),
             plate_hash: [0; 32],
             model: String::new(),
             year: 2020,
@@ -393,6 +425,10 @@ mod tests {
             cashback_redeemed: false,
             inspected: true,
             inspector: Pubkey::default(),
+            inspection_approvals: 1,
+            inspection_rejections: 0,
+            inspection_voters: Vec::new(),
+            inspection_fee_paid: 0,
             claims_allowed_from: 0,
             bump: 0,
             _reserved: [0; 64],

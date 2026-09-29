@@ -95,6 +95,14 @@ pub mod autoshield {
         instructions::liquidity::deposit_liquidity(ctx, amount)
     }
 
+    pub fn request_withdrawal(ctx: Context<RequestWithdrawal>, shares: u64) -> Result<()> {
+        instructions::liquidity::request_withdrawal(ctx, shares)
+    }
+
+    pub fn close_position(ctx: Context<ClosePosition>) -> Result<()> {
+        instructions::liquidity::close_position(ctx)
+    }
+
     pub fn withdraw_liquidity(ctx: Context<WithdrawLiquidity>, shares: u64) -> Result<()> {
         instructions::liquidity::withdraw_liquidity(ctx, shares)
     }
@@ -113,6 +121,10 @@ pub mod autoshield {
         instructions::policy::inspect_policy(ctx, approve)
     }
 
+    pub fn close_policy(ctx: Context<ClosePolicy>) -> Result<()> {
+        instructions::policy::close_policy(ctx)
+    }
+
     pub fn settle_policy(ctx: Context<SettlePolicy>) -> Result<()> {
         instructions::policy::settle_policy(ctx)
     }
@@ -123,12 +135,20 @@ pub mod autoshield {
         instructions::claims::file_claim(ctx, args)
     }
 
-    pub fn vote_claim(ctx: Context<VoteClaim>, approve: bool) -> Result<()> {
-        instructions::claims::vote_claim(ctx, approve)
+    pub fn vote_claim(
+        ctx: Context<VoteClaim>,
+        approve: bool,
+        reclassify: Option<state::ClaimKind>,
+    ) -> Result<()> {
+        instructions::claims::vote_claim(ctx, approve, reclassify)
     }
 
     pub fn expire_claim(ctx: Context<ExpireClaim>) -> Result<()> {
         instructions::claims::expire_claim(ctx)
+    }
+
+    pub fn close_claim(ctx: Context<CloseClaim>) -> Result<()> {
+        instructions::claims::close_claim(ctx)
     }
 
     pub fn pay_claim(ctx: Context<PayClaim>) -> Result<()> {
