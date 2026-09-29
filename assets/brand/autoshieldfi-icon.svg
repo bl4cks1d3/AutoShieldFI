@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#34d8a4"/><stop offset="1" stop-color="#0b7a5a"/></linearGradient></defs><rect width="512" height="512" rx="112" fill="#0b1f19"/><g transform="translate(56 56) scale(0.78)"><path d="M256 36C312 76 372 92 436 96V250C436 362 352 432 256 476C160 432 76 362 76 250V96C140 92 200 76 256 36Z" fill="url(#g)"/><g transform="translate(0 -14)"><path d="M198 176Q204 158 222 158H290Q308 158 314 176L330 222H182Z" fill="#fff"/>
+<path d="M210 212L220 182Q223 174 232 174H280Q289 174 292 182L302 212Z" fill="#0f8a66"/>
+<rect x="156" y="216" width="200" height="82" rx="26" fill="#fff"/>
+<rect x="174" y="288" width="40" height="36" rx="10" fill="#fff"/><rect x="298" y="288" width="40" height="36" rx="10" fill="#fff"/>
+<circle cx="194" cy="254" r="14" fill="#11a57a"/><circle cx="318" cy="254" r="14" fill="#11a57a"/>
+<rect x="226" y="246" width="60" height="16" rx="8" fill="#11a57a"/>
+</g><path d="M212 372L244 398L304 350" fill="none" stroke="#fff" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/></g></svg>

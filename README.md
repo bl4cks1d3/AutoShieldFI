@@ -1,6 +1,8 @@
 <div align="center">
 
-# 🛡️ AutoShieldFI
+<img src="assets/brand/autoshieldfi-logo-light.svg" alt="AutoShieldFI" width="420">
+
+# AutoShieldFI
 
 **Proteção veicular descentralizada para o Brasil, na blockchain Solana**
 
