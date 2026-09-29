@@ -198,12 +198,6 @@ Se você está interessado em contribuir com o projeto AutoShieldFI, siga estas 
 3. Implemente as melhorias ou correções desejadas  
 4. Envie um pull request com uma descrição detalhada das alterações  
 
-## Equipe
-
-- Wesley Cardoso — Smart Contracts / Backend  
-- Jaqueline Queroz — Frontend / UX/UI  
-- Amanda Almeida — Business / Marketing  
-
 ## Contato
 
 Para mais informações sobre o AutoShieldFI, entre em contato pelo email:  
@@ -265,11 +259,6 @@ If you are interested in contributing to AutoShieldFI, please follow these steps
 3. Implement the desired improvements or fixes  
 4. Submit a pull request with a detailed description of your changes  
 
-## Team
-
-- Wesley Cardoso — Smart Contracts / Backend  
-- Jaqueline Queroz — Frontend / UX/UI  
-- Amanda Almeida — Business / Marketing  
 
 ## Contact
 
