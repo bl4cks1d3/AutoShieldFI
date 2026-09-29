@@ -106,3 +106,26 @@ pub struct TreasuryWithdrawn {
     pub destination: Pubkey,
     pub amount: u64,
 }
+
+#[event]
+pub struct PolicyCancelled {
+    pub policy: Pubkey,
+    pub owner: Pubkey,
+    pub refund: u64,
+    /// Verdadeiro se foi arrependimento (7 dias, devolucao integral).
+    pub cooling_off: bool,
+}
+
+#[event]
+pub struct PolicyTransferred {
+    pub policy: Pubkey,
+    pub from: Pubkey,
+    pub to: Pubkey,
+}
+
+#[event]
+pub struct FipeUpdated {
+    pub policy: Pubkey,
+    pub vehicle_value: u64,
+    pub coverage_limit: u64,
+}

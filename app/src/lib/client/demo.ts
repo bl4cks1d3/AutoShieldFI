@@ -20,6 +20,8 @@ import {
   MIN_FIRST_DEPOSIT,
   TIER_COVERS,
   UNIT,
+  FIPE_PCT_OPTIONS,
+  cancellationRefund,
   expectedPayout,
   installmentAmount,
   isLapsed,
@@ -31,7 +33,7 @@ import {
 // Simulacao local (localStorage) que replica as regras do programa on-chain.
 // Permite demonstrar o fluxo completo sem carteira, SOL ou deploy.
 
-const KEY = "autoshield-demo-v4";
+const KEY = "autoshield-demo-v5";
 export const DEMO_WALLET = "DemoMotorista1111111111111111111111111111111";
 export const DEMO_ASSESSORS = [
   "Avaliador1Demo11111111111111111111111111111",
@@ -107,6 +109,7 @@ function initialState(): DemoState {
       pendingThreshold: 0,
       pendingAssessorsEta: 0,
       pendingAuthority: null,
+      oracle: DEMO_WALLET,
     },
     balances: {},
     policies: [],
@@ -358,7 +361,9 @@ export class DemoClient implements AutoShieldClient {
     if (!plate || plate.length > 10) fail("Placa inválida");
     const hash = plateHashHex(plate);
     if (s.vehicles[hash]) fail("Este veículo já possui uma apólice ativa");
-    const q = quote(params, input.vehicleValue, input.tier, input.durationDays);
+    if (!(FIPE_PCT_OPTIONS as readonly number[]).includes(input.fipePct))
+      fail("Percentual da FIPE inválido (use 90, 100 ou 110)");
+    const q = quote(params, input.vehicleValue, input.tier, input.durationDays, input.fipePct, input.deductibleOption);
     if (q.premium < n) fail("Valor do veículo inválido");
     if (q.premium > input.maxPremium) fail("Prêmio acima do máximo aceito");
     const first = installmentAmount(q.premium, n, 1);
@@ -412,6 +417,11 @@ export class DemoClient implements AutoShieldClient {
       inspectionVoters: [],
       inspectionFeePaid: 0,
       claimsAllowedFrom: now + params.claimWaitingSecs,
+      fipePct: input.fipePct,
+      deductibleOption: input.deductibleOption,
+      fipeCode: input.fipeCode.slice(0, 16),
+      fipeUpdatedTs: now,
+      pendingOwner: null,
     };
     this.accountPayment(s, policy, first);
     s.policies.push(policy);
@@ -464,6 +474,7 @@ export class DemoClient implements AutoShieldClient {
       kind: input.kind,
       originalKind: input.kind,
       reclassified: false,
+      totalLoss: false,
       amountRequested: input.amount,
       payoutAmount: 0,
       description: input.description,
@@ -584,7 +595,13 @@ export class DemoClient implements AutoShieldClient {
     const c = s.claims.find((x) => x.address === claimAddr);
     if (!c || c.status !== "approved") fail("O sinistro não está aprovado");
     const p = s.policies.find((x) => x.address === c.policy)!;
-    const payout = expectedPayout(c.kind, c.amountRequested, p.deductible, p.coverageLimit - p.totalPaidOut);
+    const { payout, totalLoss } = expectedPayout(
+      c.kind,
+      c.amountRequested,
+      p.deductible,
+      p.coverageLimit - p.totalPaidOut,
+      p.coverageLimit,
+    );
     if (payout > this.nav(s)) fail("Liquidez livre insuficiente para pagar o sinistro agora");
     s.pool.vaultBalance -= payout;
     this.credit(s, c.claimant, payout);
@@ -598,7 +615,16 @@ export class DemoClient implements AutoShieldClient {
     p.hasOpenClaim = false;
     p.totalPaidOut += payout;
     if (payout > 0) p.hadPaidClaim = true;
+    if (totalLoss) {
+      // Perda total: a apolice termina e a placa fica livre.
+      s.pool.totalActiveCoverage -= p.coverageLimit - p.totalPaidOut;
+      s.pool.activePolicies -= 1;
+      p.status = "settled";
+      p.pendingOwner = null;
+      if (s.vehicles[p.plateHash] === p.address) delete s.vehicles[p.plateHash];
+    }
     c.status = "paid";
+    c.totalLoss = totalLoss;
     c.payoutAmount = payout;
     c.resolvedTs = this.clock(s);
     return this.tx(s);
@@ -647,6 +673,59 @@ export class DemoClient implements AutoShieldClient {
     p.cashbackRedeemed = pay;
     if (!pay) p.cashbackAmount = 0;
     if (s.vehicles[p.plateHash] === p.address) delete s.vehicles[p.plateHash];
+    return this.tx(s);
+  }
+
+  async cancelPolicy(policyAddr: string) {
+    await delay();
+    const s = load();
+    const p = s.policies.find((x) => x.address === policyAddr);
+    if (!p || p.owner !== this.wallet) fail("Operação não autorizada");
+    if (p.status !== "active") fail("A apólice não está ativa");
+    if (p.hasOpenClaim) fail("Já existe um sinistro em aberto para esta apólice");
+    const { refund, coolingOff } = cancellationRefund(p, this.clock(s), s.pool.params);
+    const unpaidInspection = p.inspectionFee - p.inspectionFeePaid;
+    s.pool.vaultBalance -= refund;
+    this.credit(s, p.owner, refund);
+    s.pool.totalActiveCoverage -= p.coverageLimit - p.totalPaidOut;
+    s.pool.activePolicies -= 1;
+    s.pool.reservedCashback -= p.cashbackAmount;
+    s.pool.pendingInspectionFees -= unpaidInspection;
+    if (coolingOff) {
+      s.pool.treasuryAccrued = Math.max(0, s.pool.treasuryAccrued - p.protocolFeesPaid);
+      s.pool.totalProtocolFees -= p.protocolFeesPaid;
+      s.pool.totalPremiums -= p.premiumPaid;
+    } else if (unpaidInspection > 0) {
+      s.pool.treasuryAccrued += unpaidInspection;
+    }
+    p.inspectionFeePaid = p.inspectionFee;
+    p.cashbackAmount = 0;
+    p.pendingOwner = null;
+    p.status = "cancelledByOwner";
+    if (s.vehicles[p.plateHash] === p.address) delete s.vehicles[p.plateHash];
+    return this.tx(s);
+  }
+
+  async proposeTransfer(policyAddr: string, newOwner: string | null) {
+    await delay();
+    const s = load();
+    const p = s.policies.find((x) => x.address === policyAddr);
+    if (!p || p.owner !== this.wallet) fail("Operação não autorizada");
+    if (p.status !== "active") fail("A apólice não está ativa");
+    if (newOwner === p.owner) fail("Parâmetro inválido");
+    p.pendingOwner = newOwner;
+    return this.tx(s);
+  }
+
+  async acceptTransfer(policyAddr: string) {
+    await delay();
+    const s = load();
+    const p = s.policies.find((x) => x.address === policyAddr);
+    if (!p || !p.pendingOwner || p.pendingOwner !== this.wallet) fail("Não há transferência pendente para esta carteira");
+    if (p.status !== "active") fail("A apólice não está ativa");
+    if (p.hasOpenClaim) fail("Já existe um sinistro em aberto para esta apólice");
+    p.owner = this.wallet;
+    p.pendingOwner = null;
     return this.tx(s);
   }
 

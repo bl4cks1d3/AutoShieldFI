@@ -41,7 +41,7 @@ async function main() {
   const pid = program.programId;
   const admin = provider.wallet.publicKey;
 
-  const [poolPda] = PublicKey.findProgramAddressSync([Buffer.from("pool")], pid);
+  const [poolPda] = PublicKey.findProgramAddressSync([Buffer.from("pool_v2")], pid);
   const [mintPda] = PublicKey.findProgramAddressSync([Buffer.from("test_mint")], pid);
   const [vaultPda] = PublicKey.findProgramAddressSync([Buffer.from("vault"), poolPda.toBuffer()], pid);
 

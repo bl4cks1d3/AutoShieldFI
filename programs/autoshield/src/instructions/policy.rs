@@ -4,9 +4,12 @@ use anchor_spl::token::{self, Mint, Token, TokenAccount, TransferChecked};
 
 use crate::constants::*;
 use crate::errors::AutoShieldError;
-use crate::events::{AssessorPaid, InstallmentPaid, PolicyInspected, PolicyPurchased, PolicySettled};
+use crate::events::{
+    AssessorPaid, FipeUpdated, InstallmentPaid, PolicyCancelled, PolicyInspected, PolicyPurchased, PolicySettled,
+    PolicyTransferred,
+};
 use crate::pricing;
-use crate::state::{CoverageTier, Policy, PolicyStatus, Pool, VehicleRecord, ACCOUNT_VERSION};
+use crate::state::{CoverageTier, DeductibleOption, Policy, PolicyStatus, Pool, VehicleRecord, ACCOUNT_VERSION};
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct PurchasePolicyArgs {
@@ -24,6 +27,11 @@ pub struct PurchasePolicyArgs {
     pub installments: u8,
     /// Protecao contra slippage: premio total maximo aceito pelo usuario.
     pub max_premium: u64,
+    /// Percentual da FIPE coberto: 90, 100 ou 110.
+    pub fipe_pct: u8,
+    pub deductible_option: DeductibleOption,
+    /// Codigo FIPE e ano, para o oraculo atualizar o valor mes a mes (opcional).
+    pub fipe_code: String,
 }
 
 /// Contabiliza um pagamento de premio (a vista ou parcela): separa a taxa do
@@ -94,7 +102,7 @@ pub struct PurchasePolicy<'info> {
         seeds = [POLICY_SEED, owner.key().as_ref(), args.nonce.to_le_bytes().as_ref()],
         bump
     )]
-    pub policy: Account<'info, Policy>,
+    pub policy: Box<Account<'info, Policy>>,
 
     #[account(
         init_if_needed,
@@ -135,13 +143,22 @@ pub fn purchase_policy(ctx: Context<PurchasePolicy>, args: PurchasePolicyArgs) -
         AutoShieldError::VehicleAlreadyInsured
     );
     require!(args.model.len() <= MAX_MODEL_LEN, AutoShieldError::StringTooLong);
+    require!(args.fipe_code.len() <= MAX_FIPE_CODE_LEN, AutoShieldError::StringTooLong);
+    require!(FIPE_PCT_OPTIONS.contains(&args.fipe_pct), AutoShieldError::InvalidFipePct);
     require!(
         (1950..=2100).contains(&args.year),
         AutoShieldError::InvalidParameter
     );
 
-    let quote = pricing::quote(&pool.params, args.vehicle_value, args.tier, args.duration_days)
-        .ok_or(AutoShieldError::MathOverflow)?;
+    let quote = pricing::quote(
+        &pool.params,
+        args.vehicle_value,
+        args.tier,
+        args.duration_days,
+        args.fipe_pct,
+        args.deductible_option,
+    )
+    .ok_or(AutoShieldError::MathOverflow)?;
     require!(
         quote.premium >= args.installments as u64,
         AutoShieldError::InvalidVehicleValue
@@ -228,6 +245,11 @@ pub fn purchase_policy(ctx: Context<PurchasePolicy>, args: PurchasePolicyArgs) -
     policy.status = PolicyStatus::Active;
     policy.inspector = Pubkey::default();
     policy.claims_allowed_from = claims_allowed_from;
+    policy.fipe_pct = args.fipe_pct;
+    policy.deductible_option = args.deductible_option;
+    policy.fipe_code = args.fipe_code;
+    policy.fipe_updated_ts = now;
+    policy.pending_owner = Pubkey::default();
     policy.bump = ctx.bumps.policy;
 
     let vehicle = &mut ctx.accounts.vehicle;
@@ -276,7 +298,7 @@ pub struct PayInstallment<'info> {
     pub owner_token: Account<'info, TokenAccount>,
 
     #[account(mut, has_one = pool, has_one = owner @ AutoShieldError::Unauthorized)]
-    pub policy: Account<'info, Policy>,
+    pub policy: Box<Account<'info, Policy>>,
 
     pub token_program: Program<'info, Token>,
 }
@@ -340,7 +362,7 @@ pub struct SettlePolicy<'info> {
     pub vault: Account<'info, TokenAccount>,
 
     #[account(mut, has_one = pool, has_one = owner)]
-    pub policy: Account<'info, Policy>,
+    pub policy: Box<Account<'info, Policy>>,
 
     #[account(mut, seeds = [VEHICLE_SEED, policy.plate_hash.as_ref()], bump = vehicle.bump)]
     pub vehicle: Account<'info, VehicleRecord>,
@@ -458,7 +480,7 @@ pub struct InspectPolicy<'info> {
     pub vault: Account<'info, TokenAccount>,
 
     #[account(mut, has_one = pool, has_one = owner)]
-    pub policy: Account<'info, Policy>,
+    pub policy: Box<Account<'info, Policy>>,
 
     #[account(mut, seeds = [VEHICLE_SEED, policy.plate_hash.as_ref()], bump = vehicle.bump)]
     pub vehicle: Account<'info, VehicleRecord>,
@@ -637,7 +659,7 @@ pub struct ClosePolicy<'info> {
         constraint = policy.status != PolicyStatus::Active @ AutoShieldError::AccountNotClosable,
         constraint = !policy.has_open_claim @ AutoShieldError::AccountNotClosable
     )]
-    pub policy: Account<'info, Policy>,
+    pub policy: Box<Account<'info, Policy>>,
 
     /// CHECK: recebe o aluguel; validado via has_one.
     #[account(mut)]
@@ -645,5 +667,246 @@ pub struct ClosePolicy<'info> {
 }
 
 pub fn close_policy(_ctx: Context<ClosePolicy>) -> Result<()> {
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Cancelamento pelo titular
+
+#[derive(Accounts)]
+pub struct CancelPolicy<'info> {
+    #[account(mut)]
+    pub owner: Signer<'info>,
+
+    #[account(mut, seeds = [POOL_SEED], bump = pool.bump, has_one = vault, has_one = stable_mint)]
+    pub pool: Account<'info, Pool>,
+
+    pub stable_mint: Account<'info, Mint>,
+
+    #[account(mut)]
+    pub vault: Account<'info, TokenAccount>,
+
+    #[account(mut, has_one = pool, has_one = owner @ AutoShieldError::Unauthorized)]
+    pub policy: Box<Account<'info, Policy>>,
+
+    #[account(mut, seeds = [VEHICLE_SEED, policy.plate_hash.as_ref()], bump = vehicle.bump)]
+    pub vehicle: Account<'info, VehicleRecord>,
+
+    #[account(
+        init_if_needed,
+        payer = owner,
+        associated_token::mint = stable_mint,
+        associated_token::authority = owner,
+    )]
+    pub owner_token: Account<'info, TokenAccount>,
+
+    pub token_program: Program<'info, Token>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
+    pub system_program: Program<'info, System>,
+}
+
+/// Cancela a apolice a pedido do titular.
+///
+/// - Arrependimento (CDC art. 49): ate 7 dias da contratacao e sem sinistro,
+///   devolve tudo o que foi pago (premio e taxa de vistoria).
+/// - Depois disso: devolve o premio pago e ainda nao usado (proporcional ao
+///   tempo restante), sem a taxa do protocolo. Com sinistro ja indenizado nao
+///   ha devolucao. O cashback acumulado e perdido.
+pub fn cancel_policy(ctx: Context<CancelPolicy>) -> Result<()> {
+    let now = Clock::get()?.unix_timestamp;
+    let pool = &ctx.accounts.pool;
+    let policy = &ctx.accounts.policy;
+    require!(policy.status == PolicyStatus::Active, AutoShieldError::PolicyNotActive);
+    require!(!policy.has_open_claim, AutoShieldError::ClaimAlreadyOpen);
+
+    let cooling_end = policy
+        .start_ts
+        .saturating_add(COOLING_OFF_DAYS.saturating_mul(pool.params.seconds_per_day));
+    let cooling_off = now <= cooling_end && policy.claims_filed == 0;
+    let unpaid_inspection = policy.inspection_fee.saturating_sub(policy.inspection_fee_paid);
+
+    let refund = if cooling_off {
+        policy
+            .premium_paid
+            .checked_add(policy.inspection_fee)
+            .ok_or(AutoShieldError::MathOverflow)?
+    } else if policy.had_paid_claim {
+        0
+    } else {
+        let duration = policy.end_ts.saturating_sub(policy.start_ts).max(1) as u128;
+        let elapsed = now.clamp(policy.start_ts, policy.end_ts).saturating_sub(policy.start_ts) as u128;
+        let earned = u64::try_from(policy.premium_total as u128 * elapsed / duration)
+            .map_err(|_| AutoShieldError::MathOverflow)?;
+        let unused = policy.premium_paid.saturating_sub(earned) as u128;
+        u64::try_from(
+            unused * (BPS_DENOMINATOR - pool.params.protocol_fee_bps as u64) as u128 / BPS_DENOMINATOR as u128,
+        )
+        .map_err(|_| AutoShieldError::MathOverflow)?
+    };
+
+    vault_transfer(
+        &ctx.accounts.token_program,
+        &ctx.accounts.vault,
+        &ctx.accounts.stable_mint,
+        &ctx.accounts.owner_token,
+        &ctx.accounts.pool,
+        refund,
+    )?;
+
+    let policy_key = ctx.accounts.policy.key();
+    let pool = &mut ctx.accounts.pool;
+    let policy = &mut ctx.accounts.policy;
+    pool.total_active_coverage = pool.total_active_coverage.saturating_sub(policy.remaining_coverage());
+    pool.active_policies = pool.active_policies.saturating_sub(1);
+    pool.reserved_cashback = pool.reserved_cashback.saturating_sub(policy.cashback_amount);
+    pool.pending_inspection_fees = pool.pending_inspection_fees.saturating_sub(unpaid_inspection);
+    if cooling_off {
+        // Estorna o que a apolice gerou; a parte da taxa de vistoria ja paga ao
+        // avaliador e absorvida pelo patrimonio dos LPs.
+        pool.treasury_accrued = pool.treasury_accrued.saturating_sub(policy.protocol_fees_paid);
+        pool.total_protocol_fees = pool.total_protocol_fees.saturating_sub(policy.protocol_fees_paid);
+        pool.total_premiums = pool.total_premiums.saturating_sub(policy.premium_paid);
+    } else if unpaid_inspection > 0 {
+        // Vistoria que nao chegou a acontecer: a taxa vira receita do protocolo.
+        pool.treasury_accrued = pool.treasury_accrued.saturating_add(unpaid_inspection);
+    }
+    policy.inspection_fee_paid = policy.inspection_fee;
+    policy.cashback_amount = 0;
+    policy.pending_owner = Pubkey::default();
+    policy.status = PolicyStatus::CancelledByOwner;
+
+    let vehicle = &mut ctx.accounts.vehicle;
+    if vehicle.active_policy == policy_key {
+        vehicle.active_policy = Pubkey::default();
+    }
+
+    emit!(PolicyCancelled {
+        policy: policy_key,
+        owner: policy.owner,
+        refund,
+        cooling_off,
+    });
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Transferencia na venda do veiculo (proposta do titular + aceite do comprador)
+
+#[derive(Accounts)]
+pub struct ProposeTransfer<'info> {
+    pub owner: Signer<'info>,
+
+    #[account(mut, has_one = owner @ AutoShieldError::Unauthorized)]
+    pub policy: Box<Account<'info, Policy>>,
+}
+
+/// `new_owner = Pubkey::default()` cancela uma transferencia proposta.
+pub fn propose_transfer(ctx: Context<ProposeTransfer>, new_owner: Pubkey) -> Result<()> {
+    let policy = &mut ctx.accounts.policy;
+    require!(policy.status == PolicyStatus::Active, AutoShieldError::PolicyNotActive);
+    require!(new_owner != policy.owner, AutoShieldError::InvalidParameter);
+    policy.pending_owner = new_owner;
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct AcceptTransfer<'info> {
+    pub new_owner: Signer<'info>,
+
+    #[account(mut)]
+    pub policy: Box<Account<'info, Policy>>,
+}
+
+/// O comprador aceita: a apolice (com cobertura e cashback acumulado) passa a ser dele.
+pub fn accept_transfer(ctx: Context<AcceptTransfer>) -> Result<()> {
+    let signer = ctx.accounts.new_owner.key();
+    let policy = &mut ctx.accounts.policy;
+    require!(
+        policy.pending_owner != Pubkey::default() && policy.pending_owner == signer,
+        AutoShieldError::NotPendingOwner
+    );
+    require!(policy.status == PolicyStatus::Active, AutoShieldError::PolicyNotActive);
+    require!(!policy.has_open_claim, AutoShieldError::ClaimAlreadyOpen);
+    let from = policy.owner;
+    policy.owner = signer;
+    policy.pending_owner = Pubkey::default();
+    emit!(PolicyTransferred {
+        policy: policy.key(),
+        from,
+        to: signer,
+    });
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Atualizacao do valor FIPE (oraculo)
+
+#[derive(Accounts)]
+pub struct UpdatePolicyFipe<'info> {
+    pub oracle: Signer<'info>,
+
+    #[account(
+        mut,
+        seeds = [POOL_SEED],
+        bump = pool.bump,
+        has_one = oracle @ AutoShieldError::NotOracle,
+        has_one = vault
+    )]
+    pub pool: Account<'info, Pool>,
+
+    pub vault: Account<'info, TokenAccount>,
+
+    #[account(mut, has_one = pool)]
+    pub policy: Box<Account<'info, Policy>>,
+}
+
+/// Atualiza o valor FIPE de uma apolice ativa (rodado mensalmente pelo
+/// servico de precos): cobertura e franquia acompanham a tabela, e a
+/// indenizacao por perda total usa o valor vigente na data do sinistro.
+/// Cada atualizacao pode variar no maximo 20%.
+pub fn update_policy_fipe(ctx: Context<UpdatePolicyFipe>, vehicle_value: u64) -> Result<()> {
+    let now = Clock::get()?.unix_timestamp;
+    let policy = &ctx.accounts.policy;
+    require!(policy.status == PolicyStatus::Active, AutoShieldError::PolicyNotActive);
+    require!(!policy.has_open_claim, AutoShieldError::ClaimAlreadyOpen);
+    require!(vehicle_value > 0, AutoShieldError::InvalidVehicleValue);
+    let old = policy.vehicle_value as u128;
+    let diff = (vehicle_value as u128).abs_diff(old);
+    require!(
+        diff * (BPS_DENOMINATOR as u128) <= old * (MAX_FIPE_CHANGE_BPS as u128),
+        AutoShieldError::FipeChangeTooLarge
+    );
+
+    let coverage = pricing::coverage_for(vehicle_value, policy.fipe_pct).ok_or(AutoShieldError::MathOverflow)?;
+    let deductible =
+        pricing::deductible_for(coverage, policy.deductible_option).ok_or(AutoShieldError::MathOverflow)?;
+    let old_remaining = policy.remaining_coverage();
+    let new_remaining = coverage.saturating_sub(policy.total_paid_out);
+
+    let pool = &ctx.accounts.pool;
+    let coverage_after = pool
+        .total_active_coverage
+        .saturating_sub(old_remaining)
+        .checked_add(new_remaining)
+        .ok_or(AutoShieldError::MathOverflow)?;
+    if new_remaining > old_remaining {
+        let required = pool.required_capital(coverage_after).ok_or(AutoShieldError::MathOverflow)?;
+        require!(
+            pool.net_assets(ctx.accounts.vault.amount) >= required,
+            AutoShieldError::InsufficientPoolCapital
+        );
+    }
+
+    ctx.accounts.pool.total_active_coverage = coverage_after;
+    let policy = &mut ctx.accounts.policy;
+    policy.vehicle_value = vehicle_value;
+    policy.coverage_limit = coverage;
+    policy.deductible = deductible;
+    policy.fipe_updated_ts = now;
+    emit!(FipeUpdated {
+        policy: policy.key(),
+        vehicle_value,
+        coverage_limit: coverage,
+    });
     Ok(())
 }

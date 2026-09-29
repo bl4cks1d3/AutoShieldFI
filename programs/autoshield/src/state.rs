@@ -4,7 +4,7 @@ use crate::constants::*;
 
 /// Versao atual do layout das contas. Campos novos devem consumir `_reserved`
 /// e incrementar esta versao, sem quebrar contas ja criadas.
-pub const ACCOUNT_VERSION: u8 = 1;
+pub const ACCOUNT_VERSION: u8 = 2;
 
 /// Pool de risco mutualista. Os provedores de liquidez (stakers) aportam capital
 /// que garante as coberturas; os premios pagos pelos motoristas remuneram esse capital.
@@ -49,6 +49,8 @@ pub struct Pool {
     pub pending_assessors_eta: i64,
     /// Transferencia de autoridade em dois passos (proposta + aceite).
     pub pending_authority: Pubkey,
+    /// Carteira do servico que atualiza o valor FIPE das apolices (oraculo).
+    pub oracle: Pubkey,
     pub bump: u8,
     pub vault_bump: u8,
     pub _reserved: [u8; 128],
@@ -165,6 +167,8 @@ pub enum CoverageTier {
     Standard,
     /// Completo: Standard + terceiros + outros eventos.
     Premium,
+    /// Somente roubo e furto: o plano mais barato (motos e carros mais antigos).
+    TheftOnly,
 }
 
 impl CoverageTier {
@@ -174,12 +178,15 @@ impl CoverageTier {
             CoverageTier::Basic => 60,
             CoverageTier::Standard => 100,
             CoverageTier::Premium => 140,
+            CoverageTier::TheftOnly => 35,
         }
     }
 
     pub fn covers(&self, kind: ClaimKind) -> bool {
         match (self, kind) {
-            (_, ClaimKind::Theft) | (_, ClaimKind::NaturalEvent) => true,
+            (_, ClaimKind::Theft) => true,
+            (CoverageTier::TheftOnly, _) => false,
+            (_, ClaimKind::NaturalEvent) => true,
             (CoverageTier::Standard | CoverageTier::Premium, ClaimKind::Collision) => true,
             (CoverageTier::Premium, ClaimKind::ThirdParty | ClaimKind::Other) => true,
             _ => false,
@@ -187,13 +194,45 @@ impl CoverageTier {
     }
 }
 
+/// Franquia para danos parciais, escolhida na contratacao.
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, PartialEq, Eq, InitSpace)]
+pub enum DeductibleOption {
+    /// 2,5% do valor coberto; premio mais caro.
+    Reduced,
+    /// 5% do valor coberto.
+    Normal,
+    /// 10% do valor coberto; premio mais barato.
+    Increased,
+}
+
+impl DeductibleOption {
+    pub fn bps(&self) -> u64 {
+        match self {
+            DeductibleOption::Reduced => 250,
+            DeductibleOption::Normal => 500,
+            DeductibleOption::Increased => 1_000,
+        }
+    }
+
+    /// Ajuste do premio em percentual.
+    pub fn price_pct(&self) -> u64 {
+        match self {
+            DeductibleOption::Reduced => 115,
+            DeductibleOption::Normal => 100,
+            DeductibleOption::Increased => 85,
+        }
+    }
+}
+
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, PartialEq, Eq, InitSpace)]
 pub enum PolicyStatus {
     Active,
-    /// Encerrada (vencida, ou caducada por parcela em atraso).
+    /// Encerrada (vencida, caducada por parcela em atraso ou indenizada por perda total).
     Settled,
     /// Recusada na vistoria: premio devolvido integralmente.
     Cancelled,
+    /// Cancelada pelo titular (arrependimento ou cancelamento com devolucao proporcional).
+    CancelledByOwner,
 }
 
 #[account]
@@ -250,6 +289,16 @@ pub struct Policy {
     pub inspection_fee_paid: u64,
     /// Primeiro instante em que um sinistro e aceito (inicio + carencia).
     pub claims_allowed_from: i64,
+    /// Percentual da FIPE contratado (90, 100 ou 110).
+    pub fipe_pct: u8,
+    pub deductible_option: DeductibleOption,
+    /// Codigo FIPE e ano ("005340-6|2014-3"); vazio se o valor foi informado a mao.
+    #[max_len(MAX_FIPE_CODE_LEN)]
+    pub fipe_code: String,
+    /// Ultima atualizacao do valor FIPE pelo oraculo.
+    pub fipe_updated_ts: i64,
+    /// Comprador indicado na venda do veiculo (aguardando aceite).
+    pub pending_owner: Pubkey,
     pub bump: u8,
     pub _reserved: [u8; 64],
 }
@@ -257,6 +306,13 @@ pub struct Policy {
 impl Policy {
     pub fn remaining_coverage(&self) -> u64 {
         self.coverage_limit.saturating_sub(self.total_paid_out)
+    }
+
+    /// Dano a partir de 75% do valor coberto, ou roubo/furto: perda total.
+    pub fn is_total_loss(&self, kind: ClaimKind, amount: u64) -> bool {
+        kind == ClaimKind::Theft
+            || (amount as u128) * (BPS_DENOMINATOR as u128)
+                >= (self.coverage_limit as u128) * (TOTAL_LOSS_BPS as u128)
     }
 
     /// Instante ate o qual a cobertura esta paga.
@@ -321,6 +377,8 @@ pub struct Claim {
     /// Tipo informado pelo motorista (antes de eventual reclassificacao).
     pub original_kind: ClaimKind,
     pub reclassified: bool,
+    /// Indenizado como perda total (cobertura integral, sem franquia).
+    pub total_loss: bool,
     pub amount_requested: u64,
     pub payout_amount: u64,
     #[max_len(MAX_DESCRIPTION_LEN)]
@@ -430,6 +488,11 @@ mod tests {
             inspection_voters: Vec::new(),
             inspection_fee_paid: 0,
             claims_allowed_from: 0,
+            fipe_pct: 100,
+            deductible_option: DeductibleOption::Normal,
+            fipe_code: String::new(),
+            fipe_updated_ts: 0,
+            pending_owner: Pubkey::default(),
             bump: 0,
             _reserved: [0; 64],
         }
@@ -450,5 +513,22 @@ mod tests {
         assert!(full.fully_paid());
         assert_eq!(full.paid_until(), full.end_ts);
         assert!(!full.is_lapsed(99_999, 0));
+    }
+
+    #[test]
+    fn total_loss_rule() {
+        let mut p = policy(1_000, 1, 1);
+        p.coverage_limit = 100_000;
+        assert!(p.is_total_loss(ClaimKind::Theft, 1));
+        assert!(!p.is_total_loss(ClaimKind::Collision, 74_999));
+        assert!(p.is_total_loss(ClaimKind::Collision, 75_000));
+        assert!(p.is_total_loss(ClaimKind::NaturalEvent, 90_000));
+    }
+
+    #[test]
+    fn theft_only_covers_only_theft() {
+        assert!(CoverageTier::TheftOnly.covers(ClaimKind::Theft));
+        assert!(!CoverageTier::TheftOnly.covers(ClaimKind::NaturalEvent));
+        assert!(!CoverageTier::TheftOnly.covers(ClaimKind::Collision));
     }
 }

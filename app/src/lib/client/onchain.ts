@@ -108,7 +108,7 @@ export class OnChainClient implements AutoShieldClient {
     this.program = new Program<Autoshield>({ ...(idl as any), address: PROGRAM_ID }, provider);
     this.wallet = anchorWallet ? anchorWallet.publicKey.toBase58() : null;
     this.assessorIdentities = this.wallet ? [this.wallet] : [];
-    [this.poolPda] = PublicKey.findProgramAddressSync([Buffer.from("pool")], this.programId);
+    [this.poolPda] = PublicKey.findProgramAddressSync([Buffer.from("pool_v2")], this.programId);
     [this.vaultPda] = PublicKey.findProgramAddressSync(
       [Buffer.from("vault"), this.poolPda.toBuffer()],
       this.programId,
@@ -178,6 +178,7 @@ export class OnChainClient implements AutoShieldClient {
       pendingThreshold: p.pendingThreshold,
       pendingAssessorsEta: n(p.pendingAssessorsEta),
       pendingAuthority: p.pendingAuthority.equals(PublicKey.default) ? null : p.pendingAuthority.toBase58(),
+      oracle: p.oracle.toBase58(),
     };
   }
 
@@ -228,6 +229,11 @@ export class OnChainClient implements AutoShieldClient {
       installmentPeriod: n(p.installmentPeriod),
       protocolFeesPaid: n(p.protocolFeesPaid),
       inspectionFee: n(p.inspectionFee),
+      fipePct: p.fipePct,
+      deductibleOption: enumKey(p.deductibleOption),
+      fipeCode: p.fipeCode,
+      fipeUpdatedTs: n(p.fipeUpdatedTs),
+      pendingOwner: p.pendingOwner.equals(PublicKey.default) ? null : p.pendingOwner.toBase58(),
     };
   }
 
@@ -241,6 +247,7 @@ export class OnChainClient implements AutoShieldClient {
       kind: enumKey(c.kind),
       originalKind: enumKey(c.originalKind),
       reclassified: c.reclassified,
+      totalLoss: c.totalLoss,
       amountRequested: n(c.amountRequested),
       payoutAmount: n(c.payoutAmount),
       description: c.description,
@@ -373,6 +380,9 @@ export class OnChainClient implements AutoShieldClient {
         durationDays: input.durationDays,
         installments: input.installments,
         maxPremium: new BN(input.maxPremium),
+        fipePct: input.fipePct,
+        deductibleOption: enumVal(input.deductibleOption),
+        fipeCode: input.fipeCode.slice(0, 16),
       })
       .accountsPartial({
         owner: me,
@@ -449,6 +459,7 @@ export class OnChainClient implements AutoShieldClient {
         vault: this.vaultPda,
         policy: c.policy,
         claim,
+        vehicle: this.vehiclePda((await this.program.account.policy.fetch(c.policy)).plateHash),
         claimant: c.claimant,
       })
       .rpc();
@@ -483,6 +494,38 @@ export class OnChainClient implements AutoShieldClient {
 
   private admin() {
     return { authority: this.me(), pool: this.poolPda };
+  }
+
+  async cancelPolicy(policyAddr: string): Promise<string> {
+    const me = this.me();
+    const policy = new PublicKey(policyAddr);
+    const p = await this.program.account.policy.fetch(policy);
+    const mint = await this.mint();
+    return this.program.methods
+      .cancelPolicy()
+      .accountsPartial({
+        owner: me,
+        pool: this.poolPda,
+        stableMint: mint,
+        vault: this.vaultPda,
+        policy,
+        vehicle: this.vehiclePda(p.plateHash),
+      })
+      .rpc();
+  }
+
+  async proposeTransfer(policyAddr: string, newOwner: string | null): Promise<string> {
+    return this.program.methods
+      .proposeTransfer(newOwner ? new PublicKey(newOwner) : PublicKey.default)
+      .accountsPartial({ owner: this.me(), policy: new PublicKey(policyAddr) })
+      .rpc();
+  }
+
+  async acceptTransfer(policyAddr: string): Promise<string> {
+    return this.program.methods
+      .acceptTransfer()
+      .accountsPartial({ newOwner: this.me(), policy: new PublicKey(policyAddr) })
+      .rpc();
   }
 
   async payInstallment(policyAddr: string): Promise<string> {

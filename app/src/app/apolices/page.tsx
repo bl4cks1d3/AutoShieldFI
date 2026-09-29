@@ -1,16 +1,19 @@
 "use client";
 
-import { AlertTriangle, ClipboardCheck, Wallet, Coins, ExternalLink, FileWarning, Hourglass, ShieldCheck, ShieldOff, Undo2 } from "lucide-react";
+import { AlertTriangle, ArrowRightLeft, ClipboardCheck, Wallet, Coins, ExternalLink, FileWarning, Hourglass, ShieldCheck, ShieldOff, Undo2 } from "lucide-react";
 import Link from "next/link";
 import { useAction, useApp, useData } from "@/components/Providers";
 import { Chip, Empty, Loading, PageHeader, Progress, Row, Spinner, WalletGate } from "@/components/ui";
 import { explorerAddr } from "@/lib/config";
+import { shortAddr } from "@/lib/format";
 import { fmtDate, fmtDuration, fmtMoney } from "@/lib/format";
 import { tierLabel, useI18n } from "@/lib/i18n";
 import { displayPlate, policyPhase } from "@/lib/plate";
 import { policyStatus } from "@/lib/policyStatus";
-import { installmentAmount, paidUntil } from "@/lib/pricing";
-import type { PolicyInfo } from "@/lib/types";
+import { cancellationRefund, installmentAmount, paidUntil } from "@/lib/pricing";
+import { PublicKey } from "@solana/web3.js";
+import { useState } from "react";
+import type { PolicyInfo, PoolParams } from "@/lib/types";
 
 export default function ApolicesPage() {
   const { t } = useI18n();
@@ -36,35 +39,92 @@ function PolicyList() {
   const { client } = useApp();
   const { t } = useI18n();
   const { data, loading } = useData(
-    async (c) => ({
-      policies: await c.getPolicies(c.wallet!),
-      now: await c.now(),
-      grace: (await c.getPool())?.params.installmentGraceSecs ?? 0,
-    }),
+    async (c) => {
+      const [policies, all, now, pool] = await Promise.all([c.getPolicies(c.wallet!), c.getPolicies(), c.now(), c.getPool()]);
+      return {
+        policies,
+        // Apolices que outra pessoa quer transferir para esta carteira (venda do veiculo).
+        incoming: all.filter((p) => p.pendingOwner === c.wallet && p.status === "active"),
+        now,
+        params: pool?.params ?? null,
+      };
+    },
     [client.wallet],
   );
 
   if (loading && !data) return <Loading />;
+  const incoming = data?.incoming.length ? <IncomingTransfers policies={data.incoming} /> : null;
   if (!data?.policies.length)
     return (
+      <>
+      {incoming}
       <Empty icon={<ShieldOff className="size-6" />} title={t("Você ainda não tem apólices", "You don't have any policies yet")}>
         <p>{t("Faça uma cotação e proteja seu veículo em poucos cliques.", "Get a quote and protect your vehicle in a few clicks.")}</p>
         <Link href="/cotar" className="btn btn-primary mt-4">
           {t("Fazer cotação", "Get a quote")}
         </Link>
       </Empty>
+      </>
     );
 
   return (
-    <div className="grid gap-4 md:grid-cols-2">
-      {data.policies.map((p) => (
-        <PolicyCard key={p.address} p={p} now={data.now} grace={data.grace} />
-      ))}
+    <div className="flex flex-col gap-4">
+      {incoming}
+      <div className="grid gap-4 md:grid-cols-2">
+        {data.policies.map((p) => (
+          <PolicyCard key={p.address} p={p} now={data.now} params={data.params} />
+        ))}
+      </div>
     </div>
   );
 }
 
-function PolicyCard({ p, now, grace }: { p: PolicyInfo; now: number; grace: number }) {
+/** Apolices oferecidas a esta carteira na venda de um veiculo. */
+function IncomingTransfers({ policies }: { policies: PolicyInfo[] }) {
+  const { client } = useApp();
+  const { run, busy } = useAction();
+  const { lang, t } = useI18n();
+  return (
+    <section className="card-hero p-5">
+      <h2 className="flex items-center gap-2 font-semibold">
+        <ArrowRightLeft className="size-5 text-[var(--accent)]" /> {t("Transferências para você", "Transfers to you")}
+      </h2>
+      <p className="mt-1 text-sm text-[var(--muted)]">
+        {t(
+          "O vendedor do veículo indicou sua carteira. Ao aceitar, a apólice (cobertura e cashback acumulado) passa a ser sua.",
+          "The vehicle seller named your wallet. By accepting, the policy (coverage and accrued cashback) becomes yours.",
+        )}
+      </p>
+      <div className="mt-3 flex flex-col gap-2">
+        {policies.map((p) => (
+          <div key={p.address} className="flex flex-wrap items-center gap-3 rounded-xl bg-white p-3">
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold">{p.model} · {p.year}</p>
+              <p className="text-xs text-[var(--muted)]">
+                {t("Apólice", "Policy")} #{p.id} · {tierLabel(p.tier, lang)} · {t("de", "from")} {shortAddr(p.owner)} ·{" "}
+                {t("até", "until")} {fmtDate(p.endTs)}
+              </p>
+            </div>
+            <button
+              className="btn btn-primary"
+              disabled={!!busy}
+              onClick={() =>
+                run(`accept-${p.address}`, () => client.acceptTransfer(p.address), t("Apólice transferida para você", "Policy transferred to you"))
+              }
+            >
+              {busy === `accept-${p.address}` && <Spinner />} {t("Aceitar", "Accept")}
+            </button>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function PolicyCard({ p, now, params }: { p: PolicyInfo; now: number; params: PoolParams | null }) {
+  const grace = params?.installmentGraceSecs ?? 0;
+  const [panel, setPanel] = useState<"none" | "cancel" | "transfer">("none");
+  const [buyer, setBuyer] = useState("");
   const { client } = useApp();
   const { run, busy } = useAction();
   const { lang, t } = useI18n();
@@ -79,6 +139,14 @@ function PolicyCard({ p, now, grace }: { p: PolicyInfo; now: number; grace: numb
   const canSettle = active && !p.hasOpenClaim && (expired || phase === "lapsed");
   const cashbackOnSettle = expired && fullyPaid && !p.hadPaidClaim && p.inspected && p.cashbackAmount > 0;
 
+  const refund = params ? cancellationRefund(p, now, params) : null;
+  const buyerOk = (() => {
+    try {
+      return buyer.length > 30 && buyer !== p.owner && !!new PublicKey(buyer);
+    } catch {
+      return false;
+    }
+  })();
   const st = policyStatus(p, now, grace);
   const status = { label: lang === "en" ? st.en : st.pt, tone: st.tone };
 
@@ -202,7 +270,7 @@ function PolicyCard({ p, now, grace }: { p: PolicyInfo; now: number; grace: numb
           )}
         </p>
       )}
-      {phase === "cancelled" && (
+      {p.status === "cancelled" && (
         <p className="mt-3 flex items-start gap-1.5 text-xs text-[var(--muted)]">
           <Undo2 className="mt-0.5 size-3.5 shrink-0" />{" "}
           {t(
@@ -210,6 +278,98 @@ function PolicyCard({ p, now, grace }: { p: PolicyInfo; now: number; grace: numb
             `Inspection rejected: ${fmtMoney(p.premiumPaid)} refunded and the plate is free for a new policy.`,
           )}
         </p>
+      )}
+      {p.status === "cancelledByOwner" && (
+        <p className="mt-3 flex items-start gap-1.5 text-xs text-[var(--muted)]">
+          <Undo2 className="mt-0.5 size-3.5 shrink-0" />{" "}
+          {t("Cancelada por você. A placa está livre para uma nova contratação.", "Cancelled by you. The plate is free for a new policy.")}
+        </p>
+      )}
+      {active && p.pendingOwner && (
+        <p className="mt-3 flex items-start gap-1.5 text-xs text-[var(--info)]">
+          <ArrowRightLeft className="mt-0.5 size-3.5 shrink-0" />{" "}
+          {t(
+            `Transferência proposta para ${shortAddr(p.pendingOwner)}. Aguardando o comprador aceitar.`,
+            `Transfer proposed to ${shortAddr(p.pendingOwner)}. Waiting for the buyer to accept.`,
+          )}{" "}
+          <button
+            className="font-semibold underline"
+            disabled={!!busy}
+            onClick={() => run(`tr-${p.address}`, () => client.proposeTransfer(p.address, null), t("Transferência desfeita", "Transfer withdrawn"))}
+          >
+            {t("Desfazer", "Undo")}
+          </button>
+        </p>
+      )}
+
+      {panel === "cancel" && refund && (
+        <div className="mt-4 rounded-xl bg-[var(--bg-soft)] p-3 text-sm">
+          <p className="font-semibold">
+            {refund.coolingOff
+              ? t("Direito de arrependimento (7 dias)", "Right of withdrawal (7 days)")
+              : t("Cancelar apólice", "Cancel policy")}
+          </p>
+          <p className="mt-1 text-xs text-[var(--muted)]">
+            {refund.coolingOff
+              ? t(
+                  `Até ${fmtDate(refund.coolingOffEnd)} você recebe de volta tudo o que pagou, inclusive a taxa de vistoria (CDC, art. 49).`,
+                  `Until ${fmtDate(refund.coolingOffEnd)} you get back everything you paid, including the inspection fee (Brazilian Consumer Code, art. 49).`,
+                )
+              : p.hadPaidClaim
+                ? t("Esta apólice já teve sinistro indenizado: não há devolução.", "This policy already had a paid claim: there is no refund.")
+                : t(
+                    "Você recebe o prêmio pago e ainda não usado, proporcional ao tempo restante, sem a taxa do protocolo. O cashback acumulado é perdido.",
+                    "You get back the premium paid and not yet used, pro rata to the remaining time, minus the protocol fee. Accrued cashback is forfeited.",
+                  )}
+          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <span className="num font-semibold">
+              {t("Devolução", "Refund")}: {fmtMoney(refund.refund)}
+            </span>
+            <button
+              className="btn btn-danger ml-auto"
+              disabled={!!busy}
+              onClick={() =>
+                run(`cancel-${p.address}`, () => client.cancelPolicy(p.address), t("Apólice cancelada", "Policy cancelled")).then(
+                  (sig) => sig && setPanel("none"),
+                )
+              }
+            >
+              {busy === `cancel-${p.address}` && <Spinner />} {t("Confirmar cancelamento", "Confirm cancellation")}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {panel === "transfer" && (
+        <div className="mt-4 rounded-xl bg-[var(--bg-soft)] p-3 text-sm">
+          <p className="font-semibold">{t("Transferir na venda do veículo", "Transfer on vehicle sale")}</p>
+          <p className="mt-1 text-xs text-[var(--muted)]">
+            {t(
+              "Informe a carteira do comprador. A transferência só vale quando ele aceitar pelo app.",
+              "Enter the buyer's wallet. The transfer only takes effect once they accept in the app.",
+            )}
+          </p>
+          <div className="mt-2 flex gap-2">
+            <input
+              className="input flex-1 font-mono text-sm"
+              placeholder={t("Carteira do comprador", "Buyer's wallet")}
+              value={buyer}
+              onChange={(e) => setBuyer(e.target.value.trim())}
+            />
+            <button
+              className="btn btn-primary"
+              disabled={!!busy || !buyerOk}
+              onClick={() =>
+                run(`tr-${p.address}`, () => client.proposeTransfer(p.address, buyer), t("Transferência proposta", "Transfer proposed")).then(
+                  (sig) => sig && (setPanel("none"), setBuyer("")),
+                )
+              }
+            >
+              {busy === `tr-${p.address}` && <Spinner />} {t("Propor", "Propose")}
+            </button>
+          </div>
+        </div>
       )}
 
       {p.hadPaidClaim && active && (
@@ -257,7 +417,18 @@ function PolicyCard({ p, now, grace }: { p: PolicyInfo; now: number; grace: numb
               : t("Encerrar apólice", "Close policy")}
           </button>
         )}
-        {(p.status === "settled" || p.status === "cancelled") && !p.hasOpenClaim && (
+        {active && !p.hasOpenClaim && (
+          <button className="btn btn-ghost" onClick={() => setPanel(panel === "cancel" ? "none" : "cancel")}>
+            <Undo2 className="size-4" />
+            {refund?.coolingOff ? t("Arrependimento", "Withdraw") : t("Cancelar", "Cancel")}
+          </button>
+        )}
+        {active && !p.hasOpenClaim && !p.pendingOwner && client.mode === "chain" && (
+          <button className="btn btn-ghost" onClick={() => setPanel(panel === "transfer" ? "none" : "transfer")}>
+            <ArrowRightLeft className="size-4" /> {t("Transferir", "Transfer")}
+          </button>
+        )}
+        {p.status !== "active" && !p.hasOpenClaim && (
           <button
             className="btn btn-ghost"
             disabled={!!busy}

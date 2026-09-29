@@ -167,7 +167,8 @@ function ClaimForm({ policies }: { policies: PolicyInfo[] }) {
 
   const amountBase = toBase(amount);
   const remaining = policy ? policy.coverageLimit - policy.totalPaidOut : 0;
-  const payout = policy ? expectedPayout(kind, amountBase, policy.deductible, remaining) : 0;
+  const est = policy ? expectedPayout(kind, amountBase, policy.deductible, remaining, policy.coverageLimit) : null;
+  const payout = est?.payout ?? 0;
   const valid = policy && amountBase > 0 && amountBase <= remaining && description.trim().length >= 10;
 
   /** Envia os arquivos ao IPFS (se configurado) e monta a URI gravada on-chain. */
@@ -323,13 +324,22 @@ function ClaimForm({ policies }: { policies: PolicyInfo[] }) {
             <Row label={t("Valor solicitado", "Amount requested")} value={fmtMoney(amountBase)} />
             <Row
               label={t("Franquia", "Deductible")}
-              value={
-                kind === "theft" || kind === "naturalEvent"
-                  ? t("isento (perda total)", "waived (total loss)")
-                  : `− ${fmtMoney(policy.deductible)}`
-              }
+              value={est?.totalLoss ? t("isento (perda total)", "waived (total loss)") : `− ${fmtMoney(policy.deductible)}`}
             />
             <Row label={t("Indenização estimada", "Estimated payout")} value={fmtMoney(payout)} strong />
+            {est?.totalLoss && (
+              <p className="mt-1 text-xs text-[var(--muted)]">
+                {kind === "theft"
+                  ? t(
+                      "Roubo e furto são indenizados como perda total: o valor coberto pela FIPE vigente, sem franquia. A apólice é encerrada após o pagamento.",
+                      "Theft is paid as a total loss: the covered amount at the current FIPE value, with no deductible. The policy ends after the payout.",
+                    )
+                  : t(
+                      "Dano a partir de 75% do valor coberto é perda total: indenização integral pela FIPE vigente, sem franquia. A apólice é encerrada após o pagamento.",
+                      "Damage of 75% or more of the covered amount is a total loss: full payout at the current FIPE value, with no deductible. The policy ends after the payout.",
+                    )}
+              </p>
+            )}
           </div>
         )}
 

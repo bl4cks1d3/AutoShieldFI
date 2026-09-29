@@ -67,6 +67,10 @@ pub mod autoshield {
         instructions::admin::set_paused(ctx, paused)
     }
 
+    pub fn set_oracle(ctx: Context<AdminAction>, oracle: Pubkey) -> Result<()> {
+        instructions::admin::set_oracle(ctx, oracle)
+    }
+
     pub fn propose_authority(ctx: Context<AdminAction>, new_authority: Pubkey) -> Result<()> {
         instructions::admin::propose_authority(ctx, new_authority)
     }
@@ -127,6 +131,26 @@ pub mod autoshield {
 
     pub fn settle_policy(ctx: Context<SettlePolicy>) -> Result<()> {
         instructions::policy::settle_policy(ctx)
+    }
+
+    /// Arrependimento (7 dias, devolucao integral) ou cancelamento proporcional.
+    pub fn cancel_policy(ctx: Context<CancelPolicy>) -> Result<()> {
+        instructions::policy::cancel_policy(ctx)
+    }
+
+    /// Venda do veiculo: o titular indica o comprador...
+    pub fn propose_transfer(ctx: Context<ProposeTransfer>, new_owner: Pubkey) -> Result<()> {
+        instructions::policy::propose_transfer(ctx, new_owner)
+    }
+
+    /// ...e o comprador aceita.
+    pub fn accept_transfer(ctx: Context<AcceptTransfer>) -> Result<()> {
+        instructions::policy::accept_transfer(ctx)
+    }
+
+    /// Oraculo atualiza o valor FIPE (cobertura acompanha a tabela mes a mes).
+    pub fn update_policy_fipe(ctx: Context<UpdatePolicyFipe>, vehicle_value: u64) -> Result<()> {
+        instructions::policy::update_policy_fipe(ctx, vehicle_value)
     }
 
     // ---------- sinistros ----------

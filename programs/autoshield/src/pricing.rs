@@ -1,5 +1,5 @@
 use crate::constants::*;
-use crate::state::{CoverageTier, PoolParams};
+use crate::state::{CoverageTier, DeductibleOption, PoolParams};
 
 pub struct Quote {
     pub premium: u64,
@@ -8,29 +8,37 @@ pub struct Quote {
     pub cashback: u64,
 }
 
+/// Valor coberto: percentual escolhido da FIPE (90, 100 ou 110%).
+pub fn coverage_for(vehicle_value: u64, fipe_pct: u8) -> Option<u64> {
+    u64::try_from((vehicle_value as u128).checked_mul(fipe_pct as u128)? / 100).ok()
+}
+
+/// Franquia de danos parciais sobre o valor coberto.
+pub fn deductible_for(coverage: u64, option: DeductibleOption) -> Option<u64> {
+    u64::try_from((coverage as u128).checked_mul(option.bps() as u128)? / BPS_DENOMINATOR as u128).ok()
+}
+
 /// Calcula o premio de uma apolice.
 ///
-/// premio = valor_fipe * taxa_base * multiplicador_plano * dias / 365
+/// cobertura = valor_fipe * %FIPE
+/// premio    = cobertura * taxa_base * mult_plano * ajuste_franquia * dias / 365
 /// A mesma formula e replicada no frontend (app/src/lib/pricing.ts).
 pub fn quote(
     params: &PoolParams,
     vehicle_value: u64,
     tier: CoverageTier,
     duration_days: u16,
+    fipe_pct: u8,
+    deductible: DeductibleOption,
 ) -> Option<Quote> {
-    let value = vehicle_value as u128;
-    let premium = value
+    let coverage = coverage_for(vehicle_value, fipe_pct)?;
+    let premium = (coverage as u128)
         .checked_mul(params.base_rate_bps as u128)?
         .checked_mul(tier.multiplier_pct() as u128)?
+        .checked_mul(deductible.price_pct() as u128)?
         .checked_mul(duration_days as u128)?
-        .checked_div(BPS_DENOMINATOR as u128 * 100 * DAYS_PER_YEAR as u128)?;
+        .checked_div(BPS_DENOMINATOR as u128 * 100 * 100 * DAYS_PER_YEAR as u128)?;
     let premium = u64::try_from(premium).ok()?;
-    let deductible = u64::try_from(
-        value
-            .checked_mul(DEDUCTIBLE_BPS as u128)?
-            .checked_div(BPS_DENOMINATOR as u128)?,
-    )
-    .ok()?;
     let cashback = u64::try_from(
         (premium as u128)
             .checked_mul(params.cashback_bps as u128)?
@@ -39,8 +47,8 @@ pub fn quote(
     .ok()?;
     Some(Quote {
         premium,
-        coverage_limit: vehicle_value,
-        deductible,
+        coverage_limit: coverage,
+        deductible: deductible_for(coverage, deductible)?,
         cashback,
     })
 }
@@ -74,7 +82,7 @@ mod tests {
     #[test]
     fn standard_one_year() {
         // R$ 50.000 FIPE, plano padrao, 365 dias => 3,5% = R$ 1.750
-        let q = quote(&params(), 50_000_000_000, CoverageTier::Standard, 365).unwrap();
+        let q = quote(&params(), 50_000_000_000, CoverageTier::Standard, 365, 100, DeductibleOption::Normal).unwrap();
         assert_eq!(q.premium, 1_750_000_000);
         assert_eq!(q.deductible, 2_500_000_000);
         assert_eq!(q.cashback, 350_000_000);
@@ -83,8 +91,8 @@ mod tests {
 
     #[test]
     fn basic_is_cheaper_than_premium() {
-        let b = quote(&params(), 50_000_000_000, CoverageTier::Basic, 180).unwrap();
-        let p = quote(&params(), 50_000_000_000, CoverageTier::Premium, 180).unwrap();
+        let b = quote(&params(), 50_000_000_000, CoverageTier::Basic, 180, 100, DeductibleOption::Normal).unwrap();
+        let p = quote(&params(), 50_000_000_000, CoverageTier::Premium, 180, 100, DeductibleOption::Normal).unwrap();
         assert!(b.premium < p.premium);
     }
 
@@ -96,5 +104,21 @@ mod tests {
         assert!(CoverageTier::Standard.covers(Collision));
         assert!(!CoverageTier::Standard.covers(ThirdParty));
         assert!(CoverageTier::Premium.covers(ThirdParty));
+    }
+
+    #[test]
+    fn fipe_pct_and_deductible_change_price() {
+        let v = 50_000_000_000;
+        let base = quote(&params(), v, CoverageTier::Standard, 365, 100, DeductibleOption::Normal).unwrap();
+        let p110 = quote(&params(), v, CoverageTier::Standard, 365, 110, DeductibleOption::Normal).unwrap();
+        assert_eq!(p110.coverage_limit, 55_000_000_000);
+        assert_eq!(p110.premium, 1_925_000_000);
+        let reduced = quote(&params(), v, CoverageTier::Standard, 365, 100, DeductibleOption::Reduced).unwrap();
+        let increased = quote(&params(), v, CoverageTier::Standard, 365, 100, DeductibleOption::Increased).unwrap();
+        assert!(reduced.premium > base.premium && increased.premium < base.premium);
+        assert_eq!(reduced.deductible, 1_250_000_000);
+        assert_eq!(increased.deductible, 5_000_000_000);
+        let theft = quote(&params(), v, CoverageTier::TheftOnly, 365, 100, DeductibleOption::Normal).unwrap();
+        assert_eq!(theft.premium, 612_500_000);
     }
 }

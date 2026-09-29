@@ -5,7 +5,7 @@ use anchor_spl::token::{self, Mint, Token, TokenAccount, TransferChecked};
 use crate::constants::*;
 use crate::errors::AutoShieldError;
 use crate::events::{AssessorPaid, ClaimFiled, ClaimPaid, ClaimVoted};
-use crate::state::{Claim, ClaimKind, ClaimStatus, Policy, PolicyStatus, Pool, ACCOUNT_VERSION};
+use crate::state::{Claim, ClaimKind, ClaimStatus, Policy, PolicyStatus, Pool, VehicleRecord, ACCOUNT_VERSION};
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct FileClaimArgs {
@@ -28,7 +28,7 @@ pub struct FileClaim<'info> {
         has_one = pool,
         has_one = owner @ AutoShieldError::Unauthorized
     )]
-    pub policy: Account<'info, Policy>,
+    pub policy: Box<Account<'info, Policy>>,
 
     #[account(
         init,
@@ -37,7 +37,7 @@ pub struct FileClaim<'info> {
         seeds = [CLAIM_SEED, policy.key().as_ref(), &[policy.claims_filed]],
         bump
     )]
-    pub claim: Account<'info, Claim>,
+    pub claim: Box<Account<'info, Claim>>,
 
     pub system_program: Program<'info, System>,
 }
@@ -107,6 +107,7 @@ pub fn file_claim(ctx: Context<FileClaim>, args: FileClaimArgs) -> Result<()> {
     claim.kind = args.kind;
     claim.original_kind = args.kind;
     claim.reclassified = false;
+    claim.total_loss = false;
     claim.amount_requested = args.amount;
     claim.payout_amount = 0;
     claim.description = args.description;
@@ -144,10 +145,10 @@ pub struct VoteClaim<'info> {
     pub vault: Account<'info, TokenAccount>,
 
     #[account(mut, has_one = pool, address = claim.policy)]
-    pub policy: Account<'info, Policy>,
+    pub policy: Box<Account<'info, Policy>>,
 
     #[account(mut, has_one = pool, has_one = policy)]
-    pub claim: Account<'info, Claim>,
+    pub claim: Box<Account<'info, Claim>>,
 
     /// Recebe a remuneracao pelo voto (paga da tesouraria do protocolo).
     #[account(
@@ -277,10 +278,10 @@ pub struct ExpireClaim<'info> {
     pub pool: Account<'info, Pool>,
 
     #[account(mut, has_one = pool, address = claim.policy)]
-    pub policy: Account<'info, Policy>,
+    pub policy: Box<Account<'info, Policy>>,
 
     #[account(mut, has_one = pool, has_one = policy)]
-    pub claim: Account<'info, Claim>,
+    pub claim: Box<Account<'info, Claim>>,
 }
 
 pub fn expire_claim(ctx: Context<ExpireClaim>) -> Result<()> {
@@ -315,10 +316,14 @@ pub struct PayClaim<'info> {
     pub vault: Account<'info, TokenAccount>,
 
     #[account(mut, has_one = pool, address = claim.policy)]
-    pub policy: Account<'info, Policy>,
+    pub policy: Box<Account<'info, Policy>>,
 
     #[account(mut, has_one = pool, has_one = policy, has_one = claimant)]
-    pub claim: Account<'info, Claim>,
+    pub claim: Box<Account<'info, Claim>>,
+
+    /// Registro do veiculo: liberado quando a perda total encerra a apolice.
+    #[account(mut, seeds = [VEHICLE_SEED, policy.plate_hash.as_ref()], bump = vehicle.bump)]
+    pub vehicle: Account<'info, VehicleRecord>,
 
     /// CHECK: validado via has_one no sinistro.
     pub claimant: UncheckedAccount<'info>,
@@ -345,16 +350,18 @@ pub fn pay_claim(ctx: Context<PayClaim>) -> Result<()> {
         AutoShieldError::ClaimNotApproved
     );
 
-    // Roubo/furto e eventos da natureza (perda total) sao indenizados
-    // integralmente; danos parciais descontam a franquia.
-    let deductible = match claim.kind {
-        ClaimKind::Theft | ClaimKind::NaturalEvent => 0,
-        _ => policy.deductible,
+    // Perda total (roubo/furto ou dano a partir de 75% do valor coberto): paga a
+    // cobertura restante, que acompanha a FIPE vigente (atualizada pelo oraculo),
+    // sem franquia, e encerra a apolice. Danos parciais descontam a franquia.
+    let total_loss = policy.is_total_loss(claim.kind, claim.amount_requested);
+    let payout = if total_loss {
+        policy.remaining_coverage()
+    } else {
+        claim
+            .amount_requested
+            .saturating_sub(policy.deductible)
+            .min(policy.remaining_coverage())
     };
-    let payout = claim
-        .amount_requested
-        .saturating_sub(deductible)
-        .min(policy.remaining_coverage());
     // Paga somente com o patrimonio dos LPs: nunca com cashback reservado,
     // taxas de vistoria ou receita do protocolo. Sem liquidez, a transacao
     // falha e o sinistro continua Aprovado ate haver saldo (sem pagar pela metade).
@@ -410,9 +417,24 @@ pub fn pay_claim(ctx: Context<PayClaim>) -> Result<()> {
     if payout > 0 {
         policy.had_paid_claim = true;
     }
+    if total_loss {
+        // Veiculo indenizado integralmente: a apolice termina e a placa fica livre.
+        let leftover = policy.remaining_coverage();
+        let policy_key = policy.key();
+        policy.status = PolicyStatus::Settled;
+        policy.pending_owner = Pubkey::default();
+        let pool = &mut ctx.accounts.pool;
+        pool.total_active_coverage = pool.total_active_coverage.saturating_sub(leftover);
+        pool.active_policies = pool.active_policies.saturating_sub(1);
+        let vehicle = &mut ctx.accounts.vehicle;
+        if vehicle.active_policy == policy_key {
+            vehicle.active_policy = Pubkey::default();
+        }
+    }
 
     let claim = &mut ctx.accounts.claim;
     claim.status = ClaimStatus::Paid;
+    claim.total_loss = total_loss;
     claim.payout_amount = payout;
     claim.resolved_ts = now;
 
@@ -436,7 +458,7 @@ pub struct CloseClaim<'info> {
         constraint = matches!(claim.status, ClaimStatus::Paid | ClaimStatus::Rejected)
             @ AutoShieldError::AccountNotClosable
     )]
-    pub claim: Account<'info, Claim>,
+    pub claim: Box<Account<'info, Claim>>,
 
     /// CHECK: recebe o aluguel; validado via has_one.
     #[account(mut)]

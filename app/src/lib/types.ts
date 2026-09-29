@@ -1,10 +1,12 @@
 // Tipos normalizados usados pela interface. Valores monetarios sao sempre
 // inteiros em unidades base do token (6 casas decimais).
 
-export type Tier = "basic" | "standard" | "premium";
+export type Tier = "basic" | "standard" | "premium" | "theftOnly";
+export type DeductibleOption = "reduced" | "normal" | "increased";
 export type ClaimKind = "theft" | "collision" | "thirdParty" | "naturalEvent" | "other";
 export type ClaimStatus = "pending" | "approved" | "rejected" | "paid";
-export type PolicyStatus = "active" | "settled" | "cancelled";
+/** cancelled = recusada na vistoria; cancelledByOwner = arrependimento ou cancelamento pelo titular. */
+export type PolicyStatus = "active" | "settled" | "cancelled" | "cancelledByOwner";
 
 export interface PoolParams {
   baseRateBps: number;
@@ -58,6 +60,8 @@ export interface PoolInfo {
   pendingThreshold: number;
   pendingAssessorsEta: number;
   pendingAuthority: string | null;
+  /** Carteira do servico que atualiza o valor FIPE das apolices. */
+  oracle: string;
 }
 
 export interface PolicyInfo {
@@ -99,6 +103,14 @@ export interface PolicyInfo {
   installmentPeriod: number;
   protocolFeesPaid: number;
   inspectionFee: number;
+  /** Percentual da FIPE contratado (90, 100 ou 110). */
+  fipePct: number;
+  deductibleOption: DeductibleOption;
+  /** Codigo FIPE + ano ("005340-6|2014-3"), usado pelo oraculo; vazio se manual. */
+  fipeCode: string;
+  fipeUpdatedTs: number;
+  /** Comprador indicado na venda do veiculo, aguardando aceite. */
+  pendingOwner: string | null;
 }
 
 export interface ClaimInfo {
@@ -110,6 +122,8 @@ export interface ClaimInfo {
   kind: ClaimKind;
   originalKind: ClaimKind;
   reclassified: boolean;
+  /** Indenizado como perda total (cobertura integral, sem franquia). */
+  totalLoss: boolean;
   amountRequested: number;
   payoutAmount: number;
   description: string;
@@ -141,6 +155,9 @@ export interface PurchaseInput {
   durationDays: number;
   installments: number;
   maxPremium: number;
+  fipePct: number;
+  deductibleOption: DeductibleOption;
+  fipeCode: string;
 }
 
 export interface ClaimInput {
@@ -180,6 +197,12 @@ export interface AutoShieldClient {
   settle(policy: string): Promise<string>;
 
   payInstallment(policy: string): Promise<string>;
+  /** Arrependimento (7 dias, devolucao integral) ou cancelamento proporcional. */
+  cancelPolicy(policy: string): Promise<string>;
+  /** Venda do veiculo: o titular indica o comprador (null cancela)... */
+  proposeTransfer(policy: string, newOwner: string | null): Promise<string>;
+  /** ...e o comprador aceita. */
+  acceptTransfer(policy: string): Promise<string>;
 
   // Governanca: mudancas passam por timelock (propor -> aguardar -> aplicar).
   proposeParams(params: PoolParams): Promise<string>;

@@ -75,7 +75,7 @@ interface PhaseInput {
 
 /** Fase da apolice do ponto de vista do motorista. */
 export function policyPhase(p: PhaseInput, now: number, graceSecs = 0): PolicyPhase {
-  if (p.status === "cancelled") return "cancelled";
+  if (p.status === "cancelled" || p.status === "cancelledByOwner") return "cancelled";
   if (p.status === "settled") return "settled";
   if (now > p.endTs) return "expired";
   const paid = paidUntil(p);

@@ -157,9 +157,16 @@ function ReviewCard({
   const ownClaim = c.claimant === identity;
   const [kind, setKind] = useState<ClaimKind>(c.kind);
   const open = c.status === "pending" && now <= c.votingDeadline;
-  const payout = policy
-    ? expectedPayout(open ? kind : c.kind, c.amountRequested, policy.deductible, policy.coverageLimit - policy.totalPaidOut)
-    : 0;
+  const est = policy
+    ? expectedPayout(
+        open ? kind : c.kind,
+        c.amountRequested,
+        policy.deductible,
+        policy.coverageLimit - policy.totalPaidOut,
+        policy.coverageLimit,
+      )
+    : null;
+  const payout = est?.payout ?? 0;
 
   const vote = (approve: boolean) =>
     run(
@@ -195,7 +202,15 @@ function ReviewCard({
             <Row label={t("Cobertura restante", "Remaining coverage")} value={fmtMoney(policy.coverageLimit - policy.totalPaidOut)} />
           </>
         )}
-        <Row label={t("Indenização se aprovado", "Payout if approved")} value={fmtMoney(payout)} strong />
+        <Row
+          label={
+            est?.totalLoss
+              ? t("Indenização se aprovado (perda total)", "Payout if approved (total loss)")
+              : t("Indenização se aprovado", "Payout if approved")
+          }
+          value={fmtMoney(payout)}
+          strong
+        />
         <Row label={t("Solicitante", "Claimant")} value={shortAddr(c.claimant)} />
         <Row label={t("Evidências", "Evidence")} value={<EvidenceLink uri={c.evidenceUri} />} />
         <Row

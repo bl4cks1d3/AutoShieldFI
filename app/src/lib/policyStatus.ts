@@ -4,6 +4,7 @@ import type { PolicyInfo } from "./types";
 
 /** Rotulo e cor do estado atual de uma apolice, do ponto de vista do motorista. */
 export function policyStatus(p: PolicyInfo, now: number, grace: number): { pt: string; en: string; tone: Tone } {
+  if (p.status === "cancelledByOwner") return { pt: "Cancelada pelo titular", en: "Cancelled by owner", tone: "neutral" };
   const phase = policyPhase(p, now, grace);
   if (phase === "cancelled") return { pt: "Recusada na vistoria", en: "Rejected at inspection", tone: "bad" };
   if (phase === "settled") return { pt: "Encerrada", en: "Closed", tone: "neutral" };

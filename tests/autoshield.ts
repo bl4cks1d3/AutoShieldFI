@@ -33,7 +33,8 @@ const PARAMS = {
   faucetEnabled: true,
 };
 
-type Tier = { basic: {} } | { standard: {} } | { premium: {} };
+type Tier = { basic: {} } | { standard: {} } | { premium: {} } | { theftOnly: {} };
+type Deductible = { reduced: {} } | { normal: {} } | { increased: {} };
 
 function quotePremium(value: BN, tierMult: number, days: number): BN {
   return value
@@ -65,7 +66,7 @@ describe("autoshield", () => {
   const pid = program.programId;
   const conn = provider.connection;
 
-  const [poolPda] = PublicKey.findProgramAddressSync([Buffer.from("pool")], pid);
+  const [poolPda] = PublicKey.findProgramAddressSync([Buffer.from("pool_v2")], pid);
   const [vaultPda] = PublicKey.findProgramAddressSync([Buffer.from("vault"), poolPda.toBuffer()], pid);
   const [mintPda] = PublicKey.findProgramAddressSync([Buffer.from("test_mint")], pid);
   const [programData] = PublicKey.findProgramAddressSync([pid.toBuffer()], UPGRADEABLE_LOADER);
@@ -81,6 +82,10 @@ describe("autoshield", () => {
   const assessors = [Keypair.generate(), Keypair.generate(), Keypair.generate()];
   const outsider = Keypair.generate();
   const newAdmin = Keypair.generate();
+  const driver6 = Keypair.generate();
+  const driver7 = Keypair.generate();
+  const buyer = Keypair.generate();
+  const oracle = Keypair.generate();
 
   const ata = (owner: PublicKey) => getAssociatedTokenAddressSync(mintPda, owner);
   const balance = async (owner: PublicKey) => {
@@ -109,7 +114,8 @@ describe("autoshield", () => {
 
   async function airdrop(pk: PublicKey) {
     const sig = await conn.requestAirdrop(pk, 5 * LAMPORTS_PER_SOL);
-    await conn.confirmTransaction(sig, "confirmed");
+    const bh = await conn.getLatestBlockhash();
+    await conn.confirmTransaction({ signature: sig, ...bh }, "confirmed");
   }
 
   async function clusterNow() {
@@ -130,6 +136,8 @@ describe("autoshield", () => {
     days: number,
     plate: string,
     installments = 1,
+    fipePct = 100,
+    deductibleOption: Deductible = { normal: {} },
   ) {
     const n = new BN(nonce);
     const policy = policyPda(driver.publicKey, n);
@@ -144,6 +152,9 @@ describe("autoshield", () => {
         durationDays: days,
         installments,
         maxPremium: value,
+        fipePct,
+        deductibleOption: deductibleOption as any,
+        fipeCode: "005340-6|2014",
       })
       .accountsPartial({
         owner: driver.publicKey,
@@ -194,11 +205,37 @@ describe("autoshield", () => {
       .signers([assessor])
       .rpc();
 
-  const payClaim = (payer: Keypair, policy: PublicKey, claim: PublicKey, claimant: PublicKey) =>
+  const payClaim = async (payer: Keypair, policy: PublicKey, claim: PublicKey, claimant: PublicKey) =>
     program.methods
       .payClaim()
-      .accountsPartial({ payer: payer.publicKey, ...tokenAccts, policy, claim, claimant })
+      .accountsPartial({
+        payer: payer.publicKey,
+        ...tokenAccts,
+        policy,
+        claim,
+        vehicle: vehiclePdaFromHash((await program.account.policy.fetch(policy)).plateHash),
+        claimant,
+      })
       .signers([payer])
+      .rpc();
+
+  const cancelPolicy = async (driver: Keypair, policy: PublicKey) =>
+    program.methods
+      .cancelPolicy()
+      .accountsPartial({
+        owner: driver.publicKey,
+        ...tokenAccts,
+        policy,
+        vehicle: vehiclePdaFromHash((await program.account.policy.fetch(policy)).plateHash),
+      })
+      .signers([driver])
+      .rpc();
+
+  const updateFipe = (signer: Keypair, policy: PublicKey, value: BN) =>
+    program.methods
+      .updatePolicyFipe(value)
+      .accountsPartial({ oracle: signer.publicKey, pool: poolPda, vault: vaultPda, policy })
+      .signers([signer])
       .rpc();
 
   async function settle(policy: PublicKey) {
@@ -263,11 +300,10 @@ describe("autoshield", () => {
   let monthly: PublicKey; // driver5, 12x em 360 dias (segue ativa ate o fim)
 
   before(async () => {
-    await Promise.all(
-      [lp, driver1, driver2, driver3, driver4, driver5, squatter, outsider, newAdmin, ...assessors].map((k) =>
-        airdrop(k.publicKey),
-      ),
-    );
+    // Em sequencia: o validador local no WSL nao confirma muitos airdrops em paralelo.
+    for (const k of [lp, driver1, driver2, driver3, driver4, driver5, driver6, driver7, buyer, oracle, squatter, outsider, newAdmin, ...assessors]) {
+      await airdrop(k.publicKey);
+    }
   });
 
   describe("inicializacao e liquidez", () => {
@@ -277,12 +313,13 @@ describe("autoshield", () => {
       await initPool(admin.publicKey);
       const p = await pool();
       expect(p.authority.toBase58()).to.eq(admin.publicKey.toBase58());
-      expect(p.version).to.eq(1);
+      expect(p.version).to.eq(2);
+      expect(p.oracle.toBase58()).to.eq(admin.publicKey.toBase58());
       expect(p.params.protocolFeeBps).to.eq(500);
     });
 
     it("faucet distribui tBRL e respeita o limite", async () => {
-      for (const k of [lp, driver1, driver2, driver3, driver4, driver5, squatter, assessors[2]]) {
+      for (const k of [lp, driver1, driver2, driver3, driver4, driver5, driver6, driver7, squatter, assessors[2]]) {
         await faucet(k, brl(150_000));
       }
       await expectError(faucet(outsider, brl(200_001)), "FaucetLimit");
@@ -343,6 +380,9 @@ describe("autoshield", () => {
             durationDays: 30,
             installments: 1,
             maxPremium: brl(10_000),
+            fipePct: 100,
+            deductibleOption: { normal: {} } as any,
+            fipeCode: "",
           })
           .accountsPartial({
             owner: driver2.publicKey,
@@ -461,7 +501,8 @@ describe("autoshield", () => {
       bigPolicy = await buy(driver4, 1, brl(500_000), { basic: {} }, 60, "BIG0A00");
       await inspectBy([assessors[0], assessors[1]], bigPolicy, true);
       await waitUntil((await program.account.policy.fetch(bigPolicy)).claimsAllowedFrom.toNumber());
-      const claim = await fileClaim(driver4, bigPolicy, 0, { theft: {} }, brl(400_000));
+      // evento da natureza com dano parcial (60% do valor): franquia de 5% = 25.000
+      const claim = await fileClaim(driver4, bigPolicy, 0, { naturalEvent: {} }, brl(300_000));
       await vote(assessors[0], bigPolicy, claim, true);
       await vote(assessors[1], bigPolicy, claim, true);
       const reservedBefore = (await pool()).reservedCashback;
@@ -473,7 +514,7 @@ describe("autoshield", () => {
       await deposit(lp, brl(400_000));
       const before = await balance(driver4.publicKey);
       await payClaim(driver4, bigPolicy, claim, driver4.publicKey);
-      expect((await balance(driver4.publicKey)).sub(before).eq(brl(400_000))).to.be.true;
+      expect((await balance(driver4.publicKey)).sub(before).eq(brl(275_000))).to.be.true;
       const p = await pool();
       expect(p.reservedCashback.lte(reservedBefore)).to.be.true;
       expect(p.pendingClaims.toNumber()).to.eq(0);
@@ -525,6 +566,114 @@ describe("autoshield", () => {
       // placa liberada para uma nova contratacao
       const vehicle = await program.account.vehicleRecord.fetch(vehiclePda("LAP5E00"));
       expect(vehicle.activePolicy.toBase58()).to.eq(PublicKey.default.toBase58());
+    });
+  });
+
+  describe("mercado brasileiro: planos, perda total, cancelamento, transferencia e FIPE", () => {
+    let totalLossPolicy: PublicKey;
+
+    it("plano roubo e furto, % da FIPE e franquia mudam preco e cobertura", async () => {
+      // Mantem a apolice parcelada em dia ate o bloco de encerramento (ela deve
+      // seguir vigente la); cada parcela cobre 30 s neste ambiente.
+      await payInstallment(driver5, monthly);
+      await expectError(
+        buy(driver6, 40, brl(40_000), { theftOnly: {} }, 60, "TFO0A00", 1, 95),
+        "InvalidFipePct",
+      );
+      const p110 = await buy(driver6, 41, brl(40_000), { theftOnly: {} }, 60, "TFO1A11", 1, 110, { reduced: {} });
+      const p = await program.account.policy.fetch(p110);
+      expect(p.coverageLimit.eq(brl(44_000))).to.be.true;
+      expect(p.deductible.eq(brl(1_100))).to.be.true; // 2,5% de 44.000
+      // cobertura * taxa * 35% (roubo) * 115% (franquia reduzida) * dias / 365
+      const expected = brl(44_000)
+        .muln(PARAMS.baseRateBps)
+        .muln(35)
+        .muln(115)
+        .muln(60)
+        .div(new BN(10_000 * 100 * 100 * 365));
+      expect(p.premiumTotal.eq(expected)).to.be.true;
+      expect(p.fipePct).to.eq(110);
+      expect(p.deductibleOption).to.have.property("reduced");
+      expect(p.tier).to.have.property("theftOnly");
+    });
+
+    it("arrependimento em 7 dias devolve tudo, inclusive a taxa de vistoria", async () => {
+      const before = await balance(driver7.publicKey);
+      const coverageBefore = (await pool()).totalActiveCoverage;
+      const policy = await buy(driver7, 1, brl(30_000), { standard: {} }, 60, "ARR7E00");
+      await cancelPolicy(driver7, policy);
+      expect((await balance(driver7.publicKey)).eq(before)).to.be.true;
+      const p = await program.account.policy.fetch(policy);
+      expect(p.status).to.have.property("cancelledByOwner");
+      expect((await pool()).totalActiveCoverage.eq(coverageBefore)).to.be.true;
+      await expectError(cancelPolicy(driver7, policy), "PolicyNotActive");
+    });
+
+    it("cancelamento depois de 7 dias devolve o premio nao usado, sem a taxa do protocolo", async () => {
+      const policy = await buy(driver7, 2, brl(30_000), { standard: {} }, 60, "CAN7E01");
+      const p = await program.account.policy.fetch(policy);
+      await waitUntil(p.startTs.toNumber() + 8 * PARAMS.secondsPerDay.toNumber());
+      const before = await balance(driver7.publicKey);
+      await cancelPolicy(driver7, policy);
+      const refund = (await balance(driver7.publicKey)).sub(before);
+      expect(refund.gtn(0)).to.be.true;
+      // nunca mais que o premio pago menos a taxa do protocolo; parte ja foi usada
+      expect(refund.lt(bps(p.premiumPaid, 9_500))).to.be.true;
+      expect((await program.account.vehicleRecord.fetch(vehiclePda("CAN7E01"))).activePolicy.toBase58()).to.eq(
+        PublicKey.default.toBase58(),
+      );
+    });
+
+    it("oraculo atualiza a FIPE com limite de 20% por vez", async () => {
+      totalLossPolicy = await buy(driver6, 2, brl(50_000), { standard: {} }, 60, "PTL6A00");
+      await expectError(updateFipe(oracle, totalLossPolicy, brl(48_000)), "NotOracle");
+      await program.methods.setOracle(oracle.publicKey).accountsPartial({ authority: admin.publicKey, pool: poolPda }).rpc();
+      await expectError(updateFipe(oracle, totalLossPolicy, brl(62_500)), "FipeChangeTooLarge");
+      const coverageBefore = (await pool()).totalActiveCoverage;
+      await updateFipe(oracle, totalLossPolicy, brl(45_000));
+      const p = await program.account.policy.fetch(totalLossPolicy);
+      expect(p.vehicleValue.eq(brl(45_000))).to.be.true;
+      expect(p.coverageLimit.eq(brl(45_000))).to.be.true;
+      expect(p.deductible.eq(brl(2_250))).to.be.true;
+      expect(coverageBefore.sub((await pool()).totalActiveCoverage).eq(brl(5_000))).to.be.true;
+    });
+
+    it("perda total (dano a partir de 75%) paga a FIPE vigente sem franquia e encerra a apolice", async () => {
+      await inspectBy([assessors[0], assessors[1]], totalLossPolicy, true);
+      await waitUntil((await program.account.policy.fetch(totalLossPolicy)).claimsAllowedFrom.toNumber());
+      const claim = await fileClaim(driver6, totalLossPolicy, 0, { collision: {} }, brl(36_000)); // 80% de 45.000
+      await vote(assessors[0], totalLossPolicy, claim, true);
+      await vote(assessors[1], totalLossPolicy, claim, true);
+      const before = await balance(driver6.publicKey);
+      const activeBefore = (await pool()).activePolicies;
+      await payClaim(outsider, totalLossPolicy, claim, driver6.publicKey);
+      expect((await balance(driver6.publicKey)).sub(before).eq(brl(45_000))).to.be.true;
+      expect((await program.account.claim.fetch(claim)).totalLoss).to.be.true;
+      const p = await program.account.policy.fetch(totalLossPolicy);
+      expect(p.status).to.have.property("settled");
+      expect(activeBefore.sub((await pool()).activePolicies).toNumber()).to.eq(1);
+      expect((await program.account.vehicleRecord.fetch(vehiclePda("PTL6A00"))).activePolicy.toBase58()).to.eq(
+        PublicKey.default.toBase58(),
+      );
+    });
+
+    it("transferencia na venda do veiculo exige o aceite do comprador", async () => {
+      const policy = await buy(driver7, 3, brl(20_000), { basic: {} }, 60, "VND7A00");
+      await program.methods
+        .proposeTransfer(buyer.publicKey)
+        .accountsPartial({ owner: driver7.publicKey, policy })
+        .signers([driver7])
+        .rpc();
+      await expectError(
+        program.methods.acceptTransfer().accountsPartial({ newOwner: outsider.publicKey, policy }).signers([outsider]).rpc(),
+        "NotPendingOwner",
+      );
+      await program.methods.acceptTransfer().accountsPartial({ newOwner: buyer.publicKey, policy }).signers([buyer]).rpc();
+      const p = await program.account.policy.fetch(policy);
+      expect(p.owner.toBase58()).to.eq(buyer.publicKey.toBase58());
+      expect(p.pendingOwner.toBase58()).to.eq(PublicKey.default.toBase58());
+      // o vendedor nao controla mais a apolice
+      await expectError(cancelPolicy(driver7, policy), "Unauthorized");
     });
   });
 

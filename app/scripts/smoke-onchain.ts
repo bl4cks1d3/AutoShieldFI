@@ -51,6 +51,9 @@ async function main() {
     durationDays: 30,
     installments: 1,
     maxPremium: q.premium,
+    fipePct: 100,
+    deductibleOption: "normal",
+    fipeCode: "",
   });
   const policies = await client.getPolicies(me);
   const policy = policies[0];
@@ -61,7 +64,7 @@ async function main() {
   const inspected = (await client.getPolicies(me))[0];
   console.log("vistoria aprovada:", inspected.inspected);
   try {
-    await client.purchase({ plate: "smk-1e23", model: "Duplicata", year: 2022, vehicleValue: 10_000 * UNIT, tier: "basic", durationDays: 30, installments: 1, maxPremium: 10_000 * UNIT });
+    await client.purchase({ plate: "smk-1e23", model: "Duplicata", year: 2022, vehicleValue: 10_000 * UNIT, tier: "basic", durationDays: 30, installments: 1, maxPremium: 10_000 * UNIT, fipePct: 100, deductibleOption: "normal", fipeCode: "" });
     throw new Error("placa duplicada deveria ser recusada");
   } catch (e) {
     if (!String(e).includes("VehicleAlreadyInsured")) throw e;

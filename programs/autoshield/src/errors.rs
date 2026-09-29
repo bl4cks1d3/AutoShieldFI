@@ -94,4 +94,12 @@ pub enum AutoShieldError {
     WithdrawNoticeActive,
     #[msg("Conta ainda em uso e nao pode ser fechada")]
     AccountNotClosable,
+    #[msg("Percentual da FIPE invalido (use 90, 100 ou 110)")]
+    InvalidFipePct,
+    #[msg("Assinante nao e o oraculo de precos do pool")]
+    NotOracle,
+    #[msg("Variacao do valor FIPE acima do limite por atualizacao")]
+    FipeChangeTooLarge,
+    #[msg("Nao ha transferencia pendente para esta carteira")]
+    NotPendingOwner,
 }

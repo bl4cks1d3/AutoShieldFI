@@ -12,6 +12,8 @@ import { normalizePlate, PLATE_RE, PRESETS } from "@/lib/fipe";
 import { fmtDuration, fmtInput, fmtMoney, toBase } from "@/lib/format";
 import { kindLabel, tierDesc, tierLabel, useI18n } from "@/lib/i18n";
 import {
+  DEDUCTIBLE_BPS_BY_OPTION,
+  FIPE_PCT_OPTIONS,
   installmentAmount,
   installmentOptions,
   MAX_DAYS,
@@ -21,7 +23,7 @@ import {
   TIER_COVERS,
   TIER_MULTIPLIER,
 } from "@/lib/pricing";
-import type { Tier } from "@/lib/types";
+import type { DeductibleOption, Tier } from "@/lib/types";
 
 export default function CotarPage() {
   const router = useRouter();
@@ -39,18 +41,23 @@ export default function CotarPage() {
   const [days, setDays] = useState(365);
   const [installments, setInstallments] = useState(12);
   const [fipeOpen, setFipeOpen] = useState(false);
+  const [fipePct, setFipePct] = useState<number>(100);
+  const [deductibleOption, setDeductibleOption] = useState<DeductibleOption>("normal");
+  // Codigo FIPE + ano: permite ao oraculo atualizar o valor da apolice mes a mes.
+  const [fipeCode, setFipeCode] = useState("");
   // Placa valida digitada -> busca o veiculo e preenche modelo, ano e valor FIPE.
   const plateState = usePlateAutofill(plate, (q) => {
     setModel(`${q.marca.split(" - ")[0]} ${q.modelo}`.slice(0, 48));
     setYear(q.anoModelo);
     setValue(fmtInput(q.valor));
+    setFipeCode(`${q.codigoFipe}|${q.anoModelo}`);
   });
 
   if (loading) return <Loading />;
   if (!pool) return <PoolMissing />;
 
   const vehicleValue = toBase(value);
-  const q = quote(pool.params, vehicleValue, tier, days);
+  const q = quote(pool.params, vehicleValue, tier, days, fipePct, deductibleOption);
   const plateNorm = normalizePlate(plate);
   const plateOk = PLATE_RE.test(plateNorm);
   const options = installmentOptions(days);
@@ -61,7 +68,7 @@ export default function CotarPage() {
   const freeCapital =
     pool.vaultBalance - pool.reservedCashback - pool.treasuryAccrued - pool.pendingInspectionFees;
   const required =
-    ((pool.totalActiveCoverage + vehicleValue) * pool.params.minCollateralBps) / 10_000 + pool.pendingClaims;
+    ((pool.totalActiveCoverage + q.coverageLimit) * pool.params.minCollateralBps) / 10_000 + pool.pendingClaims;
   const capacityOk = freeCapital + split.toPool >= required;
   const maxCoverage = Math.floor(((freeCapital + split.toPool) * pool.params.maxPolicyCoverageBps) / 10_000);
   const exposureOk = q.coverageLimit <= maxCoverage;
@@ -82,6 +89,9 @@ export default function CotarPage() {
           durationDays: days,
           installments: n,
           maxPremium: Math.ceil(q.premium * 1.01),
+          fipePct,
+          deductibleOption,
+          fipeCode,
         }),
       t("Apólice contratada!", "Policy purchased!"),
     );
@@ -118,6 +128,7 @@ export default function CotarPage() {
                   setModel(p.modelo);
                   setYear(p.ano);
                   setValue(fmtInput(p.valor));
+                  setFipeCode(`${p.codigoFipe}|${p.ano}`);
                   setFipeOpen(false);
                 }}
               />
@@ -132,6 +143,7 @@ export default function CotarPage() {
                     setModel(p.model);
                     setYear(p.year);
                     setValue(String(p.value));
+                    setFipeCode("");
                   }}
                 >
                   {p.model} {p.year}
@@ -184,7 +196,10 @@ export default function CotarPage() {
                   inputMode="decimal"
                   placeholder="50000"
                   value={value}
-                  onChange={(e) => setValue(e.target.value.replace(/[^\d.,]/g, ""))}
+                  onChange={(e) => {
+                    setValue(e.target.value.replace(/[^\d.,]/g, ""));
+                    setFipeCode("");
+                  }}
                 />
               </div>
             </div>
@@ -194,8 +209,8 @@ export default function CotarPage() {
             <h2 className="flex items-center gap-2 font-semibold">
               <ShieldCheck className="size-5 text-[var(--accent)]" /> {t("Plano de cobertura", "Coverage plan")}
             </h2>
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              {(["basic", "standard", "premium"] as Tier[]).map((tr) => (
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {(["theftOnly", "basic", "standard", "premium"] as Tier[]).map((tr) => (
                 <button
                   key={tr}
                   onClick={() => setTier(tr)}
@@ -217,6 +232,50 @@ export default function CotarPage() {
                   </ul>
                 </button>
               ))}
+            </div>
+
+            <div className="mt-6 grid gap-5 sm:grid-cols-2">
+              <div>
+                <span className="label">{t("Valor coberto", "Covered amount")}</span>
+                <div className="flex flex-wrap gap-2">
+                  {FIPE_PCT_OPTIONS.map((pct) => (
+                    <button
+                      key={pct}
+                      onClick={() => setFipePct(pct)}
+                      className={`chip border py-1.5 ${fipePct === pct ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--border)] text-[var(--muted)]"}`}
+                    >
+                      {pct}% FIPE
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-1.5 text-xs text-[var(--muted)]">
+                  {vehicleValue > 0
+                    ? `${t("Indenização integral de até", "Total-loss payout of up to")} ${fmtMoney(q.coverageLimit)}`
+                    : t("Percentual da tabela FIPE pago em caso de perda total.", "Share of the FIPE value paid on a total loss.")}
+                </p>
+              </div>
+              <div>
+                <span className="label">{t("Franquia (danos parciais)", "Deductible (partial damage)")}</span>
+                <div className="flex flex-wrap gap-2">
+                  {(["reduced", "normal", "increased"] as DeductibleOption[]).map((d) => (
+                    <button
+                      key={d}
+                      onClick={() => setDeductibleOption(d)}
+                      className={`chip border py-1.5 ${deductibleOption === d ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--border)] text-[var(--muted)]"}`}
+                    >
+                      {{ reduced: t("Reduzida", "Reduced"), normal: t("Normal", "Normal"), increased: t("Majorada", "Increased") }[d]}{" "}
+                      {DEDUCTIBLE_BPS_BY_OPTION[d] / 100}%
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-1.5 text-xs text-[var(--muted)]">
+                  {deductibleOption === "reduced"
+                    ? t("Franquia menor, prêmio 15% maior.", "Lower deductible, 15% higher premium.")
+                    : deductibleOption === "increased"
+                      ? t("Franquia maior, prêmio 15% menor.", "Higher deductible, 15% lower premium.")
+                      : t("Padrão de mercado.", "Market standard.")}
+                </p>
+              </div>
             </div>
 
             <div className="mt-6">
@@ -276,10 +335,13 @@ export default function CotarPage() {
           <div className="card p-5">
             <h2 className="font-semibold">{t("Resumo da cotação", "Quote summary")}</h2>
             <div className="mt-3 divide-y divide-[var(--border)] text-sm">
-              <Row label={t("Cobertura (valor FIPE)", "Coverage (FIPE value)")} value={fmtMoney(q.coverageLimit)} />
+              <Row label={t(`Cobertura (${fipePct}% da FIPE)`, `Coverage (${fipePct}% of FIPE)`)} value={fmtMoney(q.coverageLimit)} />
               <Row label={t("Taxa base anual", "Annual base rate")} value={`${(pool.params.baseRateBps / 100).toFixed(2)}%`} />
               <Row label={`${t("Plano", "Plan")} ${tierLabel(tier, lang)}`} value={`×${(TIER_MULTIPLIER[tier] / 100).toFixed(1)}`} />
-              <Row label={t("Franquia (danos parciais)", "Deductible (partial damage)")} value={fmtMoney(q.deductible)} />
+              <Row
+                label={`${t("Franquia", "Deductible")} (${DEDUCTIBLE_BPS_BY_OPTION[deductibleOption] / 100}%)`}
+                value={fmtMoney(q.deductible)}
+              />
               <Row label={t("Prêmio total", "Total premium")} value={fmtMoney(q.premium)} strong />
               {n > 1 ? (
                 <Row label={t(`${n} parcelas de`, `${n} installments of`)} value={fmtMoney(first)} />

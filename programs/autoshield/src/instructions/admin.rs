@@ -66,6 +66,8 @@ pub fn initialize_pool(
     pool.pending_params = None;
     pool.pending_assessors = Vec::new();
     pool.pending_authority = Pubkey::default();
+    // O oraculo de precos comeca como a propria autoridade; troque com set_oracle.
+    pool.oracle = ctx.accounts.authority.key();
     pool.bump = ctx.bumps.pool;
     pool.vault_bump = ctx.bumps.vault;
 
@@ -169,6 +171,14 @@ pub fn cancel_pending(ctx: Context<AdminAction>) -> Result<()> {
 /// Pausa e imediata (emergencia); bloqueia contratacoes e aportes.
 pub fn set_paused(ctx: Context<AdminAction>, paused: bool) -> Result<()> {
     ctx.accounts.pool.paused = paused;
+    Ok(())
+}
+
+/// Define a carteira do servico que atualiza o valor FIPE das apolices.
+/// O impacto de cada atualizacao e limitado on-chain (20% por vez).
+pub fn set_oracle(ctx: Context<AdminAction>, oracle: Pubkey) -> Result<()> {
+    require!(oracle != Pubkey::default(), AutoShieldError::InvalidParameter);
+    ctx.accounts.pool.oracle = oracle;
     Ok(())
 }
 

@@ -41,11 +41,41 @@ export type Autoshield = {
                   112,
                   111,
                   111,
-                  108
+                  108,
+                  95,
+                  118,
+                  50
                 ]
               }
             ]
           }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "acceptTransfer",
+      "docs": [
+        "...e o comprador aceita."
+      ],
+      "discriminator": [
+        94,
+        249,
+        171,
+        62,
+        208,
+        120,
+        49,
+        110
+      ],
+      "accounts": [
+        {
+          "name": "newOwner",
+          "signer": true
+        },
+        {
+          "name": "policy",
+          "writable": true
         }
       ],
       "args": []
@@ -78,7 +108,10 @@ export type Autoshield = {
                   112,
                   111,
                   111,
-                  108
+                  108,
+                  95,
+                  118,
+                  50
                 ]
               }
             ]
@@ -115,7 +148,10 @@ export type Autoshield = {
                   112,
                   111,
                   111,
-                  108
+                  108,
+                  95,
+                  118,
+                  50
                 ]
               }
             ]
@@ -155,11 +191,208 @@ export type Autoshield = {
                   112,
                   111,
                   111,
-                  108
+                  108,
+                  95,
+                  118,
+                  50
                 ]
               }
             ]
           }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "cancelPolicy",
+      "docs": [
+        "Arrependimento (7 dias, devolucao integral) ou cancelamento proporcional."
+      ],
+      "discriminator": [
+        244,
+        58,
+        241,
+        221,
+        106,
+        151,
+        94,
+        116
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "policy"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  118,
+                  50
+                ]
+              }
+            ]
+          },
+          "relations": [
+            "policy"
+          ]
+        },
+        {
+          "name": "stableMint",
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "policy",
+          "writable": true
+        },
+        {
+          "name": "vehicle",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  101,
+                  104,
+                  105,
+                  99,
+                  108,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "policy.plate_hash",
+                "account": "policy"
+              }
+            ]
+          }
+        },
+        {
+          "name": "ownerToken",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "stableMint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "tokenProgram",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associatedTokenProgram",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
         }
       ],
       "args": []
@@ -283,7 +516,10 @@ export type Autoshield = {
                   112,
                   111,
                   111,
-                  108
+                  108,
+                  95,
+                  118,
+                  50
                 ]
               }
             ]
@@ -376,7 +612,10 @@ export type Autoshield = {
                   112,
                   111,
                   111,
-                  108
+                  108,
+                  95,
+                  118,
+                  50
                 ]
               }
             ]
@@ -428,7 +667,10 @@ export type Autoshield = {
                   112,
                   111,
                   111,
-                  108
+                  108,
+                  95,
+                  118,
+                  50
                 ]
               }
             ]
@@ -619,7 +861,10 @@ export type Autoshield = {
                   112,
                   111,
                   111,
-                  108
+                  108,
+                  95,
+                  118,
+                  50
                 ]
               }
             ]
@@ -753,7 +998,10 @@ export type Autoshield = {
                   112,
                   111,
                   111,
-                  108
+                  108,
+                  95,
+                  118,
+                  50
                 ]
               }
             ]
@@ -850,7 +1098,10 @@ export type Autoshield = {
                   112,
                   111,
                   111,
-                  108
+                  108,
+                  95,
+                  118,
+                  50
                 ]
               }
             ]
@@ -1136,7 +1387,10 @@ export type Autoshield = {
                   112,
                   111,
                   111,
-                  108
+                  108,
+                  95,
+                  118,
+                  50
                 ]
               }
             ]
@@ -1169,6 +1423,34 @@ export type Autoshield = {
         {
           "name": "claim",
           "writable": true
+        },
+        {
+          "name": "vehicle",
+          "docs": [
+            "Registro do veiculo: liberado quando a perda total encerra a apolice."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  101,
+                  104,
+                  105,
+                  99,
+                  108,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "policy.plate_hash",
+                "account": "policy"
+              }
+            ]
+          }
         },
         {
           "name": "claimant",
@@ -1313,7 +1595,10 @@ export type Autoshield = {
                   112,
                   111,
                   111,
-                  108
+                  108,
+                  95,
+                  118,
+                  50
                 ]
               }
             ]
@@ -1381,7 +1666,10 @@ export type Autoshield = {
                   112,
                   111,
                   111,
-                  108
+                  108,
+                  95,
+                  118,
+                  50
                 ]
               }
             ]
@@ -1432,7 +1720,10 @@ export type Autoshield = {
                   112,
                   111,
                   111,
-                  108
+                  108,
+                  95,
+                  118,
+                  50
                 ]
               }
             ]
@@ -1480,7 +1771,10 @@ export type Autoshield = {
                   112,
                   111,
                   111,
-                  108
+                  108,
+                  95,
+                  118,
+                  50
                 ]
               }
             ]
@@ -1495,6 +1789,41 @@ export type Autoshield = {
               "name": "poolParams"
             }
           }
+        }
+      ]
+    },
+    {
+      "name": "proposeTransfer",
+      "docs": [
+        "Venda do veiculo: o titular indica o comprador..."
+      ],
+      "discriminator": [
+        140,
+        86,
+        133,
+        124,
+        253,
+        226,
+        251,
+        195
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "policy"
+          ]
+        },
+        {
+          "name": "policy",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "newOwner",
+          "type": "pubkey"
         }
       ]
     },
@@ -1527,7 +1856,10 @@ export type Autoshield = {
                   112,
                   111,
                   111,
-                  108
+                  108,
+                  95,
+                  118,
+                  50
                 ]
               }
             ]
@@ -1651,7 +1983,10 @@ export type Autoshield = {
                   112,
                   111,
                   111,
-                  108
+                  108,
+                  95,
+                  118,
+                  50
                 ]
               }
             ]
@@ -1692,6 +2027,54 @@ export type Autoshield = {
       ]
     },
     {
+      "name": "setOracle",
+      "discriminator": [
+        186,
+        128,
+        81,
+        104,
+        74,
+        79,
+        18,
+        224
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  118,
+                  50
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "oracle",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
       "name": "setPaused",
       "discriminator": [
         91,
@@ -1722,7 +2105,10 @@ export type Autoshield = {
                   112,
                   111,
                   111,
-                  108
+                  108,
+                  95,
+                  118,
+                  50
                 ]
               }
             ]
@@ -1765,7 +2151,10 @@ export type Autoshield = {
                   112,
                   111,
                   111,
-                  108
+                  108,
+                  95,
+                  118,
+                  50
                 ]
               }
             ]
@@ -1928,6 +2317,70 @@ export type Autoshield = {
       "args": []
     },
     {
+      "name": "updatePolicyFipe",
+      "docs": [
+        "Oraculo atualiza o valor FIPE (cobertura acompanha a tabela mes a mes)."
+      ],
+      "discriminator": [
+        89,
+        229,
+        183,
+        10,
+        116,
+        180,
+        242,
+        99
+      ],
+      "accounts": [
+        {
+          "name": "oracle",
+          "signer": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  118,
+                  50
+                ]
+              }
+            ]
+          },
+          "relations": [
+            "policy"
+          ]
+        },
+        {
+          "name": "vault",
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "policy",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "vehicleValue",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "voteClaim",
       "discriminator": [
         119,
@@ -1956,7 +2409,10 @@ export type Autoshield = {
                   112,
                   111,
                   111,
-                  108
+                  108,
+                  95,
+                  118,
+                  50
                 ]
               }
             ]
@@ -2145,7 +2601,10 @@ export type Autoshield = {
                   112,
                   111,
                   111,
-                  108
+                  108,
+                  95,
+                  118,
+                  50
                 ]
               }
             ]
@@ -2237,7 +2696,10 @@ export type Autoshield = {
                   112,
                   111,
                   111,
-                  108
+                  108,
+                  95,
+                  118,
+                  50
                 ]
               }
             ]
@@ -2394,6 +2856,19 @@ export type Autoshield = {
       ]
     },
     {
+      "name": "fipeUpdated",
+      "discriminator": [
+        45,
+        253,
+        99,
+        78,
+        59,
+        205,
+        134,
+        200
+      ]
+    },
+    {
       "name": "governanceChangeApplied",
       "discriminator": [
         36,
@@ -2459,6 +2934,19 @@ export type Autoshield = {
       ]
     },
     {
+      "name": "policyCancelled",
+      "discriminator": [
+        33,
+        213,
+        35,
+        84,
+        4,
+        212,
+        181,
+        237
+      ]
+    },
+    {
       "name": "policyInspected",
       "discriminator": [
         190,
@@ -2495,6 +2983,19 @@ export type Autoshield = {
         184,
         83,
         77
+      ]
+    },
+    {
+      "name": "policyTransferred",
+      "discriminator": [
+        61,
+        243,
+        222,
+        136,
+        205,
+        164,
+        90,
+        18
       ]
     },
     {
@@ -2754,6 +3255,26 @@ export type Autoshield = {
       "code": 6045,
       "name": "accountNotClosable",
       "msg": "Conta ainda em uso e nao pode ser fechada"
+    },
+    {
+      "code": 6046,
+      "name": "invalidFipePct",
+      "msg": "Percentual da FIPE invalido (use 90, 100 ou 110)"
+    },
+    {
+      "code": 6047,
+      "name": "notOracle",
+      "msg": "Assinante nao e o oraculo de precos do pool"
+    },
+    {
+      "code": 6048,
+      "name": "fipeChangeTooLarge",
+      "msg": "Variacao do valor FIPE acima do limite por atualizacao"
+    },
+    {
+      "code": 6049,
+      "name": "notPendingOwner",
+      "msg": "Nao ha transferencia pendente para esta carteira"
     }
   ],
   "types": [
@@ -2830,6 +3351,13 @@ export type Autoshield = {
           },
           {
             "name": "reclassified",
+            "type": "bool"
+          },
+          {
+            "name": "totalLoss",
+            "docs": [
+              "Indenizado como perda total (cobertura integral, sem franquia)."
+            ],
             "type": "bool"
           },
           {
@@ -3037,6 +3565,29 @@ export type Autoshield = {
           },
           {
             "name": "premium"
+          },
+          {
+            "name": "theftOnly"
+          }
+        ]
+      }
+    },
+    {
+      "name": "deductibleOption",
+      "docs": [
+        "Franquia para danos parciais, escolhida na contratacao."
+      ],
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "reduced"
+          },
+          {
+            "name": "normal"
+          },
+          {
+            "name": "increased"
           }
         ]
       }
@@ -3065,6 +3616,26 @@ export type Autoshield = {
           {
             "name": "evidenceUri",
             "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "fipeUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "policy",
+            "type": "pubkey"
+          },
+          {
+            "name": "vehicleValue",
+            "type": "u64"
+          },
+          {
+            "name": "coverageLimit",
+            "type": "u64"
           }
         ]
       }
@@ -3370,6 +3941,42 @@ export type Autoshield = {
             "type": "i64"
           },
           {
+            "name": "fipePct",
+            "docs": [
+              "Percentual da FIPE contratado (90, 100 ou 110)."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "deductibleOption",
+            "type": {
+              "defined": {
+                "name": "deductibleOption"
+              }
+            }
+          },
+          {
+            "name": "fipeCode",
+            "docs": [
+              "Codigo FIPE e ano (\"005340-6|2014-3\"); vazio se o valor foi informado a mao."
+            ],
+            "type": "string"
+          },
+          {
+            "name": "fipeUpdatedTs",
+            "docs": [
+              "Ultima atualizacao do valor FIPE pelo oraculo."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "pendingOwner",
+            "docs": [
+              "Comprador indicado na venda do veiculo (aguardando aceite)."
+            ],
+            "type": "pubkey"
+          },
+          {
             "name": "bump",
             "type": "u8"
           },
@@ -3381,6 +3988,33 @@ export type Autoshield = {
                 64
               ]
             }
+          }
+        ]
+      }
+    },
+    {
+      "name": "policyCancelled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "policy",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "refund",
+            "type": "u64"
+          },
+          {
+            "name": "coolingOff",
+            "docs": [
+              "Verdadeiro se foi arrependimento (7 dias, devolucao integral)."
+            ],
+            "type": "bool"
           }
         ]
       }
@@ -3478,6 +4112,29 @@ export type Autoshield = {
           },
           {
             "name": "cancelled"
+          },
+          {
+            "name": "cancelledByOwner"
+          }
+        ]
+      }
+    },
+    {
+      "name": "policyTransferred",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "policy",
+            "type": "pubkey"
+          },
+          {
+            "name": "from",
+            "type": "pubkey"
+          },
+          {
+            "name": "to",
+            "type": "pubkey"
           }
         ]
       }
@@ -3638,6 +4295,13 @@ export type Autoshield = {
             "name": "pendingAuthority",
             "docs": [
               "Transferencia de autoridade em dois passos (proposta + aceite)."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "oracle",
+            "docs": [
+              "Carteira do servico que atualiza o valor FIPE das apolices (oraculo)."
             ],
             "type": "pubkey"
           },
@@ -3874,6 +4538,28 @@ export type Autoshield = {
               "Protecao contra slippage: premio total maximo aceito pelo usuario."
             ],
             "type": "u64"
+          },
+          {
+            "name": "fipePct",
+            "docs": [
+              "Percentual da FIPE coberto: 90, 100 ou 110."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "deductibleOption",
+            "type": {
+              "defined": {
+                "name": "deductibleOption"
+              }
+            }
+          },
+          {
+            "name": "fipeCode",
+            "docs": [
+              "Codigo FIPE e ano, para o oraculo atualizar o valor mes a mes (opcional)."
+            ],
+            "type": "string"
           }
         ]
       }

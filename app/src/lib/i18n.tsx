@@ -93,6 +93,7 @@ const TIER: Labels<Tier> = {
   basic: { pt: "Básico", en: "Basic" },
   standard: { pt: "Essencial", en: "Essential" },
   premium: { pt: "Completo", en: "Complete" },
+  theftOnly: { pt: "Roubo e furto", en: "Theft only" },
 };
 
 const TIER_DESC: Labels<Tier> = {
@@ -102,6 +103,7 @@ const TIER_DESC: Labels<Tier> = {
     pt: "Essencial + danos a terceiros e outros eventos",
     en: "Essential + third-party damage and other events",
   },
+  theftOnly: { pt: "Só roubo e furto — o mais barato", en: "Theft only — the cheapest plan" },
 };
 
 const KIND: Labels<ClaimKind> = {
