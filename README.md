@@ -1,36 +1,116 @@
+<div align="center">
+
+# 🛡️ AutoShieldFI
+
+**Proteção veicular descentralizada para o Brasil, na blockchain Solana**
+
+[![Solana](https://img.shields.io/badge/Solana-Devnet-9945FF?logo=solana&logoColor=white)](https://solana.com)
+[![Anchor](https://img.shields.io/badge/Anchor-0.31-1E90FF)](https://www.anchor-lang.com)
+[![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs)](https://nextjs.org)
+[![PWA](https://img.shields.io/badge/PWA-instalável-5A0FC8)](#)
+[![Testes](https://img.shields.io/badge/testes-24%20integração%20%2B%206%20unitários-2EA043)](#programa-solana)
+[![Licença](https://img.shields.io/badge/licença-Apache%202.0-blue)](LICENSE)
+
+🌐 **[Teste agora na Devnet](https://autoshieldfi.vercel.app)** · 💻 **[Código](https://github.com/bl4cks1d3/AutoShieldFI)** · 🇺🇸 **[English](#-english)**
+
+</div>
+
+---
+
 # 🇧🇷 PT/BR
 
-# AutoShieldFI
+Menos de **30% dos carros do Brasil têm seguro**, principalmente por causa do preço. O AutoShieldFI é uma
+alternativa mais acessível e transparente: um **pool de proteção mutualista** que roda em **smart contracts
+na blockchain Solana**. O motorista contrata em minutos, aciona o sinistro pelo celular e, se não usar a
+cobertura, **recebe 20% do prêmio de volta**.
 
-AutoShieldFI é um dApp (aplicativo descentralizado) focado em proteção veicular para o mercado brasileiro. Nosso objetivo é oferecer uma alternativa acessível, eficiente e transparente ao seguro veicular tradicional por meio de infraestrutura Web3, proporcionando uma melhor experiência ao usuário e a possibilidade de retorno financeiro quando a cobertura não é utilizada.
+> _Projeto de hackathon — ainda não é um produto de seguro regulado pela SUSEP._
 
-## Problema
+## 📉 O problema
 
-Atualmente, no Brasil, apenas cerca de 30% da frota de veículos possui seguro, principalmente devido aos altos custos dos seguros convencionais. Como consequência, milhões de motoristas permanecem financeiramente expostos a riscos relevantes em caso de acidentes, furtos ou eventos adversos.
+| Dado | Valor | Fonte |
+|---|---|---|
+| Carros com seguro | **29%** — 18,4 milhões de 63,3 milhões de automóveis | CNseg + Senatran, jul/2026 ([InfoMoney](https://www.infomoney.com.br/minhas-financas/classe-c-lidera-o-seguro-automovel-mas-71-dos-carros-ainda-nao-tem-cobertura/)) |
+| Quem mais contrata | Classe C, com 41% dos clientes de seguro auto | mesmo levantamento da CNseg |
+| Roubos e furtos de veículos | **367.854** em 2024 | [Anuário Brasileiro de Segurança Pública 2025](https://forumseguranca.org.br/wp-content/uploads/2025/07/anuario-2025.pdf) |
+| Preço do seguro tradicional | 3% a 8% do valor FIPE por ano | cotações de corretoras (referência de mercado) |
+| Sinistralidade do seguro auto | 59,4% em 2024 | dados da SUSEP ([Roncarati](https://www.editoraroncarati.com.br/v2/Artigos-e-Noticias/Artigos-e-Noticias/Seguradoras-arrecadam-R$-2076-bilhoes-em-2024-mas-lucro-liquido-cai.html)) |
 
-## Solução
+Milhões de motoristas ficam expostos a acidentes, roubos e enchentes. Além do preço, pesam a burocracia no
+sinistro e a falta de transparência sobre como o valor é calculado e por que um pedido é negado.
 
-O AutoShieldFI oferece uma solução descentralizada baseada em Smart Contracts na blockchain Solana. A plataforma permite que usuários contratem proteção veicular diretamente pelo dApp, acionem sinistros digitalmente e acompanhem todo o ciclo de resolução com transparência on-chain.
+## 🚗 Como funciona
 
-Além disso, o modelo econômico inclui um mecanismo de staking que possibilita retorno financeiro ao usuário quando não há utilização da cobertura, promovendo maior eficiência de capital.
+- **Cotação em segundos** pela tabela FIPE (busca por placa ou por modelo)
+- **3 planos**: Básico (roubo/furto e natureza), Essencial (+ colisão) e Completo (+ terceiros)
+- **Pagamento à vista ou em até 12x sem juros**, direto da carteira digital
+- **Vistoria por avaliadores** antes da cobertura começar, com conferência da placa
+- **Sinistro 100% digital**: fotos e documentos vão para o IPFS e o registro fica na blockchain
+- **Avaliadores independentes** votam cada sinistro, com quórum, e a indenização sai automaticamente do cofre
+- **Não usou? Recebe de volta**: 20% do prêmio retorna como cashback no fim da vigência
+- **Investidores** aportam no pool e são remunerados pelos prêmios (staking)
 
-## Funcionalidades Principais
+```mermaid
+flowchart LR
+    A[Cotação FIPE] --> B[Contratação<br/>à vista ou 12x]
+    B --> C[Vistoria por<br/>quórum]
+    C --> D[Carência<br/>7 dias]
+    D --> E{Teve<br/>sinistro?}
+    E -- sim --> F[Registro + evidências<br/>no IPFS]
+    F --> G[Votação dos<br/>avaliadores]
+    G --> H[Indenização<br/>do cofre]
+    E -- não --> I[Fim da vigência:<br/>20% de cashback]
+```
 
-- Contratação de proteção veicular descentralizada via dApp  
-- Acionamento digital de sinistros  
-- Acompanhamento transparente do processo de resolução  
-- Mecanismo de staking com potencial retorno ao usuário  
-- Interface web responsiva e versão PWA instalável  
+### Planos e preço
 
-## Principais Tecnologias Utilizadas
+`prêmio = valor FIPE × 3,5% ao ano × multiplicador do plano × dias / 365` — a fórmula é pública e roda no contrato.
 
-- Blockchain Solana para execução dos Smart Contracts  
-- Anchor Framework para desenvolvimento dos programas on-chain  
-- Next.js para frontend web  
-- Progressive Web App (PWA) para experiência mobile instalável  
-- Solana Web3 / Web3.js para integração com a blockchain  
+| Plano | Coberturas | Multiplicador | Carro FIPE R$ 50.000, 1 ano | Cashback se não usar |
+|---|---|---|---|---|
+| Básico | Roubo/furto, eventos da natureza | ×0,6 | R$ 1.050 | R$ 210 |
+| **Essencial** | Básico + colisão | ×1,0 | **R$ 1.750** (ou 12x de R$ 145,83) | R$ 350 |
+| Completo | Essencial + danos a terceiros e outros | ×1,4 | R$ 2.450 | R$ 490 |
 
-## Arquitetura
+Franquia de 5% da FIPE só em danos parciais; roubo/furto e natureza não têm franquia. Uma taxa de vistoria
+(50 tBRL) é paga na contratação.
+
+### Para onde vai o dinheiro
+
+De cada prêmio, **5%** vão para a tesouraria do protocolo (que remunera os avaliadores), **20%** ficam
+reservados como cashback do motorista e **75%** remuneram os provedores de liquidez e pagam os sinistros.
+Com os padrões, o LP tem resultado positivo enquanto a sinistralidade ficar abaixo de ~75% — o seguro auto
+no Brasil fechou 2024 em 59,4%.
+
+## 🔍 Transparência e segurança
+
+- **Tudo auditável on-chain**: preço, franquia, regras de cobertura, cada voto e cada pagamento.
+- **O cofre não tem dono**: os fundos só saem por regra do contrato (PDA), nunca por uma chave privada.
+- **Solvência garantida pelo contrato**: nova apólice ou saque só passa se o pool mantiver 10% da cobertura
+  ativa, e nenhuma apólice pode passar de 200% do patrimônio.
+- **Antifraude**: uma apólice ativa por placa, vistoria por quórum, carência de 7 dias, cobertura só com
+  parcelas em dia, avaliador impedido na própria apólice e reclassificação do tipo de sinistro.
+- **Governança com timelock**: mudanças de parâmetros e avaliadores esperam 1 dia e podem ser canceladas.
+- **Privacidade (LGPD)**: a placa nunca vai em texto para a blockchain, só o hash SHA-256.
+- **Web segura**: CSP, proteção contra clickjacking e HSTS no frontend.
+
+## ⚙️ Tecnologia
+
+| Camada | Tecnologia |
+|---|---|
+| Blockchain | Solana (Devnet) |
+| Smart contracts | Rust + Anchor 0.31 — 26 instruções |
+| Frontend | Next.js 16, React 19, TypeScript e Tailwind CSS 4 |
+| Mobile | PWA instalável, com página offline |
+| Carteiras | Phantom, Solflare e Backpack (Wallet Standard) |
+| Integrações | API da tabela FIPE, consulta por placa, IPFS (Pinata) para evidências e RPC Helius |
+| Hospedagem | Vercel |
+| Testes | 24 testes de integração (Anchor), 6 unitários (Rust), teste de fumaça on-chain e E2E com Playwright |
+
+Documentação completa do produto e da arquitetura no PRD e no TRD do projeto; guia de instalação em
+[docs/INSTALACAO.md](docs/INSTALACAO.md).
+
+## 🏗️ Arquitetura
 
 ```
 ┌──────────────────────────┐        ┌───────────────────────────────────────────┐
@@ -75,7 +155,7 @@ Além disso, o modelo econômico inclui um mecanismo de staking que possibilita 
 - **Apólices:** `purchase_policy`, `pay_installment`, `inspect_policy`, `settle_policy`, `close_policy`
 - **Sinistros:** `file_claim`, `vote_claim`, `expire_claim`, `pay_claim`, `close_claim`
 
-## Como rodar
+## 🚀 Como rodar
 
 > Guia completo (WSL, ferramentas, localnet, devnet, variáveis e solução de problemas): [docs/INSTALACAO.md](docs/INSTALACAO.md)
 
@@ -157,19 +237,19 @@ Teste de fumaça do cliente do frontend contra um cluster real:
 cd app && RPC_URL=http://127.0.0.1:8899 npx tsx scripts/smoke-onchain.ts
 ```
 
-## Roteiro de demonstração (pitch de 3 minutos)
+## 🎬 Roteiro de demonstração (pitch de 3 minutos)
 
-1. **Home** — problema (30% da frota segurada) e exemplo de preço por plano.
+1. **Home** — problema (29% da frota segurada) e exemplo de preço por plano.
 2. **Faucet** — pegue 50.000 tBRL no topo.
 3. **Contratar** — escolha um carro popular (ou consulte a FIPE), placa `ABC1D23`, plano Essencial, 1 ano. Mostre o resumo com franquia e cashback.
-4. **Avaliação → Vistorias** — aprove a vistoria como Avaliador 1 e clique **+7 dias** para passar a carência. Mostre também que a mesma placa não pode ser contratada de novo.
-5. **Sinistros** — registre uma colisão de R$ 12.000 com fotos (o hash vai on-chain) e veja a indenização estimada já com franquia.
+4. **Avaliação → Vistorias** — aprove a vistoria como Avaliador 1 e Avaliador 2 (quórum) e clique **+7 dias** para passar a carência. Mostre também que a mesma placa não pode ser contratada de novo.
+5. **Sinistros** — registre uma colisão de R$ 12.000 com fotos (vão para o IPFS; link e hash on-chain) e veja a indenização estimada já com franquia.
 6. **Avaliação** — vote como Avaliador 1 e Avaliador 2 → quórum atingido → execute o pagamento.
-7. **Pool & Staking** — mostre patrimônio, colateral mínimo, sinistralidade, aporte e valor da cota.
+7. **Pool & Staking** — mostre patrimônio, colateral mínimo, sinistralidade, aporte, pedido de saque com aviso prévio e valor da cota.
 8. **+30 dias** — contrate um plano Básico de 30 dias, avance o tempo e **resgate o cashback** em Minhas apólices.
 9. Instale o app pelo navegador do celular (PWA).
 
-## Estrutura do repositório
+## 📁 Estrutura do repositório
 
 ```
 programs/autoshield/src/   programa Anchor (state, pricing, instructions/*)
@@ -177,37 +257,47 @@ tests/autoshield.ts        testes de integração (mocha)
 scripts/bootstrap.ts       inicialização de cluster (mint, pool, liquidez)
 target/idl, target/types   IDL e tipos gerados
 app/                       frontend Next.js + PWA
+  src/app/api/             rotas de servidor (FIPE, placa, evidências no IPFS)
   src/lib/client/          cliente on-chain (Anchor) e simulador demo
   src/lib/pricing.ts       fórmula de preço espelhada do contrato
   public/sw.js             service worker (offline + instalação)
+docs/INSTALACAO.md         guia de instalação passo a passo
 ```
 
-## Limitações conhecidas (escopo de hackathon)
+## ⚠️ Limitações conhecidas (escopo de hackathon)
 
 - tBRL é um token de teste com faucet; em produção o pool usaria uma stablecoin real (BRZ, USDC).
-- Evidências ficam fora da cadeia; apenas o hash SHA-256 é registrado. Integração com IPFS/Arweave é o próximo passo.
+- Evidências no IPFS são públicas; criptografia com acesso só para avaliadores é o próximo passo.
 - A precificação usa apenas valor FIPE, plano e vigência; fatores de risco (CEP, perfil, telemetria) exigiriam oráculos.
-- Não é um produto de seguro regulado pela SUSEP.
+- A autoridade do pool ainda é uma carteira única com timelock; o plano é migrar para multisig (Squads).
+- **Não é um produto de seguro regulado pela SUSEP.** Desde a [Lei Complementar 213/2025](https://www2.camara.leg.br/legin/fed/leicom/2025/leicomplementar-213-15-janeiro-2025-796898-norma-pl.html),
+  a proteção patrimonial mutualista precisa de administradora autorizada pela SUSEP; operar fora do piloto
+  exige essa parceria, uma cooperativa de seguros ou o sandbox regulatório.
 
-## Como Contribuir
+## 🗺️ Próximos passos
 
-Se você está interessado em contribuir com o projeto AutoShieldFI, siga estas etapas:
+- Piloto fechado em devnet com 20 a 50 motoristas.
+- Multisig na autoridade e stake com penalidade para avaliadores.
+- Evidências criptografadas e oráculo de preço FIPE.
+- Bônus por anos sem sinistro e precificação por região, com resseguro para eventos catastróficos.
+- Auditoria externa, stablecoin real e estrutura regulatória para a mainnet.
 
-1. Faça um fork do repositório  
-2. Clone o fork para o seu ambiente local  
-3. Implemente as melhorias ou correções desejadas  
-4. Envie um pull request com uma descrição detalhada das alterações  
+## 🤝 Como contribuir
 
-## Equipe
+1. Faça um fork do repositório
+2. Clone o fork para o seu ambiente local
+3. Implemente as melhorias ou correções desejadas (rode `anchor test` e `npm run build` em `app/`)
+4. Envie um pull request com uma descrição detalhada das alterações
 
-- Wesley Cardoso — Smart Contracts / Backend  
-- Jaqueline Queroz — Frontend / UX/UI  
-- Amanda Almeida — Business / Marketing  
+## 👥 Equipe
 
-## Contato
+- Wesley Cardoso — Smart Contracts / Backend
+- Jaqueline Queroz — Frontend / UX/UI
+- Amanda Almeida — Business / Marketing
 
-Para mais informações sobre o AutoShieldFI, entre em contato pelo email:  
-**wcsd1995@gmail.com**
+## 📬 Contato
+
+Para mais informações sobre o AutoShieldFI, entre em contato pelo email: **wcsd1995@gmail.com**
 
 Agradecemos seu interesse em tornar a proteção veicular mais acessível e eficiente para os motoristas brasileiros.
 
@@ -215,65 +305,65 @@ Agradecemos seu interesse em tornar a proteção veicular mais acessível e efic
 
 # 🇺🇸 English
 
-# AutoShieldFI
+**Decentralized vehicle protection for Brazil, on Solana.** Fewer than 30% of Brazilian cars are insured,
+mostly because of price. AutoShieldFI is a more affordable and transparent alternative: a **mutual protection
+pool** running on **Solana smart contracts**. Drivers buy coverage in minutes, file claims from their phone and,
+if they don't use the coverage, **get 20% of the premium back**.
 
-AutoShieldFI is a decentralized application (dApp) focused on vehicle protection for the Brazilian market. Our mission is to provide an affordable, efficient, and transparent alternative to traditional vehicle insurance using Web3 infrastructure, while enabling users to potentially earn financial returns when coverage is not utilized.
+🌐 **[Try it on Devnet](https://autoshieldfi.vercel.app)** · _Hackathon project — not a SUSEP-regulated insurance product._
 
-## Problem
+## The problem
 
-In Brazil, only about 30% of the vehicle fleet is insured, largely due to the high cost of traditional insurance products. As a result, millions of drivers remain financially exposed to significant risks in the event of accidents, theft, or other adverse events.
+Only **29%** of Brazil's 63.3 million cars are insured (CNseg + Senatran, July 2026), while the country recorded
+**367,854** vehicle thefts and robberies in 2024 (Brazilian Public Security Yearbook 2025). Traditional insurance
+costs 3% to 8% of the car's FIPE value per year, claims are bureaucratic and pricing is opaque.
 
-## Solution
+## How it works
 
-AutoShieldFI delivers a decentralized solution powered by Smart Contracts on the Solana blockchain. Users can purchase vehicle protection directly through the dApp, submit claims digitally, and track the full resolution lifecycle with on-chain transparency.
+- **Instant quote** from the FIPE price table (search by plate or by model)
+- **3 plans**: Basic (theft, natural events), Essential (+ collision) and Complete (+ third parties)
+- **Pay upfront or in up to 12 interest-free installments** straight from the wallet
+- **Assessor inspection** (quorum) before coverage starts, with plate verification
+- **100% digital claims**: photos and documents go to IPFS and the record lives on-chain
+- **Independent assessors** vote on each claim with a quorum; the payout comes automatically from the vault
+- **Didn't use it? Get paid back**: 20% of the premium returns as cashback at the end of the term
+- **Liquidity providers** stake in the pool and earn from premiums
 
-Additionally, the protocol includes a staking-based economic model that enables users to receive potential financial returns when coverage is not used, improving overall capital efficiency.
+Pricing is public and computed on-chain: `premium = FIPE value × 3.5%/yr × plan multiplier (0.6 / 1.0 / 1.4) × days / 365`.
+A R$ 50,000 car on the Essential plan pays R$ 1,750 a year (or 12 × R$ 145.83) and gets R$ 350 back if there
+is no paid claim. Each premium splits into 5% protocol fee, 20% reserved cashback and 75% for LPs and claims.
 
-## Main Features
+## Transparency and security
 
-- Decentralized vehicle protection subscription via dApp  
-- Digital claims submission  
-- Transparent claim tracking  
-- Staking mechanism with potential user returns  
-- Responsive web interface and installable PWA  
+- Price, deductible (5% of FIPE for partial damage), coverage rules, every vote and every payout are on-chain.
+- The vault is controlled by a PDA; no private key can move the funds.
+- Solvency is enforced on every purchase and withdrawal (10% minimum collateral; per-policy cap of 200% of net assets).
+- Anti-fraud: one active policy per plate, quorum inspection, 7-day waiting period, coverage only with installments
+  up to date, assessors can't act on their own policies and can reclassify the claim type.
+- Timelocked governance, two-step authority transfer, emergency pause, LP withdrawals with a notice period.
+- Privacy (LGPD): plates are stored only as a SHA-256 hash. The web app ships CSP, anti-clickjacking headers and HSTS.
 
-## Main Technologies Used
+## Tech stack
 
-- Solana blockchain for Smart Contract execution  
-- Anchor Framework for on-chain program development  
-- Next.js for web frontend  
-- Progressive Web App (PWA) for installable mobile experience  
-- Solana Web3 / Web3.js for blockchain integration  
+Solana · Rust + Anchor 0.31 (26 instructions) · Next.js 16, React 19, TypeScript, Tailwind CSS 4 · installable PWA ·
+Phantom, Solflare and Backpack wallets · FIPE API, plate lookup, IPFS (Pinata) and Helius RPC · hosted on Vercel ·
+24 integration tests, 6 unit tests, on-chain smoke test and Playwright E2E.
 
-## Architecture & running (summary)
+## Running
 
-- **On-chain program** (`programs/autoshield`, Anchor 0.31): a mutual risk pool whose LPs stake stablecoin for shares; drivers buy policies priced on-chain (`FIPE value × 3.5%/yr × tier multiplier × days/365`); claims are voted by an assessor committee with a quorum and paid permissionlessly from the vault (5% deductible for partial damage); drivers without paid claims get 20% of the premium back when settling an expired policy; a 10% minimum-collateral rule guards solvency on every purchase and withdrawal.
-- **Frontend** (`app/`, Next.js 16 + Tailwind + Solana Wallet Adapter, installable PWA): quote with FIPE lookup, policies, claims with SHA-256 evidence hashing, LP staking dashboard and assessor panel. A **Demo mode** runs the same rules in the browser (with a time-travel control) so the full lifecycle can be shown without a wallet.
-- **Run the app:** `cd app && npm install && npm run dev`.
-- **Anti-fraud:** one active policy per vehicle (PDA keyed by the plate's SHA-256, locked only when an inspection is approved), mandatory assessor inspection before any claim (rejection refunds the premium but not the inspection fee), a claim waiting period (default 7 days), a minimum vehicle value, and assessors can never vote on or inspect their own policy.
-- **Security:** only the program upgrade authority can create the pool; parameter and assessor changes go through a timelock; authority transfer is two-step; claims are paid only from LP net assets (never partially); dead shares block share-inflation attacks; accounts are versioned with reserved space.
-- **Revenue and installments:** a protocol fee on premiums funds a treasury that pays assessors per vote; drivers pay an inspection fee to the inspector; policies can be paid in up to 12 interest-free installments and lapse when payments fall behind.
-- **Privacy, evidence and pool robustness:** plates are stored only as a SHA-256 hash (checked by assessors at inspection), claim evidence goes to IPFS via a server-side Pinata key, inspections need a quorum, assessors can reclassify claims, LP withdrawals need a notice period, per-policy coverage is capped, and closed accounts return their rent.
-- **Program:** `yarn install && anchor build && anchor test` (24 integration tests). Deploy + `anchor run bootstrap --provider.cluster devnet` to create the tBRL test mint, the pool and seed liquidity.
+- **App (demo mode, no wallet needed):** `cd app && npm install && npm run dev`
+- **Program:** `yarn install && anchor build && anchor test`
+- **Devnet:** deploy, then `anchor run bootstrap --provider.cluster devnet` to create the tBRL test mint, the pool and seed liquidity.
+  Public deploys set `NEXT_PUBLIC_ENABLE_DEMO=false` (see `app/.env.devnet.example`).
 
-## How to Contribute
-
-If you are interested in contributing to AutoShieldFI, please follow these steps:
-
-1. Fork the repository  
-2. Clone your fork locally  
-3. Implement the desired improvements or fixes  
-4. Submit a pull request with a detailed description of your changes  
+Full step-by-step guide (in Portuguese): [docs/INSTALACAO.md](docs/INSTALACAO.md).
 
 ## Team
 
-- Wesley Cardoso — Smart Contracts / Backend  
-- Jaqueline Queroz — Frontend / UX/UI  
-- Amanda Almeida — Business / Marketing  
+- Wesley Cardoso — Smart Contracts / Backend
+- Jaqueline Queroz — Frontend / UX/UI
+- Amanda Almeida — Business / Marketing
 
 ## Contact
 
-For more information about AutoShieldFI, please contact:  
-**wcsd1995@gmail.com**
-
-We appreciate your interest in making vehicle protection more accessible and efficient for Brazilian drivers.
+**wcsd1995@gmail.com** · Licensed under [Apache 2.0](LICENSE).
