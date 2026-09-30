@@ -44,7 +44,8 @@ pub fn deposit_liquidity(ctx: Context<DepositLiquidity>, amount: u64) -> Result<
     let pool = &ctx.accounts.pool;
     require!(!pool.paused, AutoShieldError::Paused);
 
-    let nav = pool.net_assets(ctx.accounts.vault.amount);
+    // Cotas senior sao precificadas pelo patrimonio senior (o da junior fica de fora).
+    let nav = pool.senior_nav(pool.net_assets(ctx.accounts.vault.amount));
     let first = pool.total_shares == 0;
     // No primeiro aporte, DEAD_SHARES ficam sem dono para sempre: a cota nunca
     // mais parte de zero e doacoes diretas ao cofre nao distorcem o preco.
@@ -167,7 +168,7 @@ pub fn withdraw_liquidity(ctx: Context<WithdrawLiquidity>, shares: u64) -> Resul
     let nav = pool.net_assets(ctx.accounts.vault.amount);
     let amount = u64::try_from(
         (shares as u128)
-            .checked_mul(nav as u128)
+            .checked_mul(pool.senior_nav(nav) as u128)
             .ok_or(AutoShieldError::MathOverflow)?
             / pool.total_shares as u128,
     )
@@ -257,11 +258,137 @@ pub struct ClosePosition<'info> {
         mut,
         close = owner,
         has_one = owner @ AutoShieldError::Unauthorized,
-        constraint = position.shares == 0 @ AutoShieldError::AccountNotClosable
+        constraint = position.shares == 0 && position.junior_shares == 0 @ AutoShieldError::AccountNotClosable
     )]
     pub position: Account<'info, StakePosition>,
 }
 
 pub fn close_position(_ctx: Context<ClosePosition>) -> Result<()> {
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Classe junior (primeira perda): absorve as perdas antes da senior e recebe
+// uma parte maior dos premios. Usa a mesma posicao do LP.
+
+pub fn deposit_junior(ctx: Context<DepositLiquidity>, amount: u64) -> Result<()> {
+    require!(amount > 0, AutoShieldError::ZeroAmount);
+    let pool = &ctx.accounts.pool;
+    require!(!pool.paused, AutoShieldError::Paused);
+    let nav = pool.net_assets(ctx.accounts.vault.amount);
+    let junior_nav = pool.junior_nav(nav);
+    // Classe zerada por sinistros: as cotas antigas nao valem nada e novos
+    // aportes as diluiriam de forma injusta; exige recomposicao pela governanca.
+    require!(pool.junior_shares == 0 || junior_nav > 0, AutoShieldError::JuniorWipedOut);
+    let shares = if pool.junior_shares == 0 {
+        amount
+    } else {
+        u64::try_from(amount as u128 * pool.junior_shares as u128 / junior_nav as u128)
+            .map_err(|_| AutoShieldError::MathOverflow)?
+    };
+    require!(shares > 0, AutoShieldError::ZeroAmount);
+
+    token::transfer_checked(
+        CpiContext::new(
+            ctx.accounts.token_program.to_account_info(),
+            TransferChecked {
+                from: ctx.accounts.owner_token.to_account_info(),
+                mint: ctx.accounts.stable_mint.to_account_info(),
+                to: ctx.accounts.vault.to_account_info(),
+                authority: ctx.accounts.owner.to_account_info(),
+            },
+        ),
+        amount,
+        ctx.accounts.stable_mint.decimals,
+    )?;
+
+    let now = Clock::get()?.unix_timestamp;
+    let position = &mut ctx.accounts.position;
+    if position.owner == Pubkey::default() {
+        position.version = ACCOUNT_VERSION;
+        position.owner = ctx.accounts.owner.key();
+        position.pool = ctx.accounts.pool.key();
+        position.bump = ctx.bumps.position;
+    }
+    position.junior_shares = position.junior_shares.checked_add(shares).ok_or(AutoShieldError::MathOverflow)?;
+    position.total_deposited = position.total_deposited.checked_add(amount).ok_or(AutoShieldError::MathOverflow)?;
+    position.last_deposit_ts = now;
+
+    let pool = &mut ctx.accounts.pool;
+    pool.junior_shares = pool.junior_shares.checked_add(shares).ok_or(AutoShieldError::MathOverflow)?;
+    pool.junior_capital = pool.junior_capital.checked_add(amount).ok_or(AutoShieldError::MathOverflow)?;
+
+    emit!(LiquidityDeposited {
+        owner: position.owner,
+        amount,
+        shares,
+    });
+    Ok(())
+}
+
+/// Pede o saque de cotas junior; libera apos o aviso previo.
+pub fn request_junior_withdrawal(ctx: Context<RequestWithdrawal>, shares: u64) -> Result<()> {
+    require!(shares > 0, AutoShieldError::ZeroAmount);
+    let now = Clock::get()?.unix_timestamp;
+    let notice = ctx.accounts.pool.params.withdraw_notice_secs;
+    let position = &mut ctx.accounts.position;
+    require!(position.junior_shares >= shares, AutoShieldError::InsufficientShares);
+    position.pending_junior_withdraw = shares;
+    position.withdraw_available_at = now.checked_add(notice).ok_or(AutoShieldError::MathOverflow)?;
+    Ok(())
+}
+
+pub fn withdraw_junior(ctx: Context<WithdrawLiquidity>, shares: u64) -> Result<()> {
+    require!(shares > 0, AutoShieldError::ZeroAmount);
+    let now = Clock::get()?.unix_timestamp;
+    let position = &ctx.accounts.position;
+    let pool = &ctx.accounts.pool;
+    require!(position.junior_shares >= shares, AutoShieldError::InsufficientShares);
+    require!(shares <= position.pending_junior_withdraw, AutoShieldError::WithdrawNotRequested);
+    require!(now >= position.withdraw_available_at, AutoShieldError::WithdrawNoticeActive);
+    require!(
+        now >= position.last_deposit_ts.saturating_add(pool.params.withdraw_cooldown_secs),
+        AutoShieldError::WithdrawCooldown
+    );
+
+    let nav = pool.net_assets(ctx.accounts.vault.amount);
+    let amount = u64::try_from(shares as u128 * pool.junior_nav(nav) as u128 / pool.junior_shares.max(1) as u128)
+        .map_err(|_| AutoShieldError::MathOverflow)?;
+    let required = pool
+        .required_capital(pool.total_active_coverage)
+        .ok_or(AutoShieldError::MathOverflow)?;
+    require!(nav.saturating_sub(amount) >= required, AutoShieldError::WithdrawBreaksSolvency);
+
+    if amount > 0 {
+        let signer_seeds: &[&[&[u8]]] = &[&[POOL_SEED, &[pool.bump]]];
+        token::transfer_checked(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                TransferChecked {
+                    from: ctx.accounts.vault.to_account_info(),
+                    mint: ctx.accounts.stable_mint.to_account_info(),
+                    to: ctx.accounts.owner_token.to_account_info(),
+                    authority: ctx.accounts.pool.to_account_info(),
+                },
+                signer_seeds,
+            ),
+            amount,
+            ctx.accounts.stable_mint.decimals,
+        )?;
+    }
+
+    let position = &mut ctx.accounts.position;
+    position.junior_shares -= shares;
+    position.pending_junior_withdraw -= shares;
+    position.total_withdrawn = position.total_withdrawn.checked_add(amount).ok_or(AutoShieldError::MathOverflow)?;
+    let pool = &mut ctx.accounts.pool;
+    pool.junior_shares -= shares;
+    pool.junior_capital = pool.junior_capital.saturating_sub(amount);
+
+    emit!(LiquidityWithdrawn {
+        owner: position.owner,
+        amount,
+        shares,
+    });
     Ok(())
 }

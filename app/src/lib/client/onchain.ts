@@ -20,6 +20,7 @@ import type {
   ClaimKind,
   DriverInfo,
   RepairShopInfo,
+  AssessorInfo,
 } from "../types";
 import { isTotalLoss } from "../pricing";
 import { PROGRAM_ID } from "../config";
@@ -183,6 +184,13 @@ export class OnChainClient implements AutoShieldClient {
       pendingAuthority: p.pendingAuthority.equals(PublicKey.default) ? null : p.pendingAuthority.toBase58(),
       oracle: p.oracle.toBase58(),
       bonusDaysPerClass: p.bonusDaysPerClass || 365,
+      juniorShares: n(p.juniorShares),
+      juniorCapital: n(p.juniorCapital),
+      juniorWeightBps: p.juniorWeightBps || 20_000,
+      assessorBonds: n(p.assessorBonds),
+      minAssessorBond: n(p.minAssessorBond),
+      slashBps: p.slashBps || 1_000,
+      totalSalvage: n(p.totalSalvage),
     };
   }
 
@@ -268,6 +276,12 @@ export class OnChainClient implements AutoShieldClient {
       appealed: c.appealed,
       appealVoters: c.appealVoters.map((v: PublicKey) => v.toBase58()),
       appealTs: n(c.appealTs),
+      panel: c.panel.map((v: PublicKey) => v.toBase58()),
+      voteBits: c.voteBits,
+      appealVoteBits: c.appealVoteBits,
+      settledBits: c.settledBits,
+      appealSettledBits: c.appealSettledBits,
+      salvageRecovered: n(c.salvageRecovered),
     };
   }
 
@@ -314,6 +328,22 @@ export class OnChainClient implements AutoShieldClient {
     return { bonusClass: d.bonusClass, cleanDays: d.cleanDays, cleanPolicies: d.cleanPolicies, paidClaims: d.paidClaims };
   }
 
+  private assessorPda(a: PublicKey): PublicKey {
+    return PublicKey.findProgramAddressSync([Buffer.from("assessor"), a.toBuffer()], this.programId)[0];
+  }
+
+  async getAssessor(assessor: string): Promise<AssessorInfo | null> {
+    const r = await this.program.account.assessorRecord.fetchNullable(this.assessorPda(new PublicKey(assessor)));
+    if (!r) return null;
+    return {
+      bond: n(r.bond),
+      votes: r.votes,
+      correctVotes: r.correctVotes,
+      wrongVotes: r.wrongVotes,
+      slashed: n(r.slashed),
+    };
+  }
+
   async getStake(owner: string): Promise<StakeInfo | null> {
     const [pda] = PublicKey.findProgramAddressSync(
       [Buffer.from("stake"), this.poolPda.toBuffer(), new PublicKey(owner).toBuffer()],
@@ -328,6 +358,8 @@ export class OnChainClient implements AutoShieldClient {
       lastDepositTs: n(s.lastDepositTs),
       pendingWithdrawShares: n(s.pendingWithdrawShares),
       withdrawAvailableAt: n(s.withdrawAvailableAt),
+      juniorShares: n(s.juniorShares),
+      pendingJuniorWithdraw: n(s.pendingJuniorWithdraw),
     };
   }
 
@@ -562,6 +594,88 @@ export class OnChainClient implements AutoShieldClient {
         policy,
         vehicle: this.vehiclePda(p.plateHash),
       })
+      .rpc();
+  }
+
+  async depositJunior(amount: number): Promise<string> {
+    const me = this.me();
+    const mint = await this.mint();
+    return this.program.methods
+      .depositJunior(new BN(amount))
+      .accountsPartial({ owner: me, ...this.tokenAccounts(me, mint) })
+      .rpc();
+  }
+
+  async requestJuniorWithdraw(shares: number): Promise<string> {
+    const me = this.me();
+    return this.program.methods
+      .requestJuniorWithdrawal(new BN(shares))
+      .accountsPartial({ owner: me, pool: this.poolPda })
+      .rpc();
+  }
+
+  async withdrawJunior(shares: number): Promise<string> {
+    const me = this.me();
+    const mint = await this.mint();
+    return this.program.methods
+      .withdrawJunior(new BN(shares))
+      .accountsPartial({ owner: me, ...this.tokenAccounts(me, mint) })
+      .rpc();
+  }
+
+  private async bondAccounts() {
+    const me = this.me();
+    const mint = await this.mint();
+    return {
+      assessor: me,
+      pool: this.poolPda,
+      stableMint: mint,
+      vault: this.vaultPda,
+      assessorToken: getAssociatedTokenAddressSync(mint, me),
+    };
+  }
+
+  async postBond(amount: number): Promise<string> {
+    return this.program.methods.postBond(new BN(amount)).accountsPartial(await this.bondAccounts()).rpc();
+  }
+
+  async withdrawBond(amount: number): Promise<string> {
+    return this.program.methods.withdrawBond(new BN(amount)).accountsPartial(await this.bondAccounts()).rpc();
+  }
+
+  async settleVote(claimAddr: string, assessor: string): Promise<string> {
+    const a = new PublicKey(assessor);
+    return this.program.methods
+      .settleVote(a)
+      .accountsPartial({
+        caller: this.me(),
+        pool: this.poolPda,
+        claim: new PublicKey(claimAddr),
+        assessorRecord: this.assessorPda(a),
+      })
+      .rpc();
+  }
+
+  async recordSalvage(claimAddr: string, amount: number): Promise<string> {
+    const me = this.me();
+    const mint = await this.mint();
+    return this.program.methods
+      .recordSalvage(new BN(amount))
+      .accountsPartial({
+        authority: me,
+        pool: this.poolPda,
+        stableMint: mint,
+        vault: this.vaultPda,
+        source: getAssociatedTokenAddressSync(mint, me),
+        claim: new PublicKey(claimAddr),
+      })
+      .rpc();
+  }
+
+  async setRiskParams(juniorWeightBps: number, minAssessorBond: number, slashBps: number): Promise<string> {
+    return this.program.methods
+      .setRiskParams(juniorWeightBps, new BN(minAssessorBond), slashBps)
+      .accountsPartial(this.admin())
       .rpc();
   }
 

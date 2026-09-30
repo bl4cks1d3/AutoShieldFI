@@ -1,14 +1,36 @@
 "use client";
 
-import { ClipboardCheck, Gavel, ShieldAlert, ThumbsDown, ThumbsUp } from "lucide-react";
+import { BadgeCheck, ClipboardCheck, Gavel, Lock, ShieldAlert, ThumbsDown, ThumbsUp } from "lucide-react";
 import { useState } from "react";
 import { displayPlate, plateHashHex } from "@/lib/plate";
 import { useAction, useApp, useData } from "@/components/Providers";
 import { ClaimStatusChip, Empty, EvidenceLink, Loading, PageHeader, PoolMissing, Row, Spinner, WalletGate } from "@/components/ui";
-import { fmtDate, fmtDuration, fmtMoney, shortAddr } from "@/lib/format";
+import { fmtDate, fmtDuration, fmtInput, fmtMoney, fmtPct, shortAddr, toBase } from "@/lib/format";
 import { kindLabel, tierLabel, useI18n } from "@/lib/i18n";
-import { expectedPayout, TIER_COVERS } from "@/lib/pricing";
-import type { ClaimInfo, ClaimKind, ClaimStatus, PolicyInfo, PoolInfo } from "@/lib/types";
+import { APPEAL_WINDOW_DAYS, expectedPayout, TIER_COVERS, UNIT } from "@/lib/pricing";
+import type { AssessorInfo, ClaimInfo, ClaimKind, ClaimStatus, PolicyInfo, PoolInfo } from "@/lib/types";
+
+/** Resultado definitivo do sinistro (igual a Claim::final_outcome no contrato). */
+function finalOutcome(c: ClaimInfo, pool: PoolInfo, now: number): boolean | null {
+  if (c.status === "approved" || c.status === "paid") return true;
+  if (c.status === "rejected") {
+    const windowEnd = c.resolvedTs + APPEAL_WINDOW_DAYS * pool.params.secondsPerDay;
+    return c.appealed || now > windowEnd ? false : null;
+  }
+  return null;
+}
+
+/** Avaliadores com votos ainda nao liquidados neste sinistro. */
+function unsettledVoters(c: ClaimInfo): string[] {
+  const out = new Set<string>();
+  c.voters.forEach((v, i) => {
+    if (!(c.settledBits & (1 << i))) out.add(v);
+  });
+  c.appealVoters.forEach((v, i) => {
+    if (!(c.appealSettledBits & (1 << i))) out.add(v);
+  });
+  return [...out];
+}
 
 const FILTERS: { key: ClaimStatus | "all" | "inspection"; pt: string; en: string }[] = [
   { key: "inspection", pt: "Vistorias", en: "Inspections" },
@@ -41,18 +63,25 @@ function AssessorView() {
   const [filter, setFilter] = useState<ClaimStatus | "all" | "inspection">("inspection");
   const [demoIdentity, setIdentity] = useState(client.assessorIdentities[0] ?? "");
   const identity = client.mode === "chain" ? (client.wallet ?? "") : demoIdentity;
-  const { data, loading } = useData(async (c) => ({
-    pool: await c.getPool(),
-    claims: await c.getClaims(),
-    policies: await c.getPolicies(),
-    now: await c.now(),
-  }));
+  const { data, loading } = useData(
+    async (c) => ({
+      pool: await c.getPool(),
+      claims: await c.getClaims(),
+      policies: await c.getPolicies(),
+      now: await c.now(),
+      record: identity ? await c.getAssessor(identity) : null,
+    }),
+    [identity],
+  );
 
   if (loading && !data) return <Loading />;
   if (!data?.pool) return <PoolMissing />;
-  const { pool, claims, policies, now } = data;
+  const { pool, claims, policies, now, record } = data;
 
   const isAssessor = pool.assessors.includes(identity);
+  // Sem a garantia minima o contrato recusa votos e vistorias.
+  const bonded = (record?.bond ?? 0) >= pool.minAssessorBond;
+  const canAct = isAssessor && bonded;
   const policyById = new Map(policies.map((p) => [p.address, p]));
   // Recursos entram na fila "em analise" junto com os sinistros pendentes.
   const inQueue = (c: ClaimInfo, k: string) => k === "all" || c.status === k || (k === "pending" && c.status === "appealed");
@@ -94,6 +123,10 @@ function AssessorView() {
         )}
       </div>
 
+      {(isAssessor || (record?.bond ?? 0) > 0) && (
+        <BondCard pool={pool} record={record} identity={identity} isAssessor={isAssessor} />
+      )}
+
       <div className="flex flex-wrap gap-2">
         {FILTERS.map((f) => (
           <button
@@ -112,7 +145,7 @@ function AssessorView() {
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
             {toInspect.map((p) => (
-              <InspectionCard key={p.address} p={p} pool={pool} identity={identity} canAct={isAssessor} />
+              <InspectionCard key={p.address} p={p} pool={pool} identity={identity} canAct={canAct} />
             ))}
           </div>
         )
@@ -127,12 +160,109 @@ function AssessorView() {
               policy={policyById.get(c.policy)}
               pool={pool}
               identity={identity}
-              canVote={isAssessor}
+              canVote={canAct}
               now={now}
             />
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function BondCard({
+  pool,
+  record,
+  identity,
+  isAssessor,
+}: {
+  pool: PoolInfo;
+  record: AssessorInfo | null;
+  identity: string;
+  isAssessor: boolean;
+}) {
+  const { client } = useApp();
+  const { run, busy } = useAction();
+  const { t } = useI18n();
+  const [amount, setAmount] = useState(fmtInput(pool.minAssessorBond / UNIT, 2));
+  const bond = record?.bond ?? 0;
+  const settled = (record?.correctVotes ?? 0) + (record?.wrongVotes ?? 0);
+  const accuracy = settled ? (record?.correctVotes ?? 0) / settled : 0;
+  const base = toBase(amount);
+  const as = client.mode === "demo" ? identity : undefined;
+  // Avaliador do comite precisa manter o minimo; fora dele pode sacar tudo.
+  const withdrawable = isAssessor ? Math.max(0, bond - pool.minAssessorBond) : bond;
+
+  return (
+    <div className="card p-5">
+      <h2 className="flex items-center gap-2 font-semibold">
+        <Lock className="size-5 text-[var(--accent)]" /> {t("Garantia e reputação", "Bond and reputation")}
+      </h2>
+      <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div>
+          <p className="text-xs text-[var(--muted)]">{t("Garantia depositada", "Bond posted")}</p>
+          <p className={`num text-lg font-bold ${bond < pool.minAssessorBond ? "text-[var(--bad)]" : ""}`}>{fmtMoney(bond)}</p>
+          <p className="text-xs text-[var(--muted)]">
+            {t("mínimo", "minimum")} {fmtMoney(pool.minAssessorBond)}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs text-[var(--muted)]">{t("Votos dados", "Votes cast")}</p>
+          <p className="num text-lg font-bold">{record?.votes ?? 0}</p>
+        </div>
+        <div>
+          <p className="text-xs text-[var(--muted)]">{t("Acerto (votos liquidados)", "Accuracy (settled votes)")}</p>
+          <p className="num flex items-center gap-1 text-lg font-bold">
+            <BadgeCheck className="size-4 text-[var(--ok)]" /> {settled ? fmtPct(accuracy) : "—"}
+          </p>
+          <p className="text-xs text-[var(--muted)]">
+            {record?.correctVotes ?? 0} {t("certos", "right")} · {record?.wrongVotes ?? 0} {t("contra o resultado", "against outcome")}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs text-[var(--muted)]">{t("Garantia perdida", "Bond slashed")}</p>
+          <p className="num text-lg font-bold">{fmtMoney(record?.slashed ?? 0)}</p>
+          <p className="text-xs text-[var(--muted)]">
+            {pool.slashBps / 100}% {t("por voto contra o resultado", "per vote against the outcome")}
+          </p>
+        </div>
+      </div>
+      {isAssessor && bond < pool.minAssessorBond && (
+        <p className="mt-3 text-sm text-[var(--bad)]">
+          {t(
+            "Garantia abaixo do mínimo: o contrato recusa seus votos e vistorias até você completar.",
+            "Bond below the minimum: the contract rejects your votes and inspections until you top it up.",
+          )}
+        </p>
+      )}
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+        <input
+          className="input num sm:max-w-48"
+          inputMode="decimal"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value.replace(/[^\d.,]/g, ""))}
+        />
+        <button
+          className="btn btn-primary"
+          disabled={base <= 0 || !!busy}
+          onClick={() => run("bond-post", () => client.postBond(base, as), t("Garantia depositada", "Bond posted"))}
+        >
+          {busy === "bond-post" && <Spinner />} {t("Depositar garantia", "Post bond")}
+        </button>
+        <button
+          className="btn btn-ghost"
+          disabled={base <= 0 || base > withdrawable || !!busy}
+          onClick={() => run("bond-out", () => client.withdrawBond(base, as), t("Garantia sacada", "Bond withdrawn"))}
+        >
+          {busy === "bond-out" && <Spinner />} {t("Sacar", "Withdraw")} ({t("até", "up to")} {fmtMoney(withdrawable)})
+        </button>
+      </div>
+      <p className="mt-2 text-xs text-[var(--muted)]">
+        {t(
+          "A garantia fica no cofre, separada do capital dos cotistas. Quando o sinistro tem resultado definitivo, cada voto é liquidado: de acordo com o resultado conta como acerto; contra, perde parte da garantia para a tesouraria.",
+          "The bond stays in the vault, separate from shareholder capital. Once a claim has a final outcome, each vote is settled: agreeing with the outcome counts as correct; against it loses part of the bond to the treasury.",
+        )}
+      </p>
     </div>
   );
 }
@@ -160,6 +290,20 @@ function ReviewCard({
   const firstRoundVoter = appeal && c.voters.includes(identity);
   const voted = appeal ? c.appealVoters.includes(identity) || firstRoundVoter : c.voters.includes(identity);
   const ownClaim = c.claimant === identity;
+  // Primeira rodada: so vota quem foi sorteado para o painel.
+  const offPanel = !appeal && c.panel.length > 0 && !c.panel.includes(identity);
+  const outcome = finalOutcome(c, pool, now);
+  const toSettle = outcome === null ? [] : unsettledVoters(c);
+  const settleAll = () =>
+    run(
+      `settle-${c.address}`,
+      async () => {
+        let sig = "";
+        for (const v of toSettle) sig = await client.settleVote(c.address, v);
+        return sig;
+      },
+      t("Votos liquidados", "Votes settled"),
+    );
   const [kind, setKind] = useState<ClaimKind>(c.kind);
   const open = (c.status === "pending" || appeal) && now <= c.votingDeadline;
   const est = policy
@@ -222,6 +366,23 @@ function ReviewCard({
           label={t("Votos", "Votes")}
           value={t(`${c.approvals} a favor · ${c.rejections} contra`, `${c.approvals} for · ${c.rejections} against`)}
         />
+        {c.panel.length > 0 && (
+          <Row
+            label={t("Painel sorteado", "Drawn panel")}
+            value={
+              <span className="flex flex-wrap justify-end gap-1">
+                {c.panel.map((a) => (
+                  <span
+                    key={a}
+                    className={`rounded px-1.5 py-0.5 font-mono text-xs ${a === identity ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "bg-[var(--bg-soft)]"}`}
+                  >
+                    {shortAddr(a)}
+                  </span>
+                ))}
+              </span>
+            }
+          />
+        )}
         {(c.status === "pending" || appeal) && (
           <Row
             label={t("Prazo", "Deadline")}
@@ -238,7 +399,15 @@ function ReviewCard({
         {open && ownClaim && <p className="text-sm text-[var(--muted)]">
             {t("Sinistro da sua própria apólice: você não vota.", "This claim is on your own policy: you cannot vote.")}
           </p>}
-        {open && canVote && !voted && !ownClaim && policy && (
+        {open && offPanel && !ownClaim && (
+          <p className="text-sm text-[var(--muted)]">
+            {t(
+              "Você não foi sorteado para o painel deste sinistro.",
+              "You were not drawn for this claim's panel.",
+            )}
+          </p>
+        )}
+        {open && canVote && !voted && !ownClaim && !offPanel && policy && (
           <label className="flex w-full items-center gap-2 text-sm">
             <span className="text-[var(--muted)]">{t("Tipo ao aprovar", "Type when approving")}</span>
             <select className="input !w-auto flex-1 !py-1.5" value={kind} onChange={(e) => setKind(e.target.value as ClaimKind)}>
@@ -251,7 +420,7 @@ function ReviewCard({
             </select>
           </label>
         )}
-        {open && canVote && !voted && !ownClaim && (
+        {open && canVote && !voted && !ownClaim && !offPanel && (
           <>
             <button className="btn btn-primary flex-1" disabled={!!busy} onClick={() => vote(true)}>
               {busy === `vote-${c.address}` ? <Spinner /> : <ThumbsUp className="size-4" />} {t("Aprovar", "Approve")}
@@ -295,6 +464,12 @@ function ReviewCard({
             onClick={() => run(`exp-${c.address}`, () => client.expireClaim(c.address), t("Sinistro encerrado sem quórum", "Claim closed without quorum"))}
           >
             {t("Encerrar por falta de quórum", "Close for lack of quorum")}
+          </button>
+        )}
+        {toSettle.length > 0 && (
+          <button className="btn btn-ghost w-full" disabled={!!busy} onClick={settleAll}>
+            {busy === `settle-${c.address}` && <Spinner />}{" "}
+            {t(`Liquidar reputação (${toSettle.length} avaliador(es))`, `Settle reputation (${toSettle.length} assessor(s))`)}
           </button>
         )}
       </div>

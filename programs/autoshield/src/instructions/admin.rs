@@ -184,6 +184,25 @@ pub fn set_oracle(ctx: Context<AdminAction>, oracle: Pubkey) -> Result<()> {
     Ok(())
 }
 
+/// Parametros de risco: peso da classe junior nos premios (bps; 20.000 = 2x),
+/// garantia minima dos avaliadores e parte da garantia perdida por voto errado.
+pub fn set_risk_params(
+    ctx: Context<AdminAction>,
+    junior_weight_bps: u16,
+    min_assessor_bond: u64,
+    slash_bps: u16,
+) -> Result<()> {
+    require!(
+        junior_weight_bps >= 10_000 && slash_bps as u64 <= 5_000,
+        AutoShieldError::InvalidParameter
+    );
+    let pool = &mut ctx.accounts.pool;
+    pool.junior_weight_bps = junior_weight_bps;
+    pool.min_assessor_bond = min_assessor_bond;
+    pool.slash_bps = slash_bps;
+    Ok(())
+}
+
 /// Dias de cobertura sem sinistro para subir uma classe de bonus (365 no mercado;
 /// valores menores so para demonstracao).
 pub fn set_bonus_days(ctx: Context<AdminAction>, days: u16) -> Result<()> {

@@ -22,4 +22,5 @@ wallet = "~/.config/solana/id.json"
 [scripts]
 bootstrap = "yarn run ts-node scripts/bootstrap.ts"
 oracle = "yarn run ts-node scripts/oracle-fipe.ts"
+shop = "yarn run ts-node scripts/register-shop.ts"
 test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"

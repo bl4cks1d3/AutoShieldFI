@@ -1,6 +1,6 @@
 "use client";
 
-import { Clock, KeyRound, Landmark, Pause, Play, Settings2, Trash2, UserPlus, Users, Wrench } from "lucide-react";
+import { Clock, KeyRound, Landmark, Pause, Play, Recycle, Settings2, ShieldHalf, Trash2, UserPlus, Users, Wrench } from "lucide-react";
 import { useEffect, useState } from "react";
 import { PublicKey } from "@solana/web3.js";
 import { useAction, useApp, useData } from "@/components/Providers";
@@ -98,6 +98,8 @@ function AdminView() {
         <div className="flex flex-col gap-6">
           <AssessorsForm pool={pool} disabled={!isAuthority} />
           <TreasuryCard pool={pool} disabled={!isAuthority} />
+          <RiskCard pool={pool} disabled={!isAuthority} />
+          <SalvageCard pool={pool} disabled={!isAuthority} />
           <ShopsCard disabled={!isAuthority} />
           <DangerZone pool={pool} disabled={!isAuthority} />
         </div>
@@ -497,6 +499,134 @@ function TreasuryCard({ pool, disabled }: { pool: PoolInfo; disabled: boolean })
         {t(
           "O saque nunca toca no patrimônio dos LPs, no cashback reservado nem nas taxas de vistoria pendentes.",
           "Withdrawals never touch LP equity, reserved cashback or pending inspection fees.",
+        )}
+      </p>
+    </section>
+  );
+}
+
+/** Classe junior e garantia dos avaliadores (vale na hora, sem timelock). */
+function RiskCard({ pool, disabled }: { pool: PoolInfo; disabled: boolean }) {
+  const { client } = useApp();
+  const { run, busy } = useAction();
+  const { t } = useI18n();
+  const [weight, setWeight] = useState(fmtInput(pool.juniorWeightBps / 10_000, 1));
+  const [bond, setBond] = useState(fmtInput(pool.minAssessorBond / UNIT, 2));
+  const [slash, setSlash] = useState(fmtInput(pool.slashBps / 100, 1));
+  useEffect(() => {
+    setWeight(fmtInput(pool.juniorWeightBps / 10_000, 1));
+    setBond(fmtInput(pool.minAssessorBond / UNIT, 2));
+    setSlash(fmtInput(pool.slashBps / 100, 1));
+  }, [pool.juniorWeightBps, pool.minAssessorBond, pool.slashBps]);
+  // toBase le o numero no idioma atual (em unidades de 10^-6).
+  const weightBps = Math.round((toBase(weight) / UNIT) * 10_000);
+  const slashBps = Math.round((toBase(slash) / UNIT) * 100);
+  const bondBase = toBase(bond);
+  const valid = weightBps >= 10_000 && weightBps <= 65_535 && slashBps >= 0 && slashBps <= 5_000 && bondBase >= 0;
+
+  return (
+    <section className="card p-5">
+      <h2 className="flex items-center gap-2 font-semibold">
+        <ShieldHalf className="size-5 text-[var(--accent)]" /> {t("Risco e avaliadores", "Risk and assessors")}
+      </h2>
+      <div className="mt-3 grid gap-3 sm:grid-cols-3">
+        <label className="text-sm">
+          <span className="label">{t("Peso da júnior (x)", "Junior weight (x)")}</span>
+          <input className="input num" disabled={disabled} value={weight} onChange={(e) => setWeight(e.target.value)} />
+          <span className="text-xs text-[var(--muted)]">{t("Na divisão dos prêmios; mín. 1x", "In premium sharing; min. 1x")}</span>
+        </label>
+        <label className="text-sm">
+          <span className="label">{t("Garantia mínima", "Minimum bond")}</span>
+          <input className="input num" disabled={disabled} value={bond} onChange={(e) => setBond(e.target.value)} />
+          <span className="text-xs text-[var(--muted)]">{t("Para votar e vistoriar", "To vote and inspect")}</span>
+        </label>
+        <label className="text-sm">
+          <span className="label">{t("Perda por voto errado (%)", "Slash per wrong vote (%)")}</span>
+          <input className="input num" disabled={disabled} value={slash} onChange={(e) => setSlash(e.target.value)} />
+          <span className="text-xs text-[var(--muted)]">{t("Da garantia; máx. 50%", "Of the bond; max. 50%")}</span>
+        </label>
+      </div>
+      <button
+        className="btn btn-primary mt-4 w-full"
+        disabled={disabled || !valid || !!busy}
+        onClick={() =>
+          run("risk", () => client.setRiskParams(weightBps, bondBase, slashBps), t("Parâmetros de risco atualizados", "Risk parameters updated"))
+        }
+      >
+        {busy === "risk" && <Spinner />} {t("Salvar parâmetros de risco", "Save risk parameters")}
+      </button>
+      <p className="mt-2 text-xs text-[var(--muted)]">
+        {t(
+          "A classe júnior absorve os sinistros antes da sênior e, em troca, recebe mais dos prêmios. Avaliadores precisam manter a garantia mínima; votos contra o resultado final perdem parte dela.",
+          "The junior class absorbs claims before the senior and, in return, receives more of the premiums. Assessors must keep the minimum bond; votes against the final outcome lose part of it.",
+        )}
+      </p>
+    </section>
+  );
+}
+
+/** Salvados: valor recuperado de perdas totais (venda do veiculo ou recuperacao de roubo). */
+function SalvageCard({ pool, disabled }: { pool: PoolInfo; disabled: boolean }) {
+  const { client } = useApp();
+  const { run, busy } = useAction();
+  const { lang, t } = useI18n();
+  const { data: claims } = useData((c) => c.getClaims());
+  const totalLoss = (claims ?? []).filter((c) => c.status === "paid" && c.totalLoss);
+  const [claim, setClaim] = useState("");
+  const [amount, setAmount] = useState("");
+  const base = toBase(amount);
+  const selected = claim || totalLoss[0]?.address || "";
+
+  return (
+    <section className="card p-5">
+      <h2 className="flex items-center gap-2 font-semibold">
+        <Recycle className="size-5 text-[var(--accent)]" /> {t("Salvados", "Salvage")}
+      </h2>
+      <div className="mt-3 divide-y divide-[var(--border)] text-sm">
+        <Row label={t("Recuperado até hoje", "Recovered to date")} value={fmtMoney(pool.totalSalvage)} strong />
+        <Row label={t("Perdas totais pagas", "Total losses paid")} value={String(totalLoss.length)} />
+      </div>
+      {totalLoss.length === 0 ? (
+        <p className="mt-3 text-sm text-[var(--muted)]">
+          {t("Nenhuma perda total paga para registrar salvado.", "No paid total loss to record salvage against.")}
+        </p>
+      ) : (
+        <div className="mt-4 flex flex-col gap-2">
+          <select className="input" disabled={disabled} value={selected} onChange={(e) => setClaim(e.target.value)}>
+            {totalLoss.map((c) => (
+              <option key={c.address} value={c.address}>
+                #{c.id} · {fmtMoney(c.payoutAmount)} {t("pagos", "paid")}
+                {c.salvageRecovered > 0 ? ` · ${fmtMoney(c.salvageRecovered)} ${lang === "en" ? "recovered" : "recuperados"}` : ""}
+              </option>
+            ))}
+          </select>
+          <div className="flex gap-2">
+            <input
+              className="input num flex-1"
+              inputMode="decimal"
+              placeholder={t("Valor recuperado em tBRL", "Recovered amount in tBRL")}
+              disabled={disabled}
+              value={amount}
+              onChange={(e) => setAmount(e.target.value.replace(/[^\d.,]/g, ""))}
+            />
+            <button
+              className="btn btn-primary"
+              disabled={disabled || base <= 0 || !selected || !!busy}
+              onClick={() =>
+                run("salvage", () => client.recordSalvage(selected, base), t("Salvado registrado no cofre", "Salvage recorded in the vault")).then(
+                  (sig) => sig && setAmount(""),
+                )
+              }
+            >
+              {busy === "salvage" && <Spinner />} {t("Registrar", "Record")}
+            </button>
+          </div>
+        </div>
+      )}
+      <p className="mt-2 text-xs text-[var(--muted)]">
+        {t(
+          "Depois de uma perda total, o veículo (ou o que foi recuperado de um roubo) é vendido e o valor volta ao cofre como receita dos cotistas. O valor sai da carteira da autoridade.",
+          "After a total loss, the vehicle (or what was recovered from a theft) is sold and the proceeds return to the vault as shareholder income. The amount comes from the authority wallet.",
         )}
       </p>
     </section>

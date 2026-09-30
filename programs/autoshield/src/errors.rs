@@ -116,4 +116,16 @@ pub enum AutoShieldError {
     NoAppealAssessors,
     #[msg("Avaliador que votou na primeira rodada nao vota no recurso")]
     AppealConflict,
+    #[msg("Avaliador nao sorteado para julgar este sinistro")]
+    NotOnPanel,
+    #[msg("Garantia do avaliador abaixo do minimo exigido")]
+    InsufficientBond,
+    #[msg("O sinistro ainda nao tem resultado definitivo")]
+    ClaimNotFinal,
+    #[msg("Nao ha votos deste avaliador a liquidar")]
+    NothingToSettle,
+    #[msg("Salvado so pode ser registrado em sinistro de perda total pago")]
+    NotTotalLoss,
+    #[msg("Classe junior zerada: novos aportes junior bloqueados")]
+    JuniorWipedOut,
 }

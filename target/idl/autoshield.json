@@ -543,6 +543,106 @@
       "args": []
     },
     {
+      "name": "deposit_junior",
+      "docs": [
+        "Classe junior (primeira perda): aporte, pedido de saque e saque."
+      ],
+      "discriminator": [
+        4,
+        71,
+        156,
+        106,
+        25,
+        232,
+        177,
+        157
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  118,
+                  50
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "stable_mint",
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "owner_token",
+          "writable": true
+        },
+        {
+          "name": "position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  97,
+                  107,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "deposit_liquidity",
       "discriminator": [
         245,
@@ -1401,6 +1501,34 @@
           }
         },
         {
+          "name": "assessor_record",
+          "docs": [
+            "Garantia e reputacao do avaliador."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  115,
+                  115,
+                  101,
+                  115,
+                  115,
+                  111,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "assessor"
+              }
+            ]
+          }
+        },
+        {
           "name": "token_program",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         },
@@ -1737,6 +1865,105 @@
         }
       ],
       "args": []
+    },
+    {
+      "name": "post_bond",
+      "docs": [
+        "Garantia dos avaliadores."
+      ],
+      "discriminator": [
+        168,
+        151,
+        202,
+        119,
+        163,
+        58,
+        147,
+        247
+      ],
+      "accounts": [
+        {
+          "name": "assessor",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  118,
+                  50
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "stable_mint",
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "assessor_token",
+          "writable": true
+        },
+        {
+          "name": "assessor_record",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  115,
+                  115,
+                  101,
+                  115,
+                  115,
+                  111,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "assessor"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
     },
     {
       "name": "propose_assessors",
@@ -2083,6 +2310,85 @@
       ]
     },
     {
+      "name": "record_salvage",
+      "docs": [
+        "Valor recuperado de perda total (salvado ou veiculo recuperado)."
+      ],
+      "discriminator": [
+        239,
+        67,
+        206,
+        144,
+        165,
+        233,
+        156,
+        12
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  118,
+                  50
+                ]
+              }
+            ]
+          },
+          "relations": [
+            "claim"
+          ]
+        },
+        {
+          "name": "stable_mint",
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "source",
+          "writable": true
+        },
+        {
+          "name": "claim",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "register_shop",
       "docs": [
         "Credencia uma oficina para receber indenizacoes de danos parciais."
@@ -2163,6 +2469,79 @@
         {
           "name": "city",
           "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "request_junior_withdrawal",
+      "discriminator": [
+        167,
+        5,
+        88,
+        216,
+        32,
+        250,
+        49,
+        26
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "position"
+          ]
+        },
+        {
+          "name": "pool",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  118,
+                  50
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  97,
+                  107,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "shares",
+          "type": "u64"
         }
       ]
     },
@@ -2380,6 +2759,62 @@
         {
           "name": "paused",
           "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "set_risk_params",
+      "discriminator": [
+        203,
+        154,
+        198,
+        239,
+        21,
+        242,
+        173,
+        235
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  118,
+                  50
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "junior_weight_bps",
+          "type": "u16"
+        },
+        {
+          "name": "min_assessor_bond",
+          "type": "u64"
+        },
+        {
+          "name": "slash_bps",
+          "type": "u16"
         }
       ]
     },
@@ -2673,6 +3108,86 @@
       "args": []
     },
     {
+      "name": "settle_vote",
+      "docs": [
+        "Liquida votos de um sinistro encerrado: reputacao e garantia."
+      ],
+      "discriminator": [
+        28,
+        56,
+        217,
+        57,
+        155,
+        251,
+        104,
+        65
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  118,
+                  50
+                ]
+              }
+            ]
+          },
+          "relations": [
+            "claim"
+          ]
+        },
+        {
+          "name": "claim",
+          "writable": true
+        },
+        {
+          "name": "assessor_record",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  115,
+                  115,
+                  101,
+                  115,
+                  115,
+                  111,
+                  114
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "assessor"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "assessor",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
       "name": "update_policy_fipe",
       "docs": [
         "Oraculo atualiza o valor FIPE (cobertura acompanha a tabela mes a mes)."
@@ -2896,6 +3411,34 @@
           }
         },
         {
+          "name": "assessor_record",
+          "docs": [
+            "Garantia e reputacao do avaliador."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  115,
+                  115,
+                  101,
+                  115,
+                  115,
+                  111,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "assessor"
+              }
+            ]
+          }
+        },
+        {
           "name": "token_program",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         },
@@ -2922,6 +3465,198 @@
               }
             }
           }
+        }
+      ]
+    },
+    {
+      "name": "withdraw_bond",
+      "discriminator": [
+        222,
+        199,
+        141,
+        31,
+        188,
+        93,
+        155,
+        40
+      ],
+      "accounts": [
+        {
+          "name": "assessor",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  118,
+                  50
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "stable_mint",
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "assessor_token",
+          "writable": true
+        },
+        {
+          "name": "assessor_record",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  115,
+                  115,
+                  101,
+                  115,
+                  115,
+                  111,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "assessor"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "withdraw_junior",
+      "discriminator": [
+        155,
+        93,
+        134,
+        232,
+        252,
+        140,
+        38,
+        208
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "position"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  118,
+                  50
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "stable_mint",
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "owner_token",
+          "writable": true
+        },
+        {
+          "name": "position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  97,
+                  107,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "shares",
+          "type": "u64"
         }
       ]
     },
@@ -3092,6 +3827,19 @@
     }
   ],
   "accounts": [
+    {
+      "name": "AssessorRecord",
+      "discriminator": [
+        66,
+        140,
+        169,
+        101,
+        171,
+        34,
+        163,
+        148
+      ]
+    },
     {
       "name": "Claim",
       "discriminator": [
@@ -3420,6 +4168,19 @@
       ]
     },
     {
+      "name": "SalvageRecorded",
+      "discriminator": [
+        215,
+        92,
+        106,
+        136,
+        159,
+        113,
+        77,
+        37
+      ]
+    },
+    {
       "name": "TreasuryWithdrawn",
       "discriminator": [
         143,
@@ -3430,6 +4191,19 @@
         155,
         170,
         46
+      ]
+    },
+    {
+      "name": "VoteSettled",
+      "discriminator": [
+        200,
+        105,
+        231,
+        25,
+        223,
+        154,
+        5,
+        30
       ]
     }
   ],
@@ -3718,6 +4492,36 @@
       "code": 6056,
       "name": "AppealConflict",
       "msg": "Avaliador que votou na primeira rodada nao vota no recurso"
+    },
+    {
+      "code": 6057,
+      "name": "NotOnPanel",
+      "msg": "Avaliador nao sorteado para julgar este sinistro"
+    },
+    {
+      "code": 6058,
+      "name": "InsufficientBond",
+      "msg": "Garantia do avaliador abaixo do minimo exigido"
+    },
+    {
+      "code": 6059,
+      "name": "ClaimNotFinal",
+      "msg": "O sinistro ainda nao tem resultado definitivo"
+    },
+    {
+      "code": 6060,
+      "name": "NothingToSettle",
+      "msg": "Nao ha votos deste avaliador a liquidar"
+    },
+    {
+      "code": 6061,
+      "name": "NotTotalLoss",
+      "msg": "Salvado so pode ser registrado em sinistro de perda total pago"
+    },
+    {
+      "code": 6062,
+      "name": "JuniorWipedOut",
+      "msg": "Classe junior zerada: novos aportes junior bloqueados"
     }
   ],
   "types": [
@@ -3740,6 +4544,64 @@
               "0 = vistoria, 1 = voto em sinistro."
             ],
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AssessorRecord",
+      "docs": [
+        "Garantia e reputacao de um avaliador."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "version",
+            "type": "u8"
+          },
+          {
+            "name": "assessor",
+            "type": "pubkey"
+          },
+          {
+            "name": "bond",
+            "type": "u64"
+          },
+          {
+            "name": "votes",
+            "type": "u32"
+          },
+          {
+            "name": "correct_votes",
+            "docs": [
+              "Votos liquidados de acordo com o resultado final."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "wrong_votes",
+            "docs": [
+              "Votos liquidados contra o resultado final."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "slashed",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "_reserved",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
           }
         ]
       }
@@ -3880,6 +4742,44 @@
           {
             "name": "appeal_ts",
             "type": "i64"
+          },
+          {
+            "name": "panel",
+            "docs": [
+              "Avaliadores sorteados para julgar a primeira rodada."
+            ],
+            "type": {
+              "vec": "pubkey"
+            }
+          },
+          {
+            "name": "vote_bits",
+            "docs": [
+              "Bit i = voto de aprovacao do i-esimo votante (voters / appeal_voters)."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "appeal_vote_bits",
+            "type": "u8"
+          },
+          {
+            "name": "settled_bits",
+            "docs": [
+              "Bit i = voto ja liquidado (reputacao e garantia)."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "appeal_settled_bits",
+            "type": "u8"
+          },
+          {
+            "name": "salvage_recovered",
+            "docs": [
+              "Recuperado com a venda do salvado ou a recuperacao do veiculo."
+            ],
+            "type": "u64"
           },
           {
             "name": "bump",
@@ -4877,11 +5777,60 @@
             "type": "u16"
           },
           {
+            "name": "junior_shares",
+            "docs": [
+              "Cotas da classe junior (primeira perda). As cotas de `total_shares` sao senior."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "junior_capital",
+            "docs": [
+              "Parte do patrimonio dos LPs que pertence a classe junior."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "junior_weight_bps",
+            "docs": [
+              "Peso da classe junior na divisao dos premios por real aportado (0 = 20.000 = 2x)."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "assessor_bonds",
+            "docs": [
+              "Garantias depositadas pelos avaliadores (fora do patrimonio dos LPs)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "min_assessor_bond",
+            "docs": [
+              "Garantia minima para votar e vistoriar (0 = nao exigida)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "slash_bps",
+            "docs": [
+              "Parte da garantia perdida por voto contra o resultado final (0 = 1.000 = 10%)."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "total_salvage",
+            "docs": [
+              "Total recuperado com salvados e veiculos roubados encontrados."
+            ],
+            "type": "u64"
+          },
+          {
             "name": "_reserved",
             "type": {
               "array": [
                 "u8",
-                126
+                82
               ]
             }
           }
@@ -5200,6 +6149,22 @@
       }
     },
     {
+      "name": "SalvageRecorded",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "claim",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
       "name": "StakePosition",
       "docs": [
         "Posicao de um provedor de liquidez (staker) no pool."
@@ -5251,11 +6216,23 @@
             "type": "u8"
           },
           {
+            "name": "junior_shares",
+            "docs": [
+              "Cotas da classe junior (primeira perda) e saque junior pedido.",
+              "Ocupam bytes que eram reservados: o layout da posicao nao muda."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "pending_junior_withdraw",
+            "type": "u64"
+          },
+          {
             "name": "_reserved",
             "type": {
               "array": [
                 "u8",
-                32
+                16
               ]
             }
           }
@@ -5323,6 +6300,26 @@
                 32
               ]
             }
+          }
+        ]
+      }
+    },
+    {
+      "name": "VoteSettled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "claim",
+            "type": "pubkey"
+          },
+          {
+            "name": "assessor",
+            "type": "pubkey"
+          },
+          {
+            "name": "slashed",
+            "type": "u64"
           }
         ]
       }

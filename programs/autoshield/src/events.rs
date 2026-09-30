@@ -143,3 +143,16 @@ pub struct RepairShopUpdated {
     pub wallet: Pubkey,
     pub active: bool,
 }
+
+#[event]
+pub struct VoteSettled {
+    pub claim: Pubkey,
+    pub assessor: Pubkey,
+    pub slashed: u64,
+}
+
+#[event]
+pub struct SalvageRecorded {
+    pub claim: Pubkey,
+    pub amount: u64,
+}

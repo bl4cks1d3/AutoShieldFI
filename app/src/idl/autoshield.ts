@@ -549,6 +549,106 @@ export type Autoshield = {
       "args": []
     },
     {
+      "name": "depositJunior",
+      "docs": [
+        "Classe junior (primeira perda): aporte, pedido de saque e saque."
+      ],
+      "discriminator": [
+        4,
+        71,
+        156,
+        106,
+        25,
+        232,
+        177,
+        157
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  118,
+                  50
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "stableMint",
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "ownerToken",
+          "writable": true
+        },
+        {
+          "name": "position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  97,
+                  107,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "tokenProgram",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "depositLiquidity",
       "discriminator": [
         245,
@@ -1407,6 +1507,34 @@ export type Autoshield = {
           }
         },
         {
+          "name": "assessorRecord",
+          "docs": [
+            "Garantia e reputacao do avaliador."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  115,
+                  115,
+                  101,
+                  115,
+                  115,
+                  111,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "assessor"
+              }
+            ]
+          }
+        },
+        {
           "name": "tokenProgram",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         },
@@ -1743,6 +1871,105 @@ export type Autoshield = {
         }
       ],
       "args": []
+    },
+    {
+      "name": "postBond",
+      "docs": [
+        "Garantia dos avaliadores."
+      ],
+      "discriminator": [
+        168,
+        151,
+        202,
+        119,
+        163,
+        58,
+        147,
+        247
+      ],
+      "accounts": [
+        {
+          "name": "assessor",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  118,
+                  50
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "stableMint",
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "assessorToken",
+          "writable": true
+        },
+        {
+          "name": "assessorRecord",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  115,
+                  115,
+                  101,
+                  115,
+                  115,
+                  111,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "assessor"
+              }
+            ]
+          }
+        },
+        {
+          "name": "tokenProgram",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
     },
     {
       "name": "proposeAssessors",
@@ -2089,6 +2316,85 @@ export type Autoshield = {
       ]
     },
     {
+      "name": "recordSalvage",
+      "docs": [
+        "Valor recuperado de perda total (salvado ou veiculo recuperado)."
+      ],
+      "discriminator": [
+        239,
+        67,
+        206,
+        144,
+        165,
+        233,
+        156,
+        12
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  118,
+                  50
+                ]
+              }
+            ]
+          },
+          "relations": [
+            "claim"
+          ]
+        },
+        {
+          "name": "stableMint",
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "source",
+          "writable": true
+        },
+        {
+          "name": "claim",
+          "writable": true
+        },
+        {
+          "name": "tokenProgram",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "registerShop",
       "docs": [
         "Credencia uma oficina para receber indenizacoes de danos parciais."
@@ -2169,6 +2475,79 @@ export type Autoshield = {
         {
           "name": "city",
           "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "requestJuniorWithdrawal",
+      "discriminator": [
+        167,
+        5,
+        88,
+        216,
+        32,
+        250,
+        49,
+        26
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "position"
+          ]
+        },
+        {
+          "name": "pool",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  118,
+                  50
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  97,
+                  107,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "shares",
+          "type": "u64"
         }
       ]
     },
@@ -2386,6 +2765,62 @@ export type Autoshield = {
         {
           "name": "paused",
           "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "setRiskParams",
+      "discriminator": [
+        203,
+        154,
+        198,
+        239,
+        21,
+        242,
+        173,
+        235
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  118,
+                  50
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "juniorWeightBps",
+          "type": "u16"
+        },
+        {
+          "name": "minAssessorBond",
+          "type": "u64"
+        },
+        {
+          "name": "slashBps",
+          "type": "u16"
         }
       ]
     },
@@ -2679,6 +3114,86 @@ export type Autoshield = {
       "args": []
     },
     {
+      "name": "settleVote",
+      "docs": [
+        "Liquida votos de um sinistro encerrado: reputacao e garantia."
+      ],
+      "discriminator": [
+        28,
+        56,
+        217,
+        57,
+        155,
+        251,
+        104,
+        65
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  118,
+                  50
+                ]
+              }
+            ]
+          },
+          "relations": [
+            "claim"
+          ]
+        },
+        {
+          "name": "claim",
+          "writable": true
+        },
+        {
+          "name": "assessorRecord",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  115,
+                  115,
+                  101,
+                  115,
+                  115,
+                  111,
+                  114
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "assessor"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "assessor",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
       "name": "updatePolicyFipe",
       "docs": [
         "Oraculo atualiza o valor FIPE (cobertura acompanha a tabela mes a mes)."
@@ -2902,6 +3417,34 @@ export type Autoshield = {
           }
         },
         {
+          "name": "assessorRecord",
+          "docs": [
+            "Garantia e reputacao do avaliador."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  115,
+                  115,
+                  101,
+                  115,
+                  115,
+                  111,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "assessor"
+              }
+            ]
+          }
+        },
+        {
           "name": "tokenProgram",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         },
@@ -2928,6 +3471,198 @@ export type Autoshield = {
               }
             }
           }
+        }
+      ]
+    },
+    {
+      "name": "withdrawBond",
+      "discriminator": [
+        222,
+        199,
+        141,
+        31,
+        188,
+        93,
+        155,
+        40
+      ],
+      "accounts": [
+        {
+          "name": "assessor",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  118,
+                  50
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "stableMint",
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "assessorToken",
+          "writable": true
+        },
+        {
+          "name": "assessorRecord",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  115,
+                  115,
+                  101,
+                  115,
+                  115,
+                  111,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "assessor"
+              }
+            ]
+          }
+        },
+        {
+          "name": "tokenProgram",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "withdrawJunior",
+      "discriminator": [
+        155,
+        93,
+        134,
+        232,
+        252,
+        140,
+        38,
+        208
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "position"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  118,
+                  50
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "stableMint",
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "ownerToken",
+          "writable": true
+        },
+        {
+          "name": "position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  97,
+                  107,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "tokenProgram",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "shares",
+          "type": "u64"
         }
       ]
     },
@@ -3098,6 +3833,19 @@ export type Autoshield = {
     }
   ],
   "accounts": [
+    {
+      "name": "assessorRecord",
+      "discriminator": [
+        66,
+        140,
+        169,
+        101,
+        171,
+        34,
+        163,
+        148
+      ]
+    },
     {
       "name": "claim",
       "discriminator": [
@@ -3426,6 +4174,19 @@ export type Autoshield = {
       ]
     },
     {
+      "name": "salvageRecorded",
+      "discriminator": [
+        215,
+        92,
+        106,
+        136,
+        159,
+        113,
+        77,
+        37
+      ]
+    },
+    {
       "name": "treasuryWithdrawn",
       "discriminator": [
         143,
@@ -3436,6 +4197,19 @@ export type Autoshield = {
         155,
         170,
         46
+      ]
+    },
+    {
+      "name": "voteSettled",
+      "discriminator": [
+        200,
+        105,
+        231,
+        25,
+        223,
+        154,
+        5,
+        30
       ]
     }
   ],
@@ -3724,6 +4498,36 @@ export type Autoshield = {
       "code": 6056,
       "name": "appealConflict",
       "msg": "Avaliador que votou na primeira rodada nao vota no recurso"
+    },
+    {
+      "code": 6057,
+      "name": "notOnPanel",
+      "msg": "Avaliador nao sorteado para julgar este sinistro"
+    },
+    {
+      "code": 6058,
+      "name": "insufficientBond",
+      "msg": "Garantia do avaliador abaixo do minimo exigido"
+    },
+    {
+      "code": 6059,
+      "name": "claimNotFinal",
+      "msg": "O sinistro ainda nao tem resultado definitivo"
+    },
+    {
+      "code": 6060,
+      "name": "nothingToSettle",
+      "msg": "Nao ha votos deste avaliador a liquidar"
+    },
+    {
+      "code": 6061,
+      "name": "notTotalLoss",
+      "msg": "Salvado so pode ser registrado em sinistro de perda total pago"
+    },
+    {
+      "code": 6062,
+      "name": "juniorWipedOut",
+      "msg": "Classe junior zerada: novos aportes junior bloqueados"
     }
   ],
   "types": [
@@ -3746,6 +4550,64 @@ export type Autoshield = {
               "0 = vistoria, 1 = voto em sinistro."
             ],
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "assessorRecord",
+      "docs": [
+        "Garantia e reputacao de um avaliador."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "version",
+            "type": "u8"
+          },
+          {
+            "name": "assessor",
+            "type": "pubkey"
+          },
+          {
+            "name": "bond",
+            "type": "u64"
+          },
+          {
+            "name": "votes",
+            "type": "u32"
+          },
+          {
+            "name": "correctVotes",
+            "docs": [
+              "Votos liquidados de acordo com o resultado final."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "wrongVotes",
+            "docs": [
+              "Votos liquidados contra o resultado final."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "slashed",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "reserved",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
           }
         ]
       }
@@ -3886,6 +4748,44 @@ export type Autoshield = {
           {
             "name": "appealTs",
             "type": "i64"
+          },
+          {
+            "name": "panel",
+            "docs": [
+              "Avaliadores sorteados para julgar a primeira rodada."
+            ],
+            "type": {
+              "vec": "pubkey"
+            }
+          },
+          {
+            "name": "voteBits",
+            "docs": [
+              "Bit i = voto de aprovacao do i-esimo votante (voters / appeal_voters)."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "appealVoteBits",
+            "type": "u8"
+          },
+          {
+            "name": "settledBits",
+            "docs": [
+              "Bit i = voto ja liquidado (reputacao e garantia)."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "appealSettledBits",
+            "type": "u8"
+          },
+          {
+            "name": "salvageRecovered",
+            "docs": [
+              "Recuperado com a venda do salvado ou a recuperacao do veiculo."
+            ],
+            "type": "u64"
           },
           {
             "name": "bump",
@@ -4883,11 +5783,60 @@ export type Autoshield = {
             "type": "u16"
           },
           {
+            "name": "juniorShares",
+            "docs": [
+              "Cotas da classe junior (primeira perda). As cotas de `total_shares` sao senior."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "juniorCapital",
+            "docs": [
+              "Parte do patrimonio dos LPs que pertence a classe junior."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "juniorWeightBps",
+            "docs": [
+              "Peso da classe junior na divisao dos premios por real aportado (0 = 20.000 = 2x)."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "assessorBonds",
+            "docs": [
+              "Garantias depositadas pelos avaliadores (fora do patrimonio dos LPs)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "minAssessorBond",
+            "docs": [
+              "Garantia minima para votar e vistoriar (0 = nao exigida)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "slashBps",
+            "docs": [
+              "Parte da garantia perdida por voto contra o resultado final (0 = 1.000 = 10%)."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "totalSalvage",
+            "docs": [
+              "Total recuperado com salvados e veiculos roubados encontrados."
+            ],
+            "type": "u64"
+          },
+          {
             "name": "reserved",
             "type": {
               "array": [
                 "u8",
-                126
+                82
               ]
             }
           }
@@ -5206,6 +6155,22 @@ export type Autoshield = {
       }
     },
     {
+      "name": "salvageRecorded",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "claim",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
       "name": "stakePosition",
       "docs": [
         "Posicao de um provedor de liquidez (staker) no pool."
@@ -5257,11 +6222,23 @@ export type Autoshield = {
             "type": "u8"
           },
           {
+            "name": "juniorShares",
+            "docs": [
+              "Cotas da classe junior (primeira perda) e saque junior pedido.",
+              "Ocupam bytes que eram reservados: o layout da posicao nao muda."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "pendingJuniorWithdraw",
+            "type": "u64"
+          },
+          {
             "name": "reserved",
             "type": {
               "array": [
                 "u8",
-                32
+                16
               ]
             }
           }
@@ -5329,6 +6306,26 @@ export type Autoshield = {
                 32
               ]
             }
+          }
+        ]
+      }
+    },
+    {
+      "name": "voteSettled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "claim",
+            "type": "pubkey"
+          },
+          {
+            "name": "assessor",
+            "type": "pubkey"
+          },
+          {
+            "name": "slashed",
+            "type": "u64"
           }
         ]
       }

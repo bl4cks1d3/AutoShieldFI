@@ -4,10 +4,12 @@ use anchor_spl::token::{self, Mint, Token, TokenAccount, TransferChecked};
 
 use crate::constants::*;
 use crate::errors::AutoShieldError;
-use crate::events::{AssessorPaid, ClaimAppealed, ClaimFiled, ClaimPaid, ClaimVoted};
+use crate::events::{AssessorPaid, ClaimAppealed, ClaimFiled, ClaimPaid, ClaimVoted, SalvageRecorded, VoteSettled};
 use crate::state::{
-    Claim, ClaimKind, ClaimStatus, DriverRecord, Policy, PolicyStatus, Pool, RepairShop, VehicleRecord, ACCOUNT_VERSION,
+    draw_panel, AssessorRecord, Claim, ClaimKind, ClaimStatus, DriverRecord, Policy, PolicyStatus, Pool, RepairShop,
+    VehicleRecord, ACCOUNT_VERSION,
 };
+use anchor_lang::solana_program::hash::hashv;
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct FileClaimArgs {
@@ -92,6 +94,14 @@ pub fn file_claim(ctx: Context<FileClaim>, args: FileClaimArgs) -> Result<()> {
         None => Pubkey::default(),
     };
 
+    // Painel sorteado: com comite maior que quorum + 1, so parte dele julga o caso.
+    let slot = Clock::get()?.slot;
+    let seed = hashv(&[ctx.accounts.claim.key().as_ref(), &slot.to_le_bytes(), &now.to_le_bytes()]).to_bytes();
+    let pool = &ctx.accounts.pool;
+    let t = pool.approval_threshold as usize;
+    let panel_size = if pool.assessors.len() > t + 1 { t + 1 } else { pool.assessors.len() };
+    let panel = draw_panel(&pool.assessors, panel_size, seed);
+
     let pool = &mut ctx.accounts.pool;
     let claim_id = pool.claim_count;
     pool.claim_count += 1;
@@ -135,6 +145,12 @@ pub fn file_claim(ctx: Context<FileClaim>, args: FileClaimArgs) -> Result<()> {
     claim.appealed = false;
     claim.appeal_voters = Vec::new();
     claim.appeal_ts = 0;
+    claim.panel = panel;
+    claim.vote_bits = 0;
+    claim.appeal_vote_bits = 0;
+    claim.settled_bits = 0;
+    claim.appeal_settled_bits = 0;
+    claim.salvage_recovered = 0;
     claim.bump = ctx.bumps.claim;
 
     emit!(ClaimFiled {
@@ -175,6 +191,16 @@ pub struct VoteClaim<'info> {
     )]
     pub assessor_token: Account<'info, TokenAccount>,
 
+    /// Garantia e reputacao do avaliador.
+    #[account(
+        init_if_needed,
+        payer = assessor,
+        space = 8 + AssessorRecord::INIT_SPACE,
+        seeds = [ASSESSOR_SEED, assessor.key().as_ref()],
+        bump
+    )]
+    pub assessor_record: Box<Account<'info, AssessorRecord>>,
+
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
@@ -195,8 +221,16 @@ pub fn vote_claim(
         ctx.accounts.claim.claimant != assessor,
         AutoShieldError::AssessorConflict
     );
+    require!(
+        ctx.accounts.assessor_record.bond >= pool.min_assessor_bond,
+        AutoShieldError::InsufficientBond
+    );
 
     let appeal = ctx.accounts.claim.status == ClaimStatus::Appealed;
+    let panel_len = ctx.accounts.claim.panel.len();
+    if !appeal && panel_len > 0 {
+        require!(ctx.accounts.claim.panel.contains(&assessor), AutoShieldError::NotOnPanel);
+    }
     // No recurso votam so os avaliadores que nao votaram na primeira rodada;
     // o quorum se ajusta a quantos estao aptos.
     let (threshold, max_rejections) = if appeal {
@@ -205,7 +239,8 @@ pub fn vote_claim(
         (t, eligible.saturating_sub(t))
     } else {
         let t = pool.approval_threshold;
-        (t, (pool.assessors.len() as u8).saturating_sub(t))
+        let judges = if panel_len > 0 { panel_len as u8 } else { pool.assessors.len() as u8 };
+        (t, judges.saturating_sub(t))
     };
     let claim = &mut ctx.accounts.claim;
     require!(
@@ -239,9 +274,16 @@ pub fn vote_claim(
             claim.reclassified = true;
         }
     }
+    // Guarda o sentido de cada voto (bit i = aprovou) para liquidar a reputacao depois.
     if appeal {
+        if approve {
+            claim.appeal_vote_bits |= 1 << claim.appeal_voters.len();
+        }
         claim.appeal_voters.push(assessor);
     } else {
+        if approve {
+            claim.vote_bits |= 1 << claim.voters.len();
+        }
         claim.voters.push(assessor);
     }
     if approve {
@@ -250,6 +292,15 @@ pub fn vote_claim(
         claim.rejections += 1;
     }
 
+    let record = &mut ctx.accounts.assessor_record;
+    if record.assessor == Pubkey::default() {
+        record.version = ACCOUNT_VERSION;
+        record.assessor = assessor;
+        record.bump = ctx.bumps.assessor_record;
+    }
+    record.votes = record.votes.saturating_add(1);
+
+    let claim = &mut ctx.accounts.claim;
     if claim.approvals >= threshold {
         claim.status = ClaimStatus::Approved;
         claim.resolved_ts = now;
@@ -456,6 +507,8 @@ pub fn pay_claim(ctx: Context<PayClaim>) -> Result<()> {
     let cashback = ctx.accounts.policy.cashback_amount;
 
     let pool = &mut ctx.accounts.pool;
+    // Classe junior absorve a perda primeiro.
+    pool.absorb_loss(payout);
     pool.pending_claims = pool.pending_claims.saturating_sub(requested);
     pool.total_active_coverage = pool.total_active_coverage.saturating_sub(payout);
     pool.total_claims_paid = pool
@@ -606,6 +659,135 @@ pub fn appeal_claim(ctx: Context<AppealClaim>) -> Result<()> {
         claim: claim.key(),
         claimant: claim.claimant,
         voting_deadline,
+    });
+    Ok(())
+}
+
+/// Liquida os votos de um avaliador num sinistro com resultado definitivo:
+/// voto de acordo com o resultado conta como acerto; contra, perde parte da
+/// garantia (vai para a tesouraria). Qualquer pessoa pode acionar (crank).
+#[derive(Accounts)]
+#[instruction(assessor: Pubkey)]
+pub struct SettleVote<'info> {
+    pub caller: Signer<'info>,
+
+    #[account(mut, seeds = [POOL_SEED], bump = pool.bump)]
+    pub pool: Account<'info, Pool>,
+
+    #[account(mut, has_one = pool)]
+    pub claim: Box<Account<'info, Claim>>,
+
+    #[account(mut, seeds = [ASSESSOR_SEED, assessor.as_ref()], bump = assessor_record.bump)]
+    pub assessor_record: Box<Account<'info, AssessorRecord>>,
+}
+
+pub fn settle_vote(ctx: Context<SettleVote>, assessor: Pubkey) -> Result<()> {
+    let now = Clock::get()?.unix_timestamp;
+    let spd = ctx.accounts.pool.params.seconds_per_day;
+    let outcome = ctx.accounts.claim.final_outcome(now, spd).ok_or(AutoShieldError::ClaimNotFinal)?;
+    let slash_bps = ctx.accounts.pool.slash_rate_bps();
+
+    // Votos do avaliador ainda nao liquidados (primeira rodada e recurso).
+    let claim = &mut ctx.accounts.claim;
+    let mut votes: Vec<bool> = Vec::new();
+    if let Some(i) = claim.voters.iter().position(|v| *v == assessor) {
+        if claim.settled_bits & (1 << i) == 0 {
+            votes.push(claim.vote_bits & (1 << i) != 0);
+            claim.settled_bits |= 1 << i;
+        }
+    }
+    if let Some(i) = claim.appeal_voters.iter().position(|v| *v == assessor) {
+        if claim.appeal_settled_bits & (1 << i) == 0 {
+            votes.push(claim.appeal_vote_bits & (1 << i) != 0);
+            claim.appeal_settled_bits |= 1 << i;
+        }
+    }
+    require!(!votes.is_empty(), AutoShieldError::NothingToSettle);
+
+    let claim_key = claim.key();
+    let record = &mut ctx.accounts.assessor_record;
+    let mut slashed_total = 0u64;
+    for approved in votes {
+        if approved == outcome {
+            record.correct_votes = record.correct_votes.saturating_add(1);
+        } else {
+            record.wrong_votes = record.wrong_votes.saturating_add(1);
+            let slash = (record.bond as u128 * slash_bps as u128 / BPS_DENOMINATOR as u128) as u64;
+            record.bond -= slash;
+            record.slashed = record.slashed.saturating_add(slash);
+            slashed_total += slash;
+        }
+    }
+    let pool = &mut ctx.accounts.pool;
+    pool.assessor_bonds = pool.assessor_bonds.saturating_sub(slashed_total);
+    pool.treasury_accrued = pool.treasury_accrued.saturating_add(slashed_total);
+
+    emit!(VoteSettled {
+        claim: claim_key,
+        assessor,
+        slashed: slashed_total,
+    });
+    Ok(())
+}
+
+/// Registra o valor recuperado de um sinistro de perda total: venda do salvado
+/// ou recuperacao do veiculo roubado. O dinheiro entra no cofre e volta aos LPs.
+#[derive(Accounts)]
+pub struct RecordSalvage<'info> {
+    pub authority: Signer<'info>,
+
+    #[account(
+        mut,
+        seeds = [POOL_SEED],
+        bump = pool.bump,
+        has_one = authority @ AutoShieldError::Unauthorized,
+        has_one = vault,
+        has_one = stable_mint
+    )]
+    pub pool: Account<'info, Pool>,
+
+    pub stable_mint: Account<'info, Mint>,
+
+    #[account(mut)]
+    pub vault: Account<'info, TokenAccount>,
+
+    #[account(mut, token::mint = stable_mint, token::authority = authority)]
+    pub source: Account<'info, TokenAccount>,
+
+    #[account(mut, has_one = pool)]
+    pub claim: Box<Account<'info, Claim>>,
+
+    pub token_program: Program<'info, Token>,
+}
+
+pub fn record_salvage(ctx: Context<RecordSalvage>, amount: u64) -> Result<()> {
+    require!(amount > 0, AutoShieldError::ZeroAmount);
+    require!(
+        ctx.accounts.claim.status == ClaimStatus::Paid && ctx.accounts.claim.total_loss,
+        AutoShieldError::NotTotalLoss
+    );
+    let nav_before = ctx.accounts.pool.net_assets(ctx.accounts.vault.amount);
+    token::transfer_checked(
+        CpiContext::new(
+            ctx.accounts.token_program.to_account_info(),
+            TransferChecked {
+                from: ctx.accounts.source.to_account_info(),
+                mint: ctx.accounts.stable_mint.to_account_info(),
+                to: ctx.accounts.vault.to_account_info(),
+                authority: ctx.accounts.authority.to_account_info(),
+            },
+        ),
+        amount,
+        ctx.accounts.stable_mint.decimals,
+    )?;
+    let pool = &mut ctx.accounts.pool;
+    pool.total_salvage = pool.total_salvage.saturating_add(amount);
+    pool.credit_lp_income(amount, nav_before);
+    let claim = &mut ctx.accounts.claim;
+    claim.salvage_recovered = claim.salvage_recovered.saturating_add(amount);
+    emit!(SalvageRecorded {
+        claim: claim.key(),
+        amount,
     });
     Ok(())
 }

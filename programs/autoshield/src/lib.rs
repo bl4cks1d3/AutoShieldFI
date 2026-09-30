@@ -71,6 +71,15 @@ pub mod autoshield {
         instructions::admin::set_oracle(ctx, oracle)
     }
 
+    pub fn set_risk_params(
+        ctx: Context<AdminAction>,
+        junior_weight_bps: u16,
+        min_assessor_bond: u64,
+        slash_bps: u16,
+    ) -> Result<()> {
+        instructions::admin::set_risk_params(ctx, junior_weight_bps, min_assessor_bond, slash_bps)
+    }
+
     pub fn set_bonus_days(ctx: Context<AdminAction>, days: u16) -> Result<()> {
         instructions::admin::set_bonus_days(ctx, days)
     }
@@ -114,6 +123,28 @@ pub mod autoshield {
 
     pub fn request_withdrawal(ctx: Context<RequestWithdrawal>, shares: u64) -> Result<()> {
         instructions::liquidity::request_withdrawal(ctx, shares)
+    }
+
+    /// Classe junior (primeira perda): aporte, pedido de saque e saque.
+    pub fn deposit_junior(ctx: Context<DepositLiquidity>, amount: u64) -> Result<()> {
+        instructions::liquidity::deposit_junior(ctx, amount)
+    }
+
+    pub fn request_junior_withdrawal(ctx: Context<RequestWithdrawal>, shares: u64) -> Result<()> {
+        instructions::liquidity::request_junior_withdrawal(ctx, shares)
+    }
+
+    pub fn withdraw_junior(ctx: Context<WithdrawLiquidity>, shares: u64) -> Result<()> {
+        instructions::liquidity::withdraw_junior(ctx, shares)
+    }
+
+    /// Garantia dos avaliadores.
+    pub fn post_bond(ctx: Context<AssessorBond>, amount: u64) -> Result<()> {
+        instructions::bond::post_bond(ctx, amount)
+    }
+
+    pub fn withdraw_bond(ctx: Context<AssessorBond>, amount: u64) -> Result<()> {
+        instructions::bond::withdraw_bond(ctx, amount)
     }
 
     pub fn close_position(ctx: Context<ClosePosition>) -> Result<()> {
@@ -187,6 +218,16 @@ pub mod autoshield {
     /// Recurso contra sinistro recusado (uma vez, ate 7 dias apos a recusa).
     pub fn appeal_claim(ctx: Context<AppealClaim>) -> Result<()> {
         instructions::claims::appeal_claim(ctx)
+    }
+
+    /// Liquida votos de um sinistro encerrado: reputacao e garantia.
+    pub fn settle_vote(ctx: Context<SettleVote>, assessor: Pubkey) -> Result<()> {
+        instructions::claims::settle_vote(ctx, assessor)
+    }
+
+    /// Valor recuperado de perda total (salvado ou veiculo recuperado).
+    pub fn record_salvage(ctx: Context<RecordSalvage>, amount: u64) -> Result<()> {
+        instructions::claims::record_salvage(ctx, amount)
     }
 
     pub fn close_claim(ctx: Context<CloseClaim>) -> Result<()> {

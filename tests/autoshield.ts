@@ -88,6 +88,8 @@ describe("autoshield", () => {
   const oracle = Keypair.generate();
   const driver8 = Keypair.generate();
   const shopWallet = Keypair.generate();
+  const junior = Keypair.generate();
+  const driver9 = Keypair.generate();
 
   const ata = (owner: PublicKey) => getAssociatedTokenAddressSync(mintPda, owner);
   const balance = async (owner: PublicKey) => {
@@ -324,7 +326,7 @@ describe("autoshield", () => {
 
   before(async () => {
     // Em sequencia: o validador local no WSL nao confirma muitos airdrops em paralelo.
-    for (const k of [lp, driver1, driver2, driver3, driver4, driver5, driver6, driver7, driver8, buyer, oracle, shopWallet, squatter, outsider, newAdmin, ...assessors]) {
+    for (const k of [lp, driver1, driver2, driver3, driver4, driver5, driver6, driver7, driver8, driver9, junior, buyer, oracle, shopWallet, squatter, outsider, newAdmin, ...assessors]) {
       await airdrop(k.publicKey);
     }
   });
@@ -958,6 +960,154 @@ describe("autoshield", () => {
       await payClaim(outsider, repairPolicy, claim, driver8.publicKey);
       expect((await balance(driver8.publicKey)).sub(before).eq(brl(3_500))).to.be.true;
       await expectError(appeal(driver8), "ClaimNotRejected");
+    });
+  });
+
+  describe("fase 3: cotas junior, garantia dos avaliadores e salvados", () => {
+    const assessorPda = (a: PublicKey) =>
+      PublicKey.findProgramAddressSync([Buffer.from("assessor"), a.toBuffer()], pid)[0];
+    const lpNav = async () => {
+      const p = await pool();
+      return (await vaultBalance())
+        .sub(p.reservedCashback)
+        .sub(p.treasuryAccrued)
+        .sub(p.pendingInspectionFees)
+        .sub(p.assessorBonds);
+    };
+    const postBond = (k: Keypair, amount: BN) =>
+      program.methods
+        .postBond(amount)
+        .accountsPartial({ assessor: k.publicKey, ...tokenAccts, assessorToken: ata(k.publicKey) })
+        .signers([k])
+        .rpc();
+    const settleVote = (who: PublicKey, claim: PublicKey) =>
+      program.methods
+        .settleVote(who)
+        .accountsPartial({ caller: outsider.publicKey, pool: poolPda, claim, assessorRecord: assessorPda(who) })
+        .signers([outsider])
+        .rpc();
+    let jrPolicy: PublicKey;
+    let jrClaim: PublicKey;
+
+    it("so a autoridade define os parametros de risco", async () => {
+      const set = (k: Keypair | null) =>
+        program.methods
+          .setRiskParams(20_000, brl(100), 1_000)
+          .accountsPartial({ authority: k ? k.publicKey : admin.publicKey, pool: poolPda })
+          .signers(k ? [k] : [])
+          .rpc();
+      await expectError(set(outsider), "Unauthorized");
+      await set(null);
+      const p = await pool();
+      expect(p.minAssessorBond.eq(brl(100))).to.be.true;
+      expect(p.slashBps).to.eq(1_000);
+    });
+
+    it("cotas junior recebem parte maior dos premios", async () => {
+      await faucet(junior, brl(60_000));
+      await program.methods
+        .depositJunior(brl(50_000))
+        .accountsPartial({ owner: junior.publicKey, ...tokenAccts, ownerToken: ata(junior.publicKey) })
+        .signers([junior])
+        .rpc();
+      const p0 = await pool();
+      expect(p0.juniorCapital.eq(brl(50_000))).to.be.true;
+      expect(p0.juniorShares.eq(brl(50_000))).to.be.true;
+
+      await faucet(driver9, brl(50_000));
+      const nav = await lpNav();
+      jrPolicy = await buy(driver9, 1, brl(60_000), { standard: {} }, 60, "JUN9A00");
+      const premium = (await program.account.policy.fetch(jrPolicy)).premiumTotal;
+      const p1 = await pool();
+      // parte dos LPs = premio - taxa do protocolo - cashback (parametros vigentes)
+      const lpPart = premium
+        .sub(p1.treasuryAccrued.sub(p0.treasuryAccrued))
+        .sub(p1.reservedCashback.sub(p0.reservedCashback));
+      const j = p0.juniorCapital.muln(2);
+      const s = nav.sub(p0.juniorCapital);
+      const expected = lpPart.mul(j).div(j.add(s));
+      expect(p1.juniorCapital.sub(p0.juniorCapital).eq(expected)).to.be.true;
+      // por real aportado, a junior ganha mais que a senior
+      expect(expected.mul(s).gt(lpPart.sub(expected).mul(p0.juniorCapital))).to.be.true;
+    });
+
+    it("sem garantia minima o avaliador nao vota nem vistoria", async () => {
+      await expectError(inspect(assessors[0], jrPolicy, true), "InsufficientBond");
+      for (const a of assessors) {
+        await faucet(a, brl(5_000));
+        await postBond(a, brl(1_000));
+      }
+      expect((await pool()).assessorBonds.eq(brl(3_000))).to.be.true;
+      expect((await program.account.assessorRecord.fetch(assessorPda(assessors[0].publicKey))).bond.eq(brl(1_000))).to.be
+        .true;
+    });
+
+    it("perda sai primeiro da junior; voto contra o resultado perde parte da garantia", async () => {
+      await inspectBy([assessors[0], assessors[1]], jrPolicy, true);
+      await waitUntil((await program.account.policy.fetch(jrPolicy)).claimsAllowedFrom.toNumber());
+      jrClaim = await fileClaim(driver9, jrPolicy, 0, { collision: {} }, brl(10_000));
+      const c0 = await program.account.claim.fetch(jrClaim);
+      expect(c0.panel.length).to.eq(3);
+      await vote(assessors[0], jrPolicy, jrClaim, true);
+      await vote(assessors[2], jrPolicy, jrClaim, false);
+      await expectError(settleVote(assessors[2].publicKey, jrClaim), "ClaimNotFinal");
+      await vote(assessors[1], jrPolicy, jrClaim, true);
+      const before = await pool();
+      await payClaim(outsider, jrPolicy, jrClaim, driver9.publicKey);
+      // 10.000 - franquia de 3.000 = 7.000, todo absorvido pela junior
+      expect(before.juniorCapital.sub((await pool()).juniorCapital).eq(brl(7_000))).to.be.true;
+
+      await settleVote(assessors[2].publicKey, jrClaim);
+      await settleVote(assessors[0].publicKey, jrClaim);
+      const wrong = await program.account.assessorRecord.fetch(assessorPda(assessors[2].publicKey));
+      expect(wrong.wrongVotes).to.eq(1);
+      expect(wrong.bond.eq(brl(900))).to.be.true;
+      expect(wrong.slashed.eq(brl(100))).to.be.true;
+      const right = await program.account.assessorRecord.fetch(assessorPda(assessors[0].publicKey));
+      expect(right.correctVotes).to.eq(1);
+      expect(right.bond.eq(brl(1_000))).to.be.true;
+      await expectError(settleVote(assessors[2].publicKey, jrClaim), "NothingToSettle");
+    });
+
+    it("saque junior respeita o aviso previo e paga pelo valor da cota junior", async () => {
+      const pos = await program.account.stakePosition.fetch(stakePda(junior.publicKey));
+      const half = pos.juniorShares.divn(2);
+      const w = () =>
+        program.methods
+          .withdrawJunior(half)
+          .accountsPartial({ owner: junior.publicKey, ...tokenAccts, ownerToken: ata(junior.publicKey) })
+          .signers([junior])
+          .rpc();
+      await expectError(w(), "WithdrawNotRequested");
+      await program.methods
+        .requestJuniorWithdrawal(half)
+        .accountsPartial({ owner: junior.publicKey, pool: poolPda, position: stakePda(junior.publicKey) })
+        .signers([junior])
+        .rpc();
+      await sleep(3000);
+      const p = await pool();
+      const expected = half.mul(p.juniorCapital).div(p.juniorShares);
+      const before = await balance(junior.publicKey);
+      await w();
+      expect((await balance(junior.publicKey)).sub(before).eq(expected)).to.be.true;
+    });
+
+    it("salvado de perda total volta ao cofre", async () => {
+      const tlPolicy = policyPda(driver6.publicKey, new BN(2));
+      const tlClaim = claimPda(tlPolicy, 0);
+      await program.methods.faucet(brl(20_000)).accounts({ user: admin.publicKey }).rpc();
+      const record = (claim: PublicKey, amount: BN) =>
+        program.methods
+          .recordSalvage(amount)
+          .accountsPartial({ authority: admin.publicKey, ...tokenAccts, source: ata(admin.publicKey), claim })
+          .rpc();
+      await expectError(record(jrClaim, brl(1_000)), "NotTotalLoss");
+      const before = await pool();
+      await record(tlClaim, brl(12_000));
+      const after = await pool();
+      expect(after.totalSalvage.sub(before.totalSalvage).eq(brl(12_000))).to.be.true;
+      expect(after.juniorCapital.gt(before.juniorCapital)).to.be.true;
+      expect((await program.account.claim.fetch(tlClaim)).salvageRecovered.eq(brl(12_000))).to.be.true;
     });
   });
 });

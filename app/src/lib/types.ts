@@ -65,6 +65,17 @@ export interface PoolInfo {
   oracle: string;
   /** Dias de cobertura sem sinistro para subir uma classe de bonus. */
   bonusDaysPerClass: number;
+  /** Classe junior (primeira perda): cotas e capital. */
+  juniorShares: number;
+  juniorCapital: number;
+  /** Peso da junior na divisao dos premios (bps; 20.000 = 2x). */
+  juniorWeightBps: number;
+  /** Garantias dos avaliadores (fora do patrimonio dos LPs). */
+  assessorBonds: number;
+  minAssessorBond: number;
+  /** Parte da garantia perdida por voto contra o resultado (bps). */
+  slashBps: number;
+  totalSalvage: number;
 }
 
 export interface PolicyInfo {
@@ -145,6 +156,13 @@ export interface ClaimInfo {
   appealed: boolean;
   appealVoters: string[];
   appealTs: number;
+  /** Avaliadores sorteados para a primeira rodada. */
+  panel: string[];
+  voteBits: number;
+  appealVoteBits: number;
+  settledBits: number;
+  appealSettledBits: number;
+  salvageRecovered: number;
 }
 
 export interface RepairShopInfo {
@@ -172,6 +190,17 @@ export interface StakeInfo {
   lastDepositTs: number;
   pendingWithdrawShares: number;
   withdrawAvailableAt: number;
+  juniorShares: number;
+  pendingJuniorWithdraw: number;
+}
+
+/** Garantia e reputacao de um avaliador. */
+export interface AssessorInfo {
+  bond: number;
+  votes: number;
+  correctVotes: number;
+  wrongVotes: number;
+  slashed: number;
 }
 
 export interface PurchaseInput {
@@ -212,6 +241,7 @@ export interface AutoShieldClient {
   getStake(owner: string): Promise<StakeInfo | null>;
   getRepairShops(): Promise<RepairShopInfo[]>;
   getDriver(owner: string): Promise<DriverInfo | null>;
+  getAssessor(assessor: string): Promise<AssessorInfo | null>;
 
   faucet(amount: number): Promise<string>;
   deposit(amount: number): Promise<string>;
@@ -237,6 +267,19 @@ export interface AutoShieldClient {
   acceptTransfer(policy: string): Promise<string>;
   /** Recurso contra sinistro recusado (uma vez, ate 7 dias apos a recusa). */
   appealClaim(claim: string): Promise<string>;
+  /** Classe junior (primeira perda). */
+  depositJunior(amount: number): Promise<string>;
+  requestJuniorWithdraw(shares: number): Promise<string>;
+  withdrawJunior(shares: number): Promise<string>;
+  /** Garantia dos avaliadores. */
+  /** `as`: identidade do avaliador simulado (so na demonstracao). */
+  postBond(amount: number, as?: string): Promise<string>;
+  withdrawBond(amount: number, as?: string): Promise<string>;
+  /** Liquida os votos de um avaliador num sinistro encerrado. */
+  settleVote(claim: string, assessor: string): Promise<string>;
+  /** Governanca: salvados e parametros de risco. */
+  recordSalvage(claim: string, amount: number): Promise<string>;
+  setRiskParams(juniorWeightBps: number, minAssessorBond: number, slashBps: number): Promise<string>;
   /** Governanca: credenciamento de oficinas. */
   registerShop(wallet: string, name: string, city: string): Promise<string>;
   setShopActive(wallet: string, active: boolean): Promise<string>;

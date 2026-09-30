@@ -1,4 +1,5 @@
 import type {
+  AssessorInfo,
   AutoShieldClient,
   ClaimInfo,
   ClaimKind,
@@ -36,7 +37,7 @@ import {
 // Simulacao local (localStorage) que replica as regras do programa on-chain.
 // Permite demonstrar o fluxo completo sem carteira, SOL ou deploy.
 
-const KEY = "autoshield-demo-v6";
+const KEY = "autoshield-demo-v7";
 export const DEMO_WALLET = "DemoMotorista1111111111111111111111111111111";
 export const DEMO_ASSESSORS = [
   "Avaliador1Demo11111111111111111111111111111",
@@ -57,11 +58,14 @@ interface DemoState {
   /** Historico por carteira (bonus de renovacao). */
   drivers: Record<string, DriverInfo>;
   shops: RepairShopInfo[];
+  /** Garantia e reputacao por avaliador. */
+  assessorRecords: Record<string, AssessorInfo>;
 }
 
 export const DEMO_SHOP = "OficinaDemo11111111111111111111111111111111";
 const DEFAULT_BONUS_DAYS = 365;
 const MAX_BONUS = 10;
+const DEMO_BOND = 1_000 * UNIT;
 
 const DEFAULT_PARAMS: PoolParams = {
   baseRateBps: 350,
@@ -84,8 +88,11 @@ const DEFAULT_PARAMS: PoolParams = {
 };
 
 function initialState(): DemoState {
-  // Liquidez inicial de LPs simulados (as cotas nao pertencem ao usuario).
+  // Liquidez inicial de LPs simulados (as cotas nao pertencem ao usuario):
+  // senior mais uma classe junior menor, e a garantia dos avaliadores.
   const seedLiquidity = 750_000 * UNIT;
+  const seedJunior = 100_000 * UNIT;
+  const bonds = DEMO_BOND * DEMO_ASSESSORS.length;
   return {
     timeOffset: 0,
     txCount: 0,
@@ -94,7 +101,7 @@ function initialState(): DemoState {
       authority: DEMO_WALLET,
       stableMint: "tBRLDemo11111111111111111111111111111111111",
       vault: "VaultDemo1111111111111111111111111111111111",
-      vaultBalance: seedLiquidity,
+      vaultBalance: seedLiquidity + seedJunior + bonds,
       totalShares: seedLiquidity,
       totalActiveCoverage: 0,
       reservedCashback: 0,
@@ -121,7 +128,17 @@ function initialState(): DemoState {
       pendingAuthority: null,
       oracle: DEMO_WALLET,
       bonusDaysPerClass: DEFAULT_BONUS_DAYS,
+      juniorShares: seedJunior,
+      juniorCapital: seedJunior,
+      juniorWeightBps: 20_000,
+      assessorBonds: bonds,
+      minAssessorBond: 100 * UNIT,
+      slashBps: 1_000,
+      totalSalvage: 0,
     },
+    assessorRecords: Object.fromEntries(
+      DEMO_ASSESSORS.map((a) => [a, { bond: DEMO_BOND, votes: 0, correctVotes: 0, wrongVotes: 0, slashed: 0 }]),
+    ),
     balances: {},
     policies: [],
     claims: [],
@@ -145,6 +162,11 @@ function initialState(): DemoState {
 function driverOf(s: DemoState, owner: string): DriverInfo {
   s.drivers[owner] ??= { bonusClass: 0, cleanDays: 0, cleanPolicies: 0, paidClaims: 0 };
   return s.drivers[owner];
+}
+
+function assessorOf(s: DemoState, who: string): AssessorInfo {
+  s.assessorRecords[who] ??= { bond: 0, votes: 0, correctVotes: 0, wrongVotes: 0, slashed: 0 };
+  return s.assessorRecords[who];
 }
 
 function load(): DemoState {
@@ -228,11 +250,55 @@ export class DemoClient implements AutoShieldClient {
   }
 
   private liabilities(s: DemoState) {
-    return s.pool.reservedCashback + s.pool.treasuryAccrued + s.pool.pendingInspectionFees;
+    return s.pool.reservedCashback + s.pool.treasuryAccrued + s.pool.pendingInspectionFees + s.pool.assessorBonds;
   }
 
   private nav(s: DemoState) {
     return Math.max(0, s.pool.vaultBalance - this.liabilities(s));
+  }
+
+  // ---- classes senior/junior (mesmas regras de Pool no contrato) ----
+
+  private juniorNav(s: DemoState, nav = this.nav(s)) {
+    return Math.min(s.pool.juniorCapital, nav);
+  }
+
+  private seniorNav(s: DemoState, nav = this.nav(s)) {
+    return Math.max(0, nav - s.pool.juniorCapital);
+  }
+
+  /** Receita dos LPs: a junior pesa `juniorWeightBps` vezes mais. */
+  private creditLpIncome(s: DemoState, amount: number, navBefore: number) {
+    const j = (this.juniorNav(s, navBefore) * s.pool.juniorWeightBps) / 10_000;
+    const sr = this.seniorNav(s, navBefore);
+    if (j <= 0 || amount <= 0) return;
+    s.pool.juniorCapital += Math.floor((amount * j) / (j + sr));
+  }
+
+  /** Perda de sinistro: sai primeiro da junior. */
+  private absorbLoss(s: DemoState, amount: number) {
+    s.pool.juniorCapital = Math.max(0, s.pool.juniorCapital - amount);
+  }
+
+  /** Estorno que nao e perda de risco: proporcional ao capital das classes. */
+  private reduceProRata(s: DemoState, amount: number, navBefore: number) {
+    if (navBefore <= 0) return;
+    const part = Math.floor((amount * this.juniorNav(s, navBefore)) / navBefore);
+    s.pool.juniorCapital = Math.max(0, s.pool.juniorCapital - part);
+  }
+
+  private requireBond(s: DemoState, who: string) {
+    if ((s.assessorRecords[who]?.bond ?? 0) < s.pool.minAssessorBond)
+      fail("Garantia do avaliador abaixo do mínimo exigido");
+  }
+
+  private finalOutcome(s: DemoState, c: ClaimInfo): boolean | null {
+    if (c.status === "approved" || c.status === "paid") return true;
+    if (c.status === "rejected") {
+      const windowEnd = c.resolvedTs + APPEAL_WINDOW_DAYS * s.pool.params.secondsPerDay;
+      return c.appealed || this.clock(s) > windowEnd ? false : null;
+    }
+    return null;
   }
 
   private required(s: DemoState, coverage: number) {
@@ -250,8 +316,9 @@ export class DemoClient implements AutoShieldClient {
   }
 
   /** Mesma contabilidade de account_payment no contrato. */
-  private accountPayment(s: DemoState, p: PolicyInfo, amount: number) {
+  private accountPayment(s: DemoState, p: PolicyInfo, amount: number, navBefore: number) {
     const { fee, cashback } = splitPayment(s.pool.params, amount, !p.hadPaidClaim);
+    this.creditLpIncome(s, amount - fee - cashback, navBefore);
     s.pool.treasuryAccrued += fee;
     s.pool.totalProtocolFees += fee;
     s.pool.reservedCashback += cashback;
@@ -308,7 +375,8 @@ export class DemoClient implements AutoShieldClient {
       if (amount < MIN_FIRST_DEPOSIT) fail("Primeiro aporte abaixo do mínimo");
       shares = amount - DEAD_SHARES;
     } else {
-      const nav = this.nav(s);
+      // Cotas senior sao precificadas pelo patrimonio senior.
+      const nav = this.seniorNav(s);
       if (nav <= 0) fail("Liquidez insuficiente no pool para garantir a cobertura");
       shares = Math.floor((amount * s.pool.totalShares) / nav);
     }
@@ -316,18 +384,173 @@ export class DemoClient implements AutoShieldClient {
     this.debit(s, this.wallet, amount);
     s.pool.vaultBalance += amount;
     s.pool.totalShares += first ? amount : shares;
-    const pos = s.stakes[this.wallet] ?? {
+    const pos = this.position(s);
+    pos.shares += shares;
+    pos.totalDeposited += amount;
+    pos.lastDepositTs = this.clock(s);
+    return this.tx(s);
+  }
+
+  private position(s: DemoState): StakeInfo {
+    s.stakes[this.wallet] ??= {
       shares: 0,
       totalDeposited: 0,
       totalWithdrawn: 0,
       lastDepositTs: 0,
       pendingWithdrawShares: 0,
       withdrawAvailableAt: 0,
+      juniorShares: 0,
+      pendingJuniorWithdraw: 0,
     };
-    pos.shares += shares;
+    return s.stakes[this.wallet];
+  }
+
+  async depositJunior(amount: number) {
+    await delay();
+    const s = load();
+    if (s.pool.paused) fail("O protocolo está pausado");
+    if (amount <= 0) fail("Quantidade deve ser maior que zero");
+    const jNav = this.juniorNav(s);
+    if (s.pool.juniorShares > 0 && jNav <= 0) fail("Classe júnior zerada por sinistros; aguarde a recomposição");
+    const shares = s.pool.juniorShares === 0 ? amount : Math.floor((amount * s.pool.juniorShares) / jNav);
+    if (shares <= 0) fail("Quantidade deve ser maior que zero");
+    this.debit(s, this.wallet, amount);
+    s.pool.vaultBalance += amount;
+    s.pool.juniorShares += shares;
+    s.pool.juniorCapital += amount;
+    const pos = this.position(s);
+    pos.juniorShares += shares;
     pos.totalDeposited += amount;
     pos.lastDepositTs = this.clock(s);
-    s.stakes[this.wallet] = pos;
+    return this.tx(s);
+  }
+
+  async requestJuniorWithdraw(shares: number) {
+    await delay();
+    const s = load();
+    const pos = s.stakes[this.wallet];
+    if (!pos || shares <= 0 || pos.juniorShares < shares) fail("Saldo de cotas insuficiente");
+    pos.pendingJuniorWithdraw = shares;
+    pos.withdrawAvailableAt = this.clock(s) + s.pool.params.withdrawNoticeSecs;
+    return this.tx(s);
+  }
+
+  async withdrawJunior(shares: number) {
+    await delay();
+    const s = load();
+    const pos = s.stakes[this.wallet];
+    if (!pos || shares <= 0 || pos.juniorShares < shares) fail("Saldo de cotas insuficiente");
+    if (shares > pos.pendingJuniorWithdraw) fail("Saque não solicitado ou acima das cotas solicitadas");
+    if (this.clock(s) < pos.withdrawAvailableAt) fail("Aviso prévio de saque ainda em andamento");
+    if (this.clock(s) < pos.lastDepositTs + s.pool.params.withdrawCooldownSecs)
+      fail("Período de carência de saque ainda não terminou");
+    const nav = this.nav(s);
+    const amount = Math.floor((shares * this.juniorNav(s, nav)) / Math.max(1, s.pool.juniorShares));
+    if (nav - amount < this.required(s, s.pool.totalActiveCoverage))
+      fail("Saque deixaria o pool abaixo do colateral mínimo");
+    s.pool.vaultBalance -= amount;
+    s.pool.juniorShares -= shares;
+    s.pool.juniorCapital = Math.max(0, s.pool.juniorCapital - amount);
+    pos.juniorShares -= shares;
+    pos.pendingJuniorWithdraw -= shares;
+    pos.totalWithdrawn += amount;
+    this.credit(s, this.wallet, amount);
+    return this.tx(s);
+  }
+
+  // ---- garantia dos avaliadores ----
+
+  async getAssessor(assessor: string) {
+    return load().assessorRecords[assessor] ?? null;
+  }
+
+  // Na demonstracao a garantia sai do saldo da carteira demo e vai para o
+  // avaliador simulado escolhido; o saque volta para a carteira demo.
+  async postBond(amount: number, as?: string) {
+    await delay();
+    if (amount <= 0) fail("Quantidade deve ser maior que zero");
+    const s = load();
+    this.debit(s, this.wallet, amount);
+    s.pool.vaultBalance += amount;
+    s.pool.assessorBonds += amount;
+    assessorOf(s, as ?? this.wallet).bond += amount;
+    return this.tx(s);
+  }
+
+  async withdrawBond(amount: number, as?: string) {
+    await delay();
+    if (amount <= 0) fail("Quantidade deve ser maior que zero");
+    const s = load();
+    const who = as ?? this.wallet;
+    const r = assessorOf(s, who);
+    if (r.bond < amount) fail("Garantia do avaliador abaixo do mínimo exigido");
+    if (s.pool.assessors.includes(who) && r.bond - amount < s.pool.minAssessorBond)
+      fail("Garantia do avaliador abaixo do mínimo exigido");
+    r.bond -= amount;
+    s.pool.assessorBonds -= amount;
+    s.pool.vaultBalance -= amount;
+    this.credit(s, this.wallet, amount);
+    return this.tx(s);
+  }
+
+  async settleVote(claimAddr: string, assessor: string) {
+    await delay();
+    const s = load();
+    const c = s.claims.find((x) => x.address === claimAddr);
+    if (!c) fail("Sinistro não encontrado");
+    const outcome = this.finalOutcome(s, c);
+    if (outcome === null) fail("O sinistro ainda não tem resultado definitivo");
+    const votes: boolean[] = [];
+    const i = c.voters.indexOf(assessor);
+    if (i >= 0 && !(c.settledBits & (1 << i))) {
+      votes.push(!!(c.voteBits & (1 << i)));
+      c.settledBits |= 1 << i;
+    }
+    const j = c.appealVoters.indexOf(assessor);
+    if (j >= 0 && !(c.appealSettledBits & (1 << j))) {
+      votes.push(!!(c.appealVoteBits & (1 << j)));
+      c.appealSettledBits |= 1 << j;
+    }
+    if (!votes.length) fail("Não há votos a liquidar para este avaliador");
+    const r = assessorOf(s, assessor);
+    let slashed = 0;
+    for (const approved of votes) {
+      if (approved === outcome) r.correctVotes += 1;
+      else {
+        r.wrongVotes += 1;
+        const cut = Math.floor((r.bond * s.pool.slashBps) / 10_000);
+        r.bond -= cut;
+        r.slashed += cut;
+        slashed += cut;
+      }
+    }
+    s.pool.assessorBonds -= slashed;
+    s.pool.treasuryAccrued += slashed;
+    return this.tx(s);
+  }
+
+  async recordSalvage(claimAddr: string, amount: number) {
+    await delay();
+    const s = load();
+    if (amount <= 0) fail("Quantidade deve ser maior que zero");
+    const c = s.claims.find((x) => x.address === claimAddr);
+    if (!c || c.status !== "paid" || !c.totalLoss) fail("O sinistro não é de perda total paga");
+    const navBefore = this.nav(s);
+    this.debit(s, this.wallet, amount);
+    s.pool.vaultBalance += amount;
+    s.pool.totalSalvage += amount;
+    this.creditLpIncome(s, amount, navBefore);
+    c.salvageRecovered += amount;
+    return this.tx(s);
+  }
+
+  async setRiskParams(juniorWeightBps: number, minAssessorBond: number, slashBps: number) {
+    await delay();
+    if (juniorWeightBps < 10_000 || slashBps > 5_000 || minAssessorBond < 0) fail("Parâmetro inválido");
+    const s = load();
+    s.pool.juniorWeightBps = juniorWeightBps;
+    s.pool.minAssessorBond = minAssessorBond;
+    s.pool.slashBps = slashBps;
     return this.tx(s);
   }
 
@@ -341,7 +564,7 @@ export class DemoClient implements AutoShieldClient {
     if (this.clock(s) < pos.lastDepositTs + s.pool.params.withdrawCooldownSecs)
       fail("Período de carência de saque ainda não terminou");
     const nav = this.nav(s);
-    const amount = Math.floor((shares * nav) / s.pool.totalShares);
+    const amount = Math.floor((shares * this.seniorNav(s, nav)) / s.pool.totalShares);
     if (amount <= 0) fail("Quantidade deve ser maior que zero");
     if (nav - amount < this.required(s, s.pool.totalActiveCoverage))
       fail("Saque deixaria o pool abaixo do colateral mínimo");
@@ -403,6 +626,7 @@ export class DemoClient implements AutoShieldClient {
     if (q.coverageLimit * 10_000 > navAfter * params.maxPolicyCoverageBps)
       fail("Cobertura acima do limite de exposição do pool por apólice");
     rememberPlate(plate);
+    const navBefore = this.nav(s);
     this.debit(s, this.wallet, first + params.inspectionFee);
     s.pool.vaultBalance += first + params.inspectionFee;
 
@@ -453,7 +677,7 @@ export class DemoClient implements AutoShieldClient {
       pendingOwner: null,
       bonusClass,
     };
-    this.accountPayment(s, policy, first);
+    this.accountPayment(s, policy, first, navBefore);
     s.policies.push(policy);
     s.pool.pendingInspectionFees += params.inspectionFee;
     s.pool.totalActiveCoverage = coverageAfter;
@@ -472,9 +696,10 @@ export class DemoClient implements AutoShieldClient {
     if (isLapsed(p, this.clock(s), s.pool.params.installmentGraceSecs))
       fail("Apólice caducada por parcela em atraso");
     const amount = installmentAmount(p.premiumTotal, p.installments, p.installmentsPaid + 1);
+    const navBefore = this.nav(s);
     this.debit(s, this.wallet, amount);
     s.pool.vaultBalance += amount;
-    this.accountPayment(s, p, amount);
+    this.accountPayment(s, p, amount, navBefore);
     return this.tx(s);
   }
 
@@ -497,6 +722,12 @@ export class DemoClient implements AutoShieldClient {
     if (input.amount > p.coverageLimit - p.totalPaidOut)
       fail("Valor solicitado excede o limite de cobertura restante");
     const id = s.pool.claimCount;
+    // Painel sorteado: com comite maior que quorum + 1, so parte dele julga o caso.
+    const t = s.pool.approvalThreshold;
+    const pool = [...s.pool.assessors];
+    const size = pool.length > t + 1 ? t + 1 : pool.length;
+    const panel: string[] = [];
+    for (let i = 0; i < size; i++) panel.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
     s.claims.push({
       address: `ClaimDemo${String(id).padStart(4, "0")}${Math.random().toString(36).slice(2, 10)}`,
       policy: p.address,
@@ -522,6 +753,12 @@ export class DemoClient implements AutoShieldClient {
       appealed: false,
       appealVoters: [],
       appealTs: 0,
+      panel,
+      voteBits: 0,
+      appealVoteBits: 0,
+      settledBits: 0,
+      appealSettledBits: 0,
+      salvageRecovered: 0,
     });
     p.claimsFiled += 1;
     p.hasOpenClaim = true;
@@ -538,8 +775,10 @@ export class DemoClient implements AutoShieldClient {
     const c = s.claims.find((x) => x.address === claimAddr);
     if (!c) fail("Sinistro não encontrado");
     if (c.claimant === voter) fail("Avaliador não pode votar ou vistoriar a própria apólice");
+    this.requireBond(s, voter);
     const appeal = c.status === "appealed";
     if (c.status !== "pending" && !appeal) fail("O sinistro não está pendente");
+    if (!appeal && c.panel.length && !c.panel.includes(voter)) fail("Avaliador não foi sorteado para este sinistro");
     const now = this.clock(s);
     if (now > c.votingDeadline) fail("Período de votação encerrado");
     if (c.voters.includes(voter))
@@ -551,14 +790,22 @@ export class DemoClient implements AutoShieldClient {
       c.kind = reclassify;
       c.reclassified = true;
     }
-    if (appeal) c.appealVoters.push(voter);
-    else c.voters.push(voter);
+    // Guarda o sentido de cada voto (bit i = aprovou) para liquidar a reputacao depois.
+    if (appeal) {
+      if (approve) c.appealVoteBits |= 1 << c.appealVoters.length;
+      c.appealVoters.push(voter);
+    } else {
+      if (approve) c.voteBits |= 1 << c.voters.length;
+      c.voters.push(voter);
+    }
     if (approve) c.approvals += 1;
     else c.rejections += 1;
+    assessorOf(s, voter).votes += 1;
     // No recurso, o quorum se ajusta aos avaliadores que nao votaram antes.
     const eligible = s.pool.assessors.filter((a) => !c.voters.includes(a)).length;
     const threshold = appeal ? Math.max(1, Math.min(s.pool.approvalThreshold, eligible)) : s.pool.approvalThreshold;
-    const maxRej = (appeal ? eligible : s.pool.assessors.length) - threshold;
+    const judges = c.panel.length || s.pool.assessors.length;
+    const maxRej = (appeal ? eligible : judges) - threshold;
     if (c.approvals >= threshold) {
       c.status = "approved";
       c.resolvedTs = now;
@@ -587,6 +834,7 @@ export class DemoClient implements AutoShieldClient {
     if (!s.pool.assessors.includes(inspector)) fail("Assinante não é um avaliador do pool");
     const p = s.policies.find((x) => x.address === policyAddr);
     if (!p || p.status !== "active") fail("A apólice não está ativa");
+    this.requireBond(s, inspector);
     if (p.owner === inspector) fail("Avaliador não pode votar ou vistoriar a própria apólice");
     if (p.inspected) fail("A vistoria desta apólice já foi realizada");
     if (p.hasOpenClaim) fail("Já existe um sinistro em aberto para esta apólice");
@@ -598,6 +846,8 @@ export class DemoClient implements AutoShieldClient {
     const rejected = !approved && rejections > s.pool.assessors.length - quorum;
     if (approved && s.vehicles[p.plateHash]) fail("Este veículo já possui uma apólice ativa");
     // cada voto recebe taxa / quorum
+    const navBefore = this.nav(s);
+    assessorOf(s, inspector).votes += 1;
     const share = Math.min(Math.floor(p.inspectionFee / quorum), p.inspectionFee - p.inspectionFeePaid);
     s.pool.vaultBalance -= share;
     s.pool.pendingInspectionFees -= share;
@@ -618,6 +868,8 @@ export class DemoClient implements AutoShieldClient {
       p.inspected = true;
       s.vehicles[p.plateHash] = p.address;
     } else if (rejected) {
+      // A parte do premio que tinha ficado com os LPs volta ao motorista.
+      this.reduceProRata(s, p.premiumPaid - p.protocolFeesPaid - p.cashbackAmount, navBefore);
       s.pool.vaultBalance -= p.premiumPaid;
       this.credit(s, p.owner, p.premiumPaid);
       s.pool.totalActiveCoverage -= p.coverageLimit - p.totalPaidOut;
@@ -660,6 +912,8 @@ export class DemoClient implements AutoShieldClient {
       d.bonusClass = Math.max(0, d.bonusClass - 1);
       d.cleanDays = d.bonusClass * s.pool.bonusDaysPerClass;
     }
+    // Classe junior absorve a perda primeiro.
+    this.absorbLoss(s, payout);
     s.pool.pendingClaims -= c.amountRequested;
     s.pool.totalActiveCoverage -= payout;
     s.pool.totalClaimsPaid += payout;
@@ -806,6 +1060,11 @@ export class DemoClient implements AutoShieldClient {
     if (p.hasOpenClaim) fail("Já existe um sinistro em aberto para esta apólice");
     const { refund, coolingOff } = cancellationRefund(p, this.clock(s), s.pool.params);
     const unpaidInspection = p.inspectionFee - p.inspectionFeePaid;
+    // Efeito no patrimonio dos LPs: sai a devolucao, voltam as reservas liberadas.
+    const navBefore = this.nav(s);
+    const released = coolingOff ? p.protocolFeesPaid + p.cashbackAmount + unpaidInspection : p.cashbackAmount;
+    if (refund > released) this.reduceProRata(s, refund - released, navBefore);
+    else this.creditLpIncome(s, released - refund, navBefore);
     s.pool.vaultBalance -= refund;
     this.credit(s, p.owner, refund);
     s.pool.totalActiveCoverage -= p.coverageLimit - p.totalPaidOut;

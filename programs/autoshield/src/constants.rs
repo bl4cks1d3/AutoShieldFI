@@ -64,3 +64,9 @@ pub const APPEAL_WINDOW_DAYS: i64 = 7;
 pub const BONUS_PCT_PER_CLASS: u64 = 4;
 pub const MAX_BONUS_CLASS: u8 = 10;
 pub const DEFAULT_BONUS_DAYS_PER_CLASS: u32 = 365;
+
+pub const ASSESSOR_SEED: &[u8] = b"assessor";
+/// Cotas junior: peso padrao de 2x na divisao dos premios por real aportado.
+pub const DEFAULT_JUNIOR_WEIGHT_BPS: u64 = 20_000;
+/// Voto contra o resultado final perde 10% da garantia (padrao).
+pub const DEFAULT_SLASH_BPS: u64 = 1_000;

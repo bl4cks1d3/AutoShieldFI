@@ -56,7 +56,21 @@ pub struct Pool {
     /// Dias de cobertura sem sinistro para subir uma classe de bonus (0 = 365).
     /// Ocupa bytes que eram reservados: o layout do pool nao muda.
     pub bonus_days_per_class: u16,
-    pub _reserved: [u8; 126],
+    /// Cotas da classe junior (primeira perda). As cotas de `total_shares` sao senior.
+    pub junior_shares: u64,
+    /// Parte do patrimonio dos LPs que pertence a classe junior.
+    pub junior_capital: u64,
+    /// Peso da classe junior na divisao dos premios por real aportado (0 = 20.000 = 2x).
+    pub junior_weight_bps: u16,
+    /// Garantias depositadas pelos avaliadores (fora do patrimonio dos LPs).
+    pub assessor_bonds: u64,
+    /// Garantia minima para votar e vistoriar (0 = nao exigida).
+    pub min_assessor_bond: u64,
+    /// Parte da garantia perdida por voto contra o resultado final (0 = 1.000 = 10%).
+    pub slash_bps: u16,
+    /// Total recuperado com salvados e veiculos roubados encontrados.
+    pub total_salvage: u64,
+    pub _reserved: [u8; 82],
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, PartialEq, Eq, InitSpace)]
@@ -132,6 +146,65 @@ impl Pool {
         self.reserved_cashback
             .saturating_add(self.treasury_accrued)
             .saturating_add(self.pending_inspection_fees)
+            .saturating_add(self.assessor_bonds)
+    }
+
+    /// Capital da classe junior (nunca maior que o patrimonio).
+    pub fn junior_nav(&self, nav: u64) -> u64 {
+        self.junior_capital.min(nav)
+    }
+
+    /// Capital da classe senior: o patrimonio que nao e da junior.
+    pub fn senior_nav(&self, nav: u64) -> u64 {
+        nav.saturating_sub(self.junior_capital)
+    }
+
+    pub fn junior_weight(&self) -> u64 {
+        if self.junior_weight_bps == 0 {
+            DEFAULT_JUNIOR_WEIGHT_BPS
+        } else {
+            self.junior_weight_bps as u64
+        }
+    }
+
+    pub fn slash_rate_bps(&self) -> u64 {
+        if self.slash_bps == 0 {
+            DEFAULT_SLASH_BPS
+        } else {
+            self.slash_bps as u64
+        }
+    }
+
+    /// Parte de uma receita dos LPs (premio ou salvado) que cabe a junior: o
+    /// capital junior pesa `junior_weight` vezes mais que o senior.
+    pub fn junior_share_of(&self, amount: u64, nav: u64) -> u64 {
+        let j = self.junior_nav(nav) as u128 * self.junior_weight() as u128 / BPS_DENOMINATOR as u128;
+        let s = self.senior_nav(nav) as u128;
+        if j == 0 {
+            return 0;
+        }
+        (amount as u128 * j / (j + s)) as u64
+    }
+
+    /// Receita dos LPs: credita a parte da junior.
+    pub fn credit_lp_income(&mut self, amount: u64, nav_before: u64) {
+        let part = self.junior_share_of(amount, nav_before);
+        self.junior_capital = self.junior_capital.saturating_add(part);
+    }
+
+    /// Perda de sinistro: a junior absorve primeiro, ate zerar.
+    pub fn absorb_loss(&mut self, amount: u64) {
+        self.junior_capital = self.junior_capital.saturating_sub(amount);
+    }
+
+    /// Estorno (reembolso) que nao e perda de risco: sai das duas classes na
+    /// proporcao do capital.
+    pub fn reduce_pro_rata(&mut self, amount: u64, nav_before: u64) {
+        if nav_before == 0 {
+            return;
+        }
+        let part = (amount as u128 * self.junior_nav(nav_before) as u128 / nav_before as u128) as u64;
+        self.junior_capital = self.junior_capital.saturating_sub(part);
     }
 
     /// Patrimonio liquido pertencente aos provedores de liquidez.
@@ -422,6 +495,17 @@ pub struct Claim {
     #[max_len(MAX_ASSESSORS)]
     pub appeal_voters: Vec<Pubkey>,
     pub appeal_ts: i64,
+    /// Avaliadores sorteados para julgar a primeira rodada.
+    #[max_len(MAX_ASSESSORS)]
+    pub panel: Vec<Pubkey>,
+    /// Bit i = voto de aprovacao do i-esimo votante (voters / appeal_voters).
+    pub vote_bits: u8,
+    pub appeal_vote_bits: u8,
+    /// Bit i = voto ja liquidado (reputacao e garantia).
+    pub settled_bits: u8,
+    pub appeal_settled_bits: u8,
+    /// Recuperado com a venda do salvado ou a recuperacao do veiculo.
+    pub salvage_recovered: u64,
     pub bump: u8,
     pub _reserved: [u8; 64],
 }
@@ -431,6 +515,55 @@ impl Claim {
     pub fn appeal_eligible(&self, pool: &Pool) -> u8 {
         pool.assessors.iter().filter(|a| !self.voters.contains(a)).count() as u8
     }
+
+    /// Resultado definitivo, se ja houver: Some(true) = aprovado, Some(false) = recusado.
+    pub fn final_outcome(&self, now: i64, seconds_per_day: i64) -> Option<bool> {
+        match self.status {
+            ClaimStatus::Approved | ClaimStatus::Paid => Some(true),
+            ClaimStatus::Rejected => {
+                let window_end = self
+                    .resolved_ts
+                    .saturating_add(APPEAL_WINDOW_DAYS.saturating_mul(seconds_per_day));
+                if self.appealed || now > window_end {
+                    Some(false)
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
+    }
+}
+
+/// Sorteia `size` avaliadores do comite a partir de uma semente (hash do slot e
+/// da conta do sinistro). Pseudoaleatorio: em producao, usar uma VRF.
+pub fn draw_panel(assessors: &[Pubkey], size: usize, seed: [u8; 32]) -> Vec<Pubkey> {
+    let mut pool: Vec<Pubkey> = assessors.to_vec();
+    let size = size.min(pool.len());
+    let mut out = Vec::with_capacity(size);
+    for i in 0..size {
+        let r = u64::from_le_bytes(seed[(i * 4) % 24..(i * 4) % 24 + 8].try_into().unwrap());
+        let idx = (r % pool.len() as u64) as usize;
+        out.push(pool.swap_remove(idx));
+    }
+    out
+}
+
+/// Garantia e reputacao de um avaliador.
+#[account]
+#[derive(InitSpace)]
+pub struct AssessorRecord {
+    pub version: u8,
+    pub assessor: Pubkey,
+    pub bond: u64,
+    pub votes: u32,
+    /// Votos liquidados de acordo com o resultado final.
+    pub correct_votes: u32,
+    /// Votos liquidados contra o resultado final.
+    pub wrong_votes: u32,
+    pub slashed: u64,
+    pub bump: u8,
+    pub _reserved: [u8; 32],
 }
 
 /// Oficina credenciada pela governanca para receber indenizacoes de danos parciais.
@@ -521,7 +654,11 @@ pub struct StakePosition {
     pub pending_withdraw_shares: u64,
     pub withdraw_available_at: i64,
     pub bump: u8,
-    pub _reserved: [u8; 32],
+    /// Cotas da classe junior (primeira perda) e saque junior pedido.
+    /// Ocupam bytes que eram reservados: o layout da posicao nao muda.
+    pub junior_shares: u64,
+    pub pending_junior_withdraw: u64,
+    pub _reserved: [u8; 16],
 }
 
 #[cfg(test)]
@@ -634,6 +771,21 @@ mod tests {
         d.register_paid_claim(365);
         assert_eq!(d.bonus_class, MAX_BONUS_CLASS - 1);
         assert_eq!(d.clean_days, (MAX_BONUS_CLASS as u32 - 1) * 365);
+    }
+
+    #[test]
+    fn panel_draw_is_a_subset_without_repeats() {
+        let a: Vec<Pubkey> = (0..5).map(|_| Pubkey::new_unique()).collect();
+        let p = draw_panel(&a, 3, [7u8; 32]);
+        assert_eq!(p.len(), 3);
+        for x in &p {
+            assert!(a.contains(x));
+        }
+        let mut sorted = p.clone();
+        sorted.sort();
+        sorted.dedup();
+        assert_eq!(sorted.len(), 3);
+        assert_eq!(draw_panel(&a, 9, [1u8; 32]).len(), 5);
     }
 
     #[test]

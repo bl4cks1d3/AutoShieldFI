@@ -10,7 +10,8 @@ use crate::events::{
 };
 use crate::pricing;
 use crate::state::{
-    CoverageTier, DeductibleOption, DriverRecord, Policy, PolicyStatus, Pool, VehicleRecord, ACCOUNT_VERSION,
+    AssessorRecord, CoverageTier, DeductibleOption, DriverRecord, Policy, PolicyStatus, Pool, VehicleRecord,
+    ACCOUNT_VERSION,
 };
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
@@ -37,8 +38,9 @@ pub struct PurchasePolicyArgs {
 }
 
 /// Contabiliza um pagamento de premio (a vista ou parcela): separa a taxa do
-/// protocolo e o cashback reservado; o restante fica com os LPs.
-fn account_payment(pool: &mut Pool, policy: &mut Policy, amount: u64) -> Result<()> {
+/// protocolo e o cashback reservado; o restante fica com os LPs (senior e junior,
+/// esta com peso maior). `nav_before` e o patrimonio dos LPs antes do pagamento.
+fn account_payment(pool: &mut Pool, policy: &mut Policy, amount: u64, nav_before: u64) -> Result<()> {
     let fee = u64::try_from(
         (amount as u128) * pool.params.protocol_fee_bps as u128 / BPS_DENOMINATOR as u128,
     )
@@ -67,6 +69,7 @@ fn account_payment(pool: &mut Pool, policy: &mut Policy, amount: u64) -> Result<
         .checked_add(amount)
         .ok_or(AutoShieldError::MathOverflow)?;
     policy.installments_paid += 1;
+    pool.credit_lp_income(amount.saturating_sub(fee).saturating_sub(cashback), nav_before);
     Ok(())
 }
 
@@ -281,8 +284,9 @@ pub fn purchase_policy(ctx: Context<PurchasePolicy>, args: PurchasePolicyArgs) -
         driver.bump = ctx.bumps.driver;
     }
 
+    let nav_before = ctx.accounts.pool.net_assets(ctx.accounts.vault.amount);
     let pool = &mut ctx.accounts.pool;
-    account_payment(pool, policy, first_installment)?;
+    account_payment(pool, policy, first_installment, nav_before)?;
     pool.pending_inspection_fees = pool
         .pending_inspection_fees
         .checked_add(inspection_fee)
@@ -353,9 +357,11 @@ pub fn pay_installment(ctx: Context<PayInstallment>) -> Result<()> {
         ctx.accounts.stable_mint.decimals,
     )?;
 
+    // `vault.amount` ainda e o saldo anterior a transferencia (conta nao recarregada).
+    let nav_before = ctx.accounts.pool.net_assets(ctx.accounts.vault.amount);
     let pool = &mut ctx.accounts.pool;
     let policy = &mut ctx.accounts.policy;
-    account_payment(pool, policy, amount)?;
+    account_payment(pool, policy, amount, nav_before)?;
 
     emit!(InstallmentPaid {
         policy: policy.key(),
@@ -551,6 +557,16 @@ pub struct InspectPolicy<'info> {
     )]
     pub assessor_token: Account<'info, TokenAccount>,
 
+    /// Garantia e reputacao do avaliador.
+    #[account(
+        init_if_needed,
+        payer = assessor,
+        space = 8 + AssessorRecord::INIT_SPACE,
+        seeds = [ASSESSOR_SEED, assessor.key().as_ref()],
+        bump
+    )]
+    pub assessor_record: Box<Account<'info, AssessorRecord>>,
+
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
@@ -589,6 +605,10 @@ pub fn inspect_policy(ctx: Context<InspectPolicy>, approve: bool) -> Result<()> 
     let pool = &ctx.accounts.pool;
     let policy = &ctx.accounts.policy;
     require!(pool.is_assessor(&assessor), AutoShieldError::NotAssessor);
+    require!(
+        ctx.accounts.assessor_record.bond >= pool.min_assessor_bond,
+        AutoShieldError::InsufficientBond
+    );
     require!(policy.owner != assessor, AutoShieldError::AssessorConflict);
     require!(
         policy.status == PolicyStatus::Active,
@@ -640,6 +660,14 @@ pub fn inspect_policy(ctx: Context<InspectPolicy>, approve: bool) -> Result<()> 
     )?;
 
     let policy_key = ctx.accounts.policy.key();
+    let nav_before = ctx.accounts.pool.net_assets(ctx.accounts.vault.amount);
+    let record = &mut ctx.accounts.assessor_record;
+    if record.assessor == Pubkey::default() {
+        record.version = ACCOUNT_VERSION;
+        record.assessor = assessor;
+        record.bump = ctx.bumps.assessor_record;
+    }
+    record.votes = record.votes.saturating_add(1);
     let pool = &mut ctx.accounts.pool;
     let policy = &mut ctx.accounts.policy;
     pool.pending_inspection_fees = pool.pending_inspection_fees.saturating_sub(share);
@@ -673,6 +701,12 @@ pub fn inspect_policy(ctx: Context<InspectPolicy>, approve: bool) -> Result<()> 
         pool.total_protocol_fees = pool.total_protocol_fees.saturating_sub(policy.protocol_fees_paid);
         pool.total_premiums = pool.total_premiums.saturating_sub(policy.premium_paid);
         pool.active_policies = pool.active_policies.saturating_sub(1);
+        // A parte do premio que tinha ficado com os LPs volta ao motorista.
+        let lp_part = policy
+            .premium_paid
+            .saturating_sub(policy.protocol_fees_paid)
+            .saturating_sub(policy.cashback_amount);
+        pool.reduce_pro_rata(lp_part, nav_before);
         policy.status = PolicyStatus::Cancelled;
         policy.cashback_amount = 0;
     }
@@ -801,8 +835,23 @@ pub fn cancel_policy(ctx: Context<CancelPolicy>) -> Result<()> {
     )?;
 
     let policy_key = ctx.accounts.policy.key();
+    let nav_before = ctx.accounts.pool.net_assets(ctx.accounts.vault.amount);
     let pool = &mut ctx.accounts.pool;
     let policy = &mut ctx.accounts.policy;
+    // Efeito no patrimonio dos LPs: sai a devolucao, voltam as reservas liberadas.
+    let released = if cooling_off {
+        policy
+            .protocol_fees_paid
+            .saturating_add(policy.cashback_amount)
+            .saturating_add(unpaid_inspection)
+    } else {
+        policy.cashback_amount
+    };
+    if refund > released {
+        pool.reduce_pro_rata(refund - released, nav_before);
+    } else {
+        pool.credit_lp_income(released - refund, nav_before);
+    }
     pool.total_active_coverage = pool.total_active_coverage.saturating_sub(policy.remaining_coverage());
     pool.active_policies = pool.active_policies.saturating_sub(1);
     pool.reserved_cashback = pool.reserved_cashback.saturating_sub(policy.cashback_amount);
