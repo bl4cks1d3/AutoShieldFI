@@ -10,13 +10,15 @@ import type { AnchorWallet } from "@solana/wallet-adapter-react";
 import { PublicKey, Transaction, VersionedTransaction } from "@solana/web3.js";
 import { LogIn, LogOut, Mail } from "lucide-react";
 import { useMemo, type ReactNode } from "react";
-import { CLUSTER_LABEL, PRIVY_APP_ID } from "@/lib/config";
+import { PRIVY_APP_ID, WALLET_CHAIN } from "@/lib/config";
 import { shortAddr } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
 
 export const PRIVY_ENABLED = !!PRIVY_APP_ID;
 
-const CHAIN = CLUSTER_LABEL.toLowerCase() === "mainnet" ? "solana:mainnet" : "solana:devnet";
+// Rede em que a carteira embutida assina: segue o cluster configurado no app
+// (a Privy nao tem localnet; nesse caso usa devnet).
+const CHAIN = WALLET_CHAIN === "solana:localnet" ? "solana:devnet" : WALLET_CHAIN;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   if (!PRIVY_APP_ID) return <>{children}</>;

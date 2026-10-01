@@ -1,5 +1,5 @@
 import { UNIT } from "./pricing";
-import { STABLE_SYMBOL } from "./config";
+import { CLUSTER_LABEL, STABLE_SYMBOL } from "./config";
 import { getLang, locale, tr, translateError } from "./i18n";
 
 // Formatadores sensiveis ao idioma escolhido (PT-BR ou English).
@@ -80,6 +80,12 @@ export function errMsg(e: unknown): string {
   const m = msg.match(/Error Message: ([^.]+)/);
   if (m) return translateError(m[1]);
   if (msg.includes("User rejected")) return translateError("Transação cancelada na carteira");
+  // carteira sem SOL nesta rede para pagar a taxa
+  if (msg.includes("no record of a prior credit"))
+    return tr(
+      `Sua carteira não tem SOL na ${CLUSTER_LABEL} para pagar a taxa. Pegue SOL grátis em faucet.solana.com (rede ${CLUSTER_LABEL}) e tente de novo.`,
+      `Your wallet has no SOL on ${CLUSTER_LABEL} to pay the fee. Get free SOL at faucet.solana.com (${CLUSTER_LABEL} network) and try again.`,
+    );
   if (msg.includes("insufficient funds") || msg.includes("0x1"))
     return translateError("Saldo insuficiente para a operação");
   const out = translateError(msg);

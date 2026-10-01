@@ -5,6 +5,15 @@ export const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL ?? "https://api.devnet.so
 
 export const CLUSTER_LABEL = process.env.NEXT_PUBLIC_CLUSTER_LABEL ?? "Devnet";
 
+/** Rede no formato Wallet Standard, enviada as carteiras ao pedir assinatura. */
+export const WALLET_CHAIN = (() => {
+  const label = CLUSTER_LABEL.toLowerCase();
+  if (label.includes("mainnet")) return "solana:mainnet" as const;
+  if (label.includes("testnet")) return "solana:testnet" as const;
+  if (label.includes("local")) return "solana:localnet" as const;
+  return "solana:devnet" as const;
+})();
+
 export const STABLE_SYMBOL = process.env.NEXT_PUBLIC_STABLE_SYMBOL ?? "tBRL";
 
 /**

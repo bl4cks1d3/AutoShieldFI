@@ -1,6 +1,7 @@
 "use client";
 
-import { ConnectionProvider, WalletProvider, useAnchorWallet, useConnection } from "@solana/wallet-adapter-react";
+import { ConnectionProvider, WalletProvider, useConnection } from "@solana/wallet-adapter-react";
+import { useChainAnchorWallet } from "./chainWallet";
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { DEFAULT_MODE, DEMO_ENABLED, RPC_URL } from "@/lib/config";
@@ -29,9 +30,9 @@ const MODE_KEY = "autoshield-mode";
 
 function AppStateProvider({ children }: { children: ReactNode }) {
   const { connection } = useConnection();
-  // Carteira de extensao (Phantom, Solflare) tem prioridade; senao, a carteira
-  // embutida do login com Google/e-mail.
-  const adapterWallet = useAnchorWallet();
+  // Carteira de extensao (Phantom, Solflare, MetaMask) tem prioridade; senao, a
+  // carteira embutida do login com Google/e-mail. As duas assinam na rede do app.
+  const adapterWallet = useChainAnchorWallet();
   const privyWallet = usePrivyAnchorWallet();
   const wallet = adapterWallet ?? privyWallet;
   const [mode, setModeState] = useState<Mode>(DEFAULT_MODE);

@@ -14,7 +14,7 @@ import { Footer } from "./Footer";
 import { LangSwitch } from "./LangSwitch";
 import { LoginButton, PRIVY_ENABLED } from "./PrivyAuth";
 import { useApp } from "./Providers";
-import { WalletButton } from "./ui";
+import { WalletControls } from "./WalletControls";
 
 const ROLE_KEY = "autoshield-role";
 
@@ -267,7 +267,7 @@ function SidebarFooter() {
         </div>
         {mode === "chain" && (
           <div className="flex flex-col gap-2 [&_.wallet-adapter-button-trigger]:!w-full [&_.wallet-adapter-button-trigger]:!justify-center">
-            {(!client.wallet || adapter) && <WalletButton />}
+            {(!client.wallet || adapter) && <WalletControls />}
             {(!client.wallet || !adapter) && <LoginButton className="w-full justify-center" />}
           </div>
         )}
