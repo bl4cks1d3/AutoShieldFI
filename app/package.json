@@ -3,10 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --webpack",
-    "dev:turbo": "next dev",
+    "dev": "next dev",
     "build": "next build",
-    "build:local": "next build --webpack",
     "start": "next start",
     "lint": "tsc --noEmit",
     "sync-idl": "node scripts/sync-idl.mjs"
