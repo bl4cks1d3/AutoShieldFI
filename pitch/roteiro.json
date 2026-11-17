@@ -1,0 +1,76 @@
+{
+  "titulo": "AutoShieldFI — Vídeo pitch (pt-BR)",
+  "voz_piper": "pt_BR-faber-medium",
+  "cenas": [
+    {
+      "slide": "01-cover.png",
+      "texto": "Olá! Eu sou o Wesley Cardoso, e este é o AutoShieldFI: proteção veicular descentralizada, acessível e transparente, construída na blockchain Solana.",
+      "fala": "Olá! Eu sou o Wesley Cardoso, e este é o AutoShield F I: proteção veicular descentralizada, acessível e transparente, construída na blockchain Solana."
+    },
+    {
+      "slide": "02-problema.png",
+      "texto": "No Brasil, 7 em cada 10 carros rodam sem seguro. Segundo a CNseg, só 29% da frota está segurada: são 44 milhões de carros sem proteção. O seguro tradicional custa de 3% a 8% do valor do carro por ano, e em 2024 o país registrou quase 368 mil roubos e furtos de veículos.",
+      "fala": "No Brasil, sete em cada dez carros rodam sem seguro. Segundo a confederação das seguradoras, só vinte e nove por cento da frota está segurada: são quarenta e quatro milhões de carros sem proteção. O seguro tradicional custa de três a oito por cento do valor do carro por ano, e em dois mil e vinte e quatro o país registrou quase trezentos e sessenta e oito mil roubos e furtos de veículos."
+    },
+    {
+      "slide": "03-pessoas.png",
+      "texto": "Quem mais sofre são os motoboys, que dependem da moto para trabalhar, e as famílias de renda média. A ideia nasceu de um caso real: uma colega bateu o carro e teve que pagar tudo sozinha, porque o seguro era caro demais.",
+      "fala": "Quem mais sofre são os motoboys, que dependem da moto para trabalhar, e as famílias de renda média. A ideia nasceu de um caso real: uma colega bateu o carro e teve que pagar tudo sozinha, porque o seguro era caro demais."
+    },
+    {
+      "slide": "04-solucao.png",
+      "texto": "O AutoShieldFI é um pool de proteção mutualista que roda em smart contracts. Motoristas pagam prêmios para um cofre na Solana, investidores aportam capital, avaliadores votam os sinistros, e o contrato faz o resto.",
+      "fala": "O AutoShield F I é um fundo de proteção mutualista que roda em contratos inteligentes. Motoristas pagam prêmios para um cofre na Solana, investidores aportam capital, avaliadores votam os sinistros, e o contrato faz o resto."
+    },
+    {
+      "slide": "05-como-funciona.png",
+      "texto": "Tudo pelo celular: o motorista cota pela tabela FIPE, contrata pela carteira digital, à vista ou em até 12 vezes, e passa por uma vistoria feita pelos avaliadores. Se precisar, abre o sinistro com fotos guardadas no IPFS. Com o quórum aprovado, o cofre paga na hora. E quem não usa recebe 20% do prêmio de volta.",
+      "fala": "Tudo pelo celular: o motorista cota pela tabela Fipe, contrata pela carteira digital, à vista ou em até doze vezes, e passa por uma vistoria feita pelos avaliadores. Se precisar, abre o sinistro com fotos guardadas na rede descentralizada. Com o quórum aprovado, o cofre paga na hora. E quem não usa recebe vinte por cento do prêmio de volta."
+    },
+    {
+      "slide": "06-planos.png",
+      "texto": "O preço vem de uma fórmula pública. Um carro de 50 mil reais no plano Essencial paga R$ 1.750 por ano, ou 12 parcelas de R$ 145, e recebe R$ 350 de cashback se não tiver sinistro.",
+      "fala": "O preço vem de uma fórmula pública. Um carro de cinquenta mil reais no plano Essencial paga mil setecentos e cinquenta reais por ano, ou doze parcelas de cento e quarenta e cinco reais, e recebe trezentos e cinquenta reais de volta se não tiver sinistro."
+    },
+    {
+      "slide": "07-economia.png",
+      "texto": "Cada prêmio é dividido pelo próprio contrato: 75% para o pool e os sinistros, 20% de cashback reservado e 5% para o protocolo. Como a sinistralidade do seguro auto foi de 59,4% em 2024, sobra margem para os investidores.",
+      "fala": "Cada prêmio é dividido pelo próprio contrato: setenta e cinco por cento para o fundo e os sinistros, vinte por cento de reembolso reservado e cinco por cento para o protocolo. Como a sinistralidade do seguro auto foi de cinquenta e nove vírgula quatro por cento em dois mil e vinte e quatro, sobra margem para os investidores."
+    },
+    {
+      "slide": "08-solana.png",
+      "texto": "Na Solana, o contrato é o backend, o cofre e o auditor. Nenhuma chave privada move os fundos, cada voto fica registrado, e cada transação custa uma fração de centavo.",
+      "fala": "Na Solana, o contrato é o servidor, o cofre e o auditor. Nenhuma chave privada move os fundos, cada voto fica registrado, e cada transação custa uma fração de centavo."
+    },
+    {
+      "slide": "09-seguranca.png",
+      "texto": "O contrato também garante as regras de antifraude e de solvência: uma apólice por placa, carência de 7 dias, quórum de avaliadores, colateral mínimo, governança com timelock, e a placa gravada apenas como hash, respeitando a LGPD.",
+      "fala": "O contrato também garante as regras de antifraude e de solvência: uma apólice por placa, carência de sete dias, quórum de avaliadores, colateral mínimo, governança com prazo de espera, e a placa gravada apenas como código criptográfico, respeitando a lei de proteção de dados."
+    },
+    {
+      "slide": "10-mercado.png",
+      "texto": "O mercado é grande: o seguro auto faturou 61,6 bilhões de reais em 2025. E a Lei Complementar 213 de 2025 trouxe a proteção mutualista para a supervisão da SUSEP, abrindo um caminho regulatório claro.",
+      "fala": "O mercado é grande: o seguro auto faturou sessenta e um vírgula seis bilhões de reais em dois mil e vinte e cinco. E a Lei Complementar duzentos e treze, de dois mil e vinte e cinco, trouxe a proteção mutualista para a supervisão da Susep, abrindo um caminho regulatório claro."
+    },
+    {
+      "slide": "11-status.png",
+      "texto": "E o produto já funciona de ponta a ponta: 26 instruções no smart contract, 24 testes de integração, app instalável no celular e contratação em menos de 3 minutos.",
+      "fala": "E o produto já funciona de ponta a ponta: vinte e seis instruções no contrato inteligente, vinte e quatro testes de integração, aplicativo instalável no celular e contratação em menos de três minutos."
+    },
+    {
+      "slide": "12-roadmap.png",
+      "texto": "Os próximos passos são o piloto na Devnet com motoristas e motoboys, a governança com multisig e, para a mainnet, auditoria externa, stablecoin real e parceria regulatória.",
+      "fala": "Os próximos passos são o piloto na rede de testes com motoristas e motoboys, a governança com várias assinaturas e, para a rede principal, auditoria externa, moeda estável real e parceria regulatória."
+    },
+    {
+      "slide": "13-equipe.png",
+      "texto": "Sou desenvolvedor fullstack há 5 anos, já subi ao pódio em 3 hackathons e construí o AutoShieldFI de ponta a ponta.",
+      "fala": "Sou desenvolvedor há cinco anos, já subi ao pódio em três hackathons e construí o AutoShield F I de ponta a ponta."
+    },
+    {
+      "slide": "14-fechamento.png",
+      "texto": "AutoShieldFI: proteção para quem dirige, e dinheiro de volta para quem não usa. Obrigado!",
+      "fala": "AutoShield F I: proteção para quem dirige, e dinheiro de volta para quem não usa. Obrigado!"
+    }
+  ]
+}
