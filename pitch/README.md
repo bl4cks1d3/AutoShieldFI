@@ -1,24 +1,38 @@
 # Vídeo pitch (pt-BR)
 
-Vídeo de ~3 minutos com os 14 slides do pitch deck, narração em português do Brasil e legendas.
+Vídeo de ~3 minutos com os 14 slides do pitch deck, narração em português do Brasil com a voz
+[Piper](https://github.com/rhasspy/piper) `pt_BR-faber-medium` e legendas. Tudo em JavaScript (Node 18+).
 
-- `slides/` — os slides do deck em PNG 1920×1080
-- `roteiro.json` — o roteiro: para cada cena, o slide, o texto da legenda (`texto`) e o texto falado (`fala`, com números e siglas por extenso para a voz)
-- `build_video.py` — gera a narração, monta o vídeo e as legendas
+- `deck/` — os slides do pitch deck em HTML
+- `slides/` — os mesmos slides em PNG 1920×1080 (gerados por `render-slides.mjs`)
+- `roteiro.json` — para cada cena: o slide, o texto da legenda (`texto`) e o texto falado (`fala`, com números e siglas por extenso)
+- `build-video.mjs` — gera a narração com o Piper e monta o vídeo e as legendas
+- `render-slides.mjs` — gera os PNG a partir do HTML do deck
+
+## Como o Piper roda em JavaScript
+
+- `piper-phonemize` — o fonetizador do Piper (espeak-ng) compilado em WebAssembly
+- `onnxruntime-node` — roda o modelo de voz ONNX do Piper
+- o script converte os fonemas em IDs exatamente como o Piper faz e grava o WAV a 22,05 kHz
 
 ## Gerar o vídeo
 
-Requisitos: Python 3.9+, `ffmpeg` e `pip install piper-tts`.
-
 ```bash
-python3 pitch/build_video.py --legendas-fixas
+cd pitch
+npm install
+npm run video
 ```
 
-Na primeira execução o script baixa a voz Piper `pt_BR-faber-medium` do Hugging Face para `pitch/.voices/`.
+Na primeira execução, o script baixa a voz `pt_BR-faber-medium` do Hugging Face para `pitch/.voices/` (cerca de 63 MB).
 O resultado fica em `pitch/out/autoshieldfi-pitch.mp4` (legendas na imagem) e `pitch/out/autoshieldfi-pitch.srt`.
-Sem `--legendas-fixas`, as legendas vão como faixa opcional dentro do MP4.
+Para deixar as legendas como faixa opcional dentro do MP4: `node build-video.mjs`.
 
-Sem acesso ao Hugging Face, `--voz espeak` gera uma prévia com voz offline
+Usa o `ffmpeg` do sistema; se não houver, usa o binário do pacote `@ffmpeg-installer/ffmpeg`.
+
+Sem acesso ao Hugging Face, `node build-video.mjs --voz espeak --legendas-fixas` gera uma prévia com o espeak-ng do sistema
 (`apt-get install espeak-ng mbrola mbrola-br4`), útil só para conferir tempo e cortes.
 
-Para mudar a narração, edite `roteiro.json` e rode o script de novo.
+## Mudar o conteúdo
+
+- Narração: edite `roteiro.json` e rode `npm run video` de novo.
+- Slides: edite `deck/slides/*.html`, rode `npm run slides` (com `CHROMIUM_PATH` se o Playwright não achar o navegador) e depois `npm run video`.

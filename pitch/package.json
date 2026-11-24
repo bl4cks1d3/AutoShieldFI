@@ -1,0 +1,22 @@
+{
+  "name": "autoshieldfi-pitch-video",
+  "private": true,
+  "type": "module",
+  "description": "Gera o vídeo pitch do AutoShieldFI: slides + narração pt-BR com Piper + legendas",
+  "scripts": {
+    "video": "node build-video.mjs --legendas-fixas",
+    "slides": "node render-slides.mjs"
+  },
+  "dependencies": {
+    "onnxruntime-node": "^1.22.0",
+    "piper-phonemize": "^1.6.1"
+  },
+  "optionalDependencies": {
+    "@ffmpeg-installer/ffmpeg": "^1.1.0"
+  },
+  "devDependencies": {
+    "@fontsource/inter": "^5.3.0",
+    "@fontsource/plus-jakarta-sans": "^5.3.0",
+    "playwright-core": "^1.65.1"
+  }
+}
