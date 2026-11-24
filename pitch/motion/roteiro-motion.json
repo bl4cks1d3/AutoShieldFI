@@ -2,76 +2,237 @@
   "titulo": "AutoShieldFI — Vídeo motion pitch (pt-BR)",
   "voz_piper": "pt_BR-faber-medium",
   "url_qr": "https://autoshieldfi.vercel.app",
+  "nota": "Cada trecho é [legenda, fala]. A fala escreve números e siglas por extenso para o Piper.",
   "cenas": [
     {
       "id": "gancho",
-      "legenda": "Imagine bater o carro… e descobrir que vai pagar tudo sozinho.",
-      "fala": "Imagine bater o carro... e descobrir que você vai pagar tudo sozinho."
+      "trechos": [
+        [
+          "Imagine: você está voltando do trabalho, no fim do dia.",
+          "Imagine: você está voltando do trabalho, no fim do dia."
+        ],
+        [
+          "Um segundo de distração… e pronto. Você bateu o carro.",
+          "Um segundo de distração... e pronto. Você bateu o carro."
+        ],
+        [
+          "E agora vem a pergunta que ninguém quer ouvir: quem vai pagar?",
+          "E agora vem a pergunta que ninguém quer ouvir: quem vai pagar por isso?"
+        ]
+      ]
     },
     {
       "id": "historia",
-      "legenda": "Foi o que aconteceu com uma colega. O seguro era caro demais. E ela não é exceção.",
-      "fala": "Foi exatamente o que aconteceu com uma colega minha. O seguro era caro demais, então ela não tinha. E ela não é exceção."
+      "trechos": [
+        [
+          "Para uma colega minha, essa pergunta teve uma resposta dura.",
+          "Para uma colega minha, essa pergunta teve uma resposta dura."
+        ],
+        [
+          "Ela não tinha seguro: era caro demais para o orçamento dela.",
+          "Ela não tinha seguro, porque era caro demais para o orçamento dela."
+        ],
+        [
+          "Então pagou tudo sozinha, do próprio bolso.",
+          "Então ela pagou tudo sozinha, do próprio bolso."
+        ],
+        [
+          "E ela não é exceção. Ela é a regra.",
+          "E ela não é exceção. Ela é a regra."
+        ]
+      ]
     },
     {
       "id": "problema",
-      "legenda": "7 em cada 10 carros no Brasil rodam sem seguro: 44 milhões de veículos expostos.",
-      "fala": "No Brasil, sete em cada dez carros rodam sem seguro. São quarenta e quatro milhões de veículos expostos a acidentes, roubos e enchentes."
+      "trechos": [
+        [
+          "No Brasil, 7 em cada 10 carros rodam sem seguro.",
+          "No Brasil, sete em cada dez carros rodam sem seguro."
+        ],
+        [
+          "São 44 milhões de veículos expostos a acidentes, roubos e enchentes.",
+          "São quarenta e quatro milhões de veículos expostos a acidentes, roubos e enchentes."
+        ],
+        [
+          "Só em 2024, foram quase 368 mil roubos e furtos de veículos.",
+          "Só em dois mil e vinte e quatro, foram quase trezentos e sessenta e oito mil roubos e furtos de veículos."
+        ]
+      ]
     },
     {
       "id": "vilao",
-      "legenda": "O seguro tradicional custa de 3% a 8% do valor do carro por ano. E ainda tem burocracia e falta de transparência.",
-      "fala": "O seguro tradicional custa de três a oito por cento do valor do carro por ano. E, quando você mais precisa, vem a burocracia e a falta de transparência."
+      "trechos": [
+        [
+          "Por que tanta gente fica de fora?",
+          "Mas por que tanta gente fica de fora?"
+        ],
+        [
+          "Porque o seguro tradicional custa de 3% a 8% do valor do carro, todo ano.",
+          "Porque o seguro tradicional custa de três a oito por cento do valor do carro, todo ano."
+        ],
+        [
+          "E, quando você precisa, encontra burocracia, demora e nenhuma transparência.",
+          "E, quando você finalmente precisa, encontra burocracia, demora, e nenhuma transparência."
+        ]
+      ]
     },
     {
       "id": "revelacao",
-      "legenda": "Por isso nasceu o AutoShieldFI.",
-      "fala": "Foi por isso que nasceu o AutoShield F I."
+      "trechos": [
+        [
+          "Foi para mudar essa história que nasceu o AutoShieldFI.",
+          "Foi para mudar essa história que nasceu o AutoShield F I."
+        ]
+      ]
     },
     {
       "id": "solucao",
-      "legenda": "Proteção veicular mutualista em smart contracts na Solana: motoristas, investidores e avaliadores no mesmo pool, com regras públicas.",
-      "fala": "Uma proteção veicular mutualista, que roda em contratos inteligentes na blockchain Solana. Motoristas, investidores e avaliadores no mesmo fundo, com regras públicas."
+      "trechos": [
+        [
+          "Uma proteção veicular mutualista, em smart contracts na blockchain Solana.",
+          "Uma proteção veicular mutualista, que roda em contratos inteligentes na blockchain Solana."
+        ],
+        [
+          "Motoristas pagam o prêmio, investidores aportam capital e avaliadores votam cada sinistro.",
+          "Os motoristas pagam o prêmio, os investidores aportam capital, e avaliadores independentes votam cada sinistro."
+        ],
+        [
+          "Tudo com regras públicas, que qualquer pessoa pode conferir.",
+          "Tudo com regras públicas, que qualquer pessoa pode conferir."
+        ]
+      ]
     },
     {
       "id": "como",
-      "legenda": "Cota pela FIPE, contrata em até 12x, faz a vistoria. Teve sinistro? Fotos, votação dos avaliadores e o cofre paga.",
-      "fala": "Tudo pelo celular. Você cota pela tabela Fipe, contrata à vista ou em até doze vezes, e passa pela vistoria. Se precisar, abre o sinistro com fotos, os avaliadores votam, e o cofre paga na hora."
+      "trechos": [
+        [
+          "E tudo acontece pelo celular.",
+          "E tudo acontece pelo celular."
+        ],
+        [
+          "Você cota pela FIPE, contrata à vista ou em até 12x e passa pela vistoria dos avaliadores.",
+          "Você cota pela tabela Fipe, contrata direto da carteira digital, à vista ou em até doze vezes sem juros, e passa por uma vistoria feita pelos avaliadores."
+        ],
+        [
+          "Teve um acidente? Abra o sinistro com fotos, guardadas no IPFS.",
+          "Se acontecer um acidente, você abre o sinistro com fotos, que ficam guardadas numa rede descentralizada."
+        ],
+        [
+          "Os avaliadores votam, o quórum é atingido e o cofre paga na hora.",
+          "Os avaliadores votam, o quórum é atingido, e o cofre do contrato paga na hora."
+        ]
+      ]
     },
     {
       "id": "cashback",
-      "legenda": "E a virada: não usou? Recebe 20% do prêmio de volta.",
-      "fala": "E aqui está a virada: se você não usar, recebe vinte por cento do prêmio de volta."
+      "trechos": [
+        [
+          "Mas a grande virada vem agora.",
+          "Mas a grande virada vem agora."
+        ],
+        [
+          "E se você passar o ano inteiro sem usar? No seguro tradicional, esse dinheiro some.",
+          "E se você passar o ano inteiro sem usar a proteção? No seguro tradicional, esse dinheiro simplesmente some."
+        ],
+        [
+          "Aqui, não: você recebe 20% do prêmio de volta.",
+          "Aqui, não: você recebe vinte por cento do prêmio de volta."
+        ]
+      ]
     },
     {
       "id": "preco",
-      "legenda": "Carro de R$ 50 mil no plano Essencial: R$ 1.750 por ano, ou 12x de R$ 145. R$ 350 de volta sem sinistro.",
-      "fala": "Um carro de cinquenta mil reais, no plano Essencial, paga mil setecentos e cinquenta reais por ano, ou doze parcelas de cento e quarenta e cinco. E recebe trezentos e cinquenta reais de volta, se não tiver sinistro."
+      "trechos": [
+        [
+          "Vamos aos números: carro de R$ 50 mil, plano Essencial.",
+          "Vamos aos números. Um carro de cinquenta mil reais, no plano Essencial,"
+        ],
+        [
+          "R$ 1.750 por ano, ou 12 parcelas de R$ 145.",
+          "paga mil setecentos e cinquenta reais por ano, ou doze parcelas de cento e quarenta e cinco."
+        ],
+        [
+          "Sem sinistro, R$ 350 voltam para o seu bolso.",
+          "E, se não tiver sinistro, recebe trezentos e cinquenta reais de volta."
+        ]
+      ]
     },
     {
       "id": "confianca",
-      "legenda": "Na Solana, o contrato é o cofre e o auditor: nenhuma chave privada move os fundos, cada voto fica registrado.",
-      "fala": "Na Solana, o contrato é o cofre e o auditor. Nenhuma chave privada move os fundos, cada voto fica registrado, e cada transação custa uma fração de centavo."
+      "trechos": [
+        [
+          "Por que confiar? Na Solana, o contrato é o cofre e o auditor.",
+          "E por que confiar? Porque, na Solana, o próprio contrato é o cofre e o auditor."
+        ],
+        [
+          "Nenhuma chave privada move os fundos e cada voto fica registrado.",
+          "Nenhuma chave privada consegue mover os fundos, e cada voto fica registrado para sempre."
+        ],
+        [
+          "E cada transação custa uma fração de centavo.",
+          "E cada transação custa uma fração de centavo."
+        ]
+      ]
     },
     {
       "id": "tracao",
-      "legenda": "Já funciona de ponta a ponta: 26 instruções, 24 testes de integração, app instalável e contratação em menos de 3 minutos.",
-      "fala": "E não é só uma ideia: já funciona de ponta a ponta. Vinte e seis instruções no contrato, vinte e quatro testes de integração, aplicativo instalável no celular e contratação em menos de três minutos."
+      "trechos": [
+        [
+          "E isso não é só uma ideia no papel: já funciona de ponta a ponta.",
+          "E isso não é só uma ideia no papel. O AutoShield F I já funciona de ponta a ponta."
+        ],
+        [
+          "26 instruções no contrato, 24 testes de integração,",
+          "São vinte e seis instruções no contrato, vinte e quatro testes de integração,"
+        ],
+        [
+          "um app que você instala no celular e contratação em menos de 3 minutos.",
+          "um aplicativo que você instala no celular, e uma contratação que leva menos de três minutos."
+        ]
+      ]
     },
     {
       "id": "mercado",
-      "legenda": "Seguro auto: R$ 61,6 bilhões em 2025. A LC 213/2025 abriu o caminho regulatório para a proteção mutualista.",
-      "fala": "O mercado é enorme: sessenta e um vírgula seis bilhões de reais em seguro auto, em dois mil e vinte e cinco. E a nova lei da proteção mutualista abriu o caminho regulatório."
+      "trechos": [
+        [
+          "A oportunidade é enorme: R$ 61,6 bilhões em seguro auto em 2025.",
+          "E a oportunidade é enorme. O seguro auto movimentou sessenta e um vírgula seis bilhões de reais no Brasil, em dois mil e vinte e cinco."
+        ],
+        [
+          "E a LC 213/2025 trouxe a proteção mutualista para a supervisão da SUSEP.",
+          "E a Lei Complementar duzentos e treze trouxe a proteção mutualista para a supervisão da Susep."
+        ]
+      ]
     },
     {
       "id": "visao",
-      "legenda": "Próximo passo: piloto com motoristas e motoboys. Proteção para quem dirige, dinheiro de volta para quem não usa.",
-      "fala": "O próximo passo é o piloto com motoristas e motoboys. Porque a nossa visão é simples: proteção para quem dirige, e dinheiro de volta para quem não usa."
+      "trechos": [
+        [
+          "Próximo passo: o piloto com motoristas e motoboys.",
+          "O próximo passo é o piloto com motoristas e motoboys."
+        ],
+        [
+          "Porque a nossa visão é simples: proteção para quem dirige, e dinheiro de volta para quem não usa.",
+          "Porque a nossa visão é simples: proteção para quem dirige, e dinheiro de volta para quem não usa."
+        ]
+      ]
     },
     {
       "id": "cta",
-      "legenda": "Aponte a câmera para o QR code e teste agora: autoshieldfi.vercel.app",
-      "fala": "Aponte a câmera para o código e teste agora mesmo. AutoShield F I."
+      "trechos": [
+        [
+          "Lembra da pergunta? Quem vai pagar?",
+          "Lembra daquela pergunta? Quem vai pagar?"
+        ],
+        [
+          "Com o AutoShieldFI, a resposta é: a gente se protege junto.",
+          "Com o AutoShield F I, a resposta é: a gente se protege junto."
+        ],
+        [
+          "Aponte a câmera para o QR code e teste agora: autoshieldfi.vercel.app",
+          "Aponte a câmera para o código e teste agora mesmo."
+        ]
+      ]
     }
   ]
 }

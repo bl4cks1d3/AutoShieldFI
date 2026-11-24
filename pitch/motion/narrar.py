@@ -16,6 +16,7 @@ AQUI = Path(__file__).resolve().parent
 PITCH = AQUI.parent
 SAIDA = PITCH / "out" / "motion"
 VOZES = PITCH / ".voices"
+PAUSA = 0.22  # segundos entre frases da mesma cena
 
 
 def baixar_voz(nome: str) -> Path:
@@ -47,12 +48,22 @@ def main() -> None:
     tempos = []
     for cena in roteiro["cenas"]:
         wav = SAIDA / "audio" / f"{cena['id']}.wav"
+        quadros, trechos, taxa, t = b"", [], 22050, 0.0
+        for i, (legenda, fala) in enumerate(cena["trechos"]):
+            pedacos = list(voz.synthesize(fala, syn_config=cfg))
+            taxa = pedacos[0].sample_rate
+            audio = b"".join(p.audio_int16_bytes for p in pedacos)
+            dur = len(audio) / 2 / taxa
+            trechos.append({"legenda": legenda, "ini": round(t, 3), "fim": round(t + dur, 3)})
+            quadros += audio
+            t += dur
+            if i < len(cena["trechos"]) - 1:  # respiro curto entre frases
+                quadros += b"\x00\x00" * int(PAUSA * taxa)
+                t += PAUSA
         with wave.open(str(wav), "wb") as wf:
-            voz.synthesize_wav(cena["fala"], wf, syn_config=cfg)
-        with wave.open(str(wav), "rb") as wf:
-            dur = wf.getnframes() / wf.getframerate()
-        tempos.append({"id": cena["id"], "audio": dur, "legenda": cena["legenda"]})
-        print(f"{cena['id']:<10} {dur:5.2f}s")
+            wf.setnchannels(1); wf.setsampwidth(2); wf.setframerate(taxa); wf.writeframes(quadros)
+        tempos.append({"id": cena["id"], "audio": round(t, 3), "trechos": trechos})
+        print(f"{cena['id']:<10} {t:5.2f}s")
 
     (SAIDA / "tempos.json").write_text(json.dumps(tempos, ensure_ascii=False, indent=2), encoding="utf-8")
 

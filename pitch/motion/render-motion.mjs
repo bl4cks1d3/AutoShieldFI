@@ -19,16 +19,16 @@ const exe = process.env.CHROMIUM_PATH || "/opt/pw-browsers/chromium";
 
 // ---------- linha do tempo ----------
 const tempos = JSON.parse(readFileSync(join(OUT, "tempos.json"), "utf8"));
-const ENTRADA = 0.5; // respiro antes da fala
-const PESO = { gancho: 1, historia: 1, problema: 1.5, vilao: 1, revelacao: 2.5, solucao: 1.5, como: 2, cashback: 2,
-  preco: 1, confianca: 1, tracao: 1.5, mercado: 1, visao: 1.2, cta: 3.5 };
+const ENTRADA = 0.3; // respiro curto antes da fala de cada cena
+// a folga até o total vai só para as cenas de impacto, para a narração seguir fluida
+const PESO = { revelacao: 1, cashback: 0.6, cta: 2 };
 const fala = tempos.reduce((s, c) => s + c.audio + ENTRADA, 0);
 const sobra = Math.max(0, TOTAL - fala);
-const somaPeso = tempos.reduce((s, c) => s + (PESO[c.id] ?? 1), 0);
+const somaPeso = tempos.reduce((s, c) => s + (PESO[c.id] ?? 0), 0);
 let t = 0;
 const cenas = tempos.map((c) => {
-  const dur = ENTRADA + c.audio + (sobra * (PESO[c.id] ?? 1)) / somaPeso;
-  const cena = { id: c.id, inicio: t, fim: t + dur, falaInicio: t + ENTRADA, audio: c.audio, legenda: c.legenda };
+  const dur = ENTRADA + c.audio + (sobra * (PESO[c.id] ?? 0)) / somaPeso;
+  const cena = { id: c.id, inicio: t, fim: t + dur, falaInicio: t + ENTRADA, audio: c.audio, trechos: c.trechos };
   t += dur;
   return cena;
 });
@@ -39,7 +39,8 @@ console.log(`duração: ${DUR.toFixed(1)}s · fala ${fala.toFixed(1)}s · ${cena
 const ts = (s) => { const ms = Math.round(s * 1000); const p = (n, l = 2) => String(n).padStart(l, "0");
   return `${p(Math.floor(ms / 3600000))}:${p(Math.floor(ms / 60000) % 60)}:${p(Math.floor(ms / 1000) % 60)},${p(ms % 1000, 3)}`; };
 writeFileSync(join(OUT, "..", "autoshieldfi-motion-pitch.srt"),
-  cenas.map((c, i) => `${i + 1}\n${ts(c.falaInicio)} --> ${ts(c.falaInicio + c.audio + 0.25)}\n${c.legenda}\n`).join("\n"));
+  cenas.flatMap((c) => c.trechos.map((tr) => [c.falaInicio + tr.ini, c.falaInicio + tr.fim + 0.1, tr.legenda]))
+    .map(([a, b, l], i) => `${i + 1}\n${ts(a)} --> ${ts(b)}\n${l}\n`).join("\n"));
 
 // ---------- quadros (em paralelo) ----------
 const url = pathToFileURL(join(AQUI, "cenas.html")).href;
@@ -61,7 +62,7 @@ const browser = await chromium.launch({ executablePath: exe });
 if (TESTE) { // capturas de conferência
   const page = await abrir(browser);
   for (const c of cenas) {
-    await page.evaluate((x) => window.seek(x), c.falaInicio + c.audio * 0.9);
+    await page.evaluate((x) => window.seek(x), c.falaInicio + c.audio * 0.97);
     await page.screenshot({ path: join(OUT, `teste-${c.id}.png`) });
   }
   await browser.close();

@@ -23,7 +23,7 @@ html,body{width:1920px;height:1080px;overflow:hidden;background:var(--bg);color:
 h1,h2,.big{font-family:Jakarta,Inter,sans-serif;font-weight:800;letter-spacing:-.02em}
 .verde{color:var(--ac)}.vermelho{color:var(--red)}.ouro{color:var(--gold)}.mu{color:var(--mu)}
 .tag{display:inline-block;font-size:26px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ac);margin-bottom:28px}
-.fonte{position:absolute;right:96px;bottom:150px;font-size:20px;color:var(--dim)}
+.fonte{position:absolute;right:64px;top:54px;font-size:20px;color:var(--dim)}
 /* legenda */
 #leg{position:absolute;left:50%;bottom:54px;transform:translateX(-50%);max-width:1500px;padding:16px 30px;border-radius:14px;background:rgba(5,16,12,.72);font-size:32px;line-height:1.35;text-align:center;color:#f2f8f5;opacity:0}
 /* barra de progresso */
@@ -120,8 +120,8 @@ h1,h2,.big{font-family:Jakarta,Inter,sans-serif;font-weight:800;letter-spacing:-
   <!-- 1 gancho -->
   <section class="cena" data-id="gancho">
     <div class="gancho-txt big">
-      <span class="a" data-in="a0.00" data-fx="up">Imagine</span> <span class="a" data-in="a0.08" data-fx="up">bater</span> <span class="a" data-in="a0.16" data-fx="up">o</span> <span class="a" data-in="a0.22" data-fx="up">carro…</span><br>
-      <span class="a vermelho" data-in="a0.48" data-fx="pop">e pagar tudo sozinho.</span>
+      <span class="a" data-in="t0" data-fx="up">Imagine</span> <span class="a" data-in="t1+0.2" data-fx="up">bater</span> <span class="a" data-in="t1+0.5" data-fx="up">o</span> <span class="a" data-in="t1+0.8" data-fx="up">carro…</span><br>
+      <span class="a vermelho" data-in="t2+1.6" data-fx="pop">Quem vai pagar?</span>
     </div>
   </section>
 
@@ -129,11 +129,11 @@ h1,h2,.big{font-family:Jakarta,Inter,sans-serif;font-weight:800;letter-spacing:-
   <section class="cena" data-id="historia">
     <div style="display:flex;flex-direction:column;align-items:center;gap:80px">
       <div class="hist">
-        <div class="hcard a" data-in="a0.02" data-fx="up"><div class="ico">👩</div><p>Uma colega<br><span class="mu">dirigindo para o trabalho</span></p></div>
-        <div class="hcard a" data-in="a0.25" data-fx="up"><div class="ico">💥</div><p>Uma batida<br><span class="mu">sem seguro</span></p></div>
-        <div class="hcard a" data-in="a0.45" data-fx="up"><div class="ico">🧾</div><p class="vermelho">100% do prejuízo<br><span class="mu">no bolso dela</span></p></div>
+        <div class="hcard a" data-in="t0" data-fx="up"><div class="ico">👩</div><p>Uma colega<br><span class="mu">dirigindo para o trabalho</span></p></div>
+        <div class="hcard a" data-in="t1" data-fx="up"><div class="ico">💥</div><p>Uma batida<br><span class="mu">sem seguro</span></p></div>
+        <div class="hcard a" data-in="t2" data-fx="up"><div class="ico">🧾</div><p class="vermelho">100% do prejuízo<br><span class="mu">no bolso dela</span></p></div>
       </div>
-      <h2 class="a" data-in="a0.78" data-fx="pop" style="font-size:72px">E ela <span class="verde">não é exceção.</span></h2>
+      <h2 class="a" data-in="t3" data-fx="pop" style="font-size:72px">E ela <span class="verde">não é exceção.</span></h2>
     </div>
   </section>
 
@@ -143,25 +143,26 @@ h1,h2,.big{font-family:Jakarta,Inter,sans-serif;font-weight:800;letter-spacing:-
       <div class="carros" id="carros"></div>
       <div>
         <div class="tag a" data-in="a0.0" data-fx="fade">Brasil · frota de automóveis</div>
-        <div class="big prob-num a" data-in="a0.05" data-fx="up"><span class="vermelho">7</span><span class="mu" style="font-size:110px"> em 10</span></div>
-        <p class="a" data-in="a0.15" data-fx="up" style="font-size:44px;font-weight:600;margin-top:16px">carros rodam sem seguro</p>
-        <div class="big a" data-in="a0.45" data-fx="up" style="font-size:120px;margin-top:60px"><span class="cnt" data-in="a0.45" data-dur="1.6" data-to="44" data-fmt="int">0</span> milhões</div>
-        <p class="a mu" data-in="a0.55" data-fx="up" style="font-size:36px;margin-top:10px">expostos a acidentes, roubos e enchentes</p>
+        <div class="big prob-num a" data-in="t0" data-fx="up"><span class="vermelho">7</span><span class="mu" style="font-size:110px"> em 10</span></div>
+        <p class="a" data-in="t0+0.6" data-fx="up" style="font-size:44px;font-weight:600;margin-top:16px">carros rodam sem seguro</p>
+        <div class="big a" data-in="t1" data-fx="up" style="font-size:110px;margin-top:50px"><span class="cnt" data-in="t1" data-dur="1.6" data-to="44" data-fmt="int">0</span> milhões</div>
+        <p class="a mu" data-in="t1+1" data-fx="up" style="font-size:36px;margin-top:10px">expostos a acidentes, roubos e enchentes</p>
+        <p class="a" data-in="t2" data-fx="up" style="font-size:40px;font-weight:600;margin-top:44px"><span class="vermelho">~368 mil</span> roubos e furtos em 2024</p>
       </div>
     </div>
-    <div class="fonte">Fonte: CNseg + Senatran, jul/2026</div>
+    <div class="fonte">Fontes: CNseg + Senatran, jul/2026 · Anuário Brasileiro de Segurança Pública 2025</div>
   </section>
 
   <!-- 4 vilão -->
   <section class="cena" data-id="vilao">
     <div style="text-align:center">
       <div class="tag a" data-in="a0.0" data-fx="fade">Seguro tradicional</div>
-      <div class="big vil-num a" data-in="a0.02" data-fx="pop"><span class="cnt" data-in="a0.05" data-dur=".7" data-to="3" data-fmt="int">0</span>% a <span class="cnt" data-in="a0.18" data-dur=".9" data-to="8" data-fmt="int">0</span>%</div>
-      <p class="a mu" data-in="a0.2" data-fx="up" style="font-size:46px;margin-top:20px">do valor do carro, todo ano</p>
+      <div class="big vil-num a" data-in="t1" data-fx="pop"><span class="cnt" data-in="t1+0.4" data-dur=".7" data-to="3" data-fmt="int">0</span>% a <span class="cnt" data-in="t1+0.9" data-dur=".9" data-to="8" data-fmt="int">0</span>%</div>
+      <p class="a mu" data-in="t1+1.5" data-fx="up" style="font-size:46px;margin-top:20px">do valor do carro, todo ano</p>
       <div class="chips">
-        <div class="chip a" data-in="a0.55" data-fx="pop">💸 Caro</div>
-        <div class="chip a" data-in="a0.68" data-fx="pop">📑 Burocrático</div>
-        <div class="chip a" data-in="a0.8" data-fx="pop">🕶️ Pouco transparente</div>
+        <div class="chip a" data-in="t2+1.4" data-fx="pop">💸 Caro</div>
+        <div class="chip a" data-in="t2+2" data-fx="pop">📑 Burocrático</div>
+        <div class="chip a" data-in="t2+2.7" data-fx="pop">🕶️ Pouco transparente</div>
       </div>
     </div>
   </section>
@@ -180,15 +181,15 @@ h1,h2,.big{font-family:Jakarta,Inter,sans-serif;font-weight:800;letter-spacing:-
   <section class="cena" data-id="solucao">
     <div class="sol">
       <svg class="linhas" viewBox="0 0 1500 760">
-        <path class="traco" data-in="a0.35" data-dur="1" d="M330 150 L630 330" stroke="#2fd29e" stroke-width="5" fill="none" stroke-dasharray="6 14"/>
-        <path class="traco" data-in="a0.45" data-dur="1" d="M1170 150 L870 330" stroke="#2fd29e" stroke-width="5" fill="none" stroke-dasharray="6 14"/>
-        <path class="traco" data-in="a0.55" data-dur="1" d="M750 560 L750 620" stroke="#2fd29e" stroke-width="5" fill="none" stroke-dasharray="6 14"/>
+        <path class="traco" data-in="t1" data-dur="1" d="M330 150 L630 330" stroke="#2fd29e" stroke-width="5" fill="none" stroke-dasharray="6 14"/>
+        <path class="traco" data-in="t1+1.6" data-dur="1" d="M1170 150 L870 330" stroke="#2fd29e" stroke-width="5" fill="none" stroke-dasharray="6 14"/>
+        <path class="traco" data-in="t1+3.2" data-dur="1" d="M750 560 L750 620" stroke="#2fd29e" stroke-width="5" fill="none" stroke-dasharray="6 14"/>
       </svg>
-      <div class="cofre a" data-in="a0.02" data-fx="zoom"><img src="../../assets/brand/autoshieldfi-mark.svg" alt=""></div>
-      <div class="no a" data-in="a0.35" data-fx="left" style="left:40px;top:40px"><div class="ico">🚗</div><b>Motoristas</b><small>pagam o prêmio</small></div>
-      <div class="no a" data-in="a0.45" data-fx="right" style="left:1130px;top:40px"><div class="ico">📈</div><b>Investidores</b><small>aportam capital</small></div>
-      <div class="no a" data-in="a0.55" data-fx="up" style="left:585px;top:590px;width:330px"><div class="ico">⚖️</div><b>Avaliadores</b><small>votam os sinistros</small></div>
-      <div class="a" data-in="a0.1" data-fx="fade" style="position:absolute;left:0;right:0;top:-110px;text-align:center"><span class="tag">Pool mutualista · smart contracts · regras públicas</span></div>
+      <div class="cofre a" data-in="t0" data-fx="zoom"><img src="../../assets/brand/autoshieldfi-mark.svg" alt=""></div>
+      <div class="no a" data-in="t1" data-fx="left" style="left:40px;top:40px"><div class="ico">🚗</div><b>Motoristas</b><small>pagam o prêmio</small></div>
+      <div class="no a" data-in="t1+1.6" data-fx="right" style="left:1130px;top:40px"><div class="ico">📈</div><b>Investidores</b><small>aportam capital</small></div>
+      <div class="no a" data-in="t1+3.2" data-fx="up" style="left:585px;top:590px;width:330px"><div class="ico">⚖️</div><b>Avaliadores</b><small>votam os sinistros</small></div>
+      <div class="a" data-in="t2" data-fx="fade" style="position:absolute;left:0;right:0;top:-40px;text-align:center"><span class="tag">Pool mutualista · smart contracts · regras públicas</span></div>
     </div>
   </section>
 
@@ -196,20 +197,20 @@ h1,h2,.big{font-family:Jakarta,Inter,sans-serif;font-weight:800;letter-spacing:-
   <section class="cena" data-id="como">
     <div class="como">
       <div class="cel a" data-in="a0.0" data-fx="up">
-        <div class="tela" data-de="a0.05" data-ate="a0.22"><h3>Cotação</h3><div class="campo">Placa <b>ABC1D23</b></div><div class="campo">Tabela FIPE <b>R$ 50.000</b></div><div class="campo">Plano <b>Essencial</b></div><div class="botao">Ver preço</div></div>
-        <div class="tela" data-de="a0.22" data-ate="a0.40"><h3>Contratação</h3><div class="campo">À vista <b>R$ 1.750</b></div><div class="campo">ou <b>12x R$ 145,83</b> sem juros</div><div class="campo">Carteira <b>conectada ✓</b></div><div class="botao">Contratar</div></div>
-        <div class="tela" data-de="a0.40" data-ate="a0.55"><h3>Vistoria</h3><div class="campo">Placa conferida <b>✓</b></div><div class="campo">Avaliadores <b>3/3 aprovaram</b></div><div class="campo">Cobertura <b>ativa</b></div><div class="botao">Tudo certo</div></div>
-        <div class="tela" data-de="a0.55" data-ate="a0.72"><h3>Sinistro</h3><div class="campo">📷 4 fotos <b>enviadas ao IPFS</b></div><div class="campo">Registro <b>on-chain</b></div><div class="botao">Enviar</div></div>
-        <div class="tela" data-de="a0.72" data-ate="a0.86"><h3>Votação</h3><div class="campo">Avaliador 1 <b>✓ aprova</b></div><div class="campo">Avaliador 2 <b>✓ aprova</b></div><div class="campo">Avaliador 3 <b>✓ aprova</b></div><div class="campo">Quórum <b>atingido</b></div></div>
-        <div class="tela" data-de="a0.86" data-ate="z9"><h3 class="verde">Indenização paga ✓</h3><div class="big" style="font-size:76px;margin-top:40px;white-space:nowrap">R$ 9.200</div><div class="campo">direto do cofre do contrato</div></div>
+        <div class="tela" data-de="t1" data-ate="t1+2.4"><h3>Cotação</h3><div class="campo">Placa <b>ABC1D23</b></div><div class="campo">Tabela FIPE <b>R$ 50.000</b></div><div class="campo">Plano <b>Essencial</b></div><div class="botao">Ver preço</div></div>
+        <div class="tela" data-de="t1+2.4" data-ate="t1+6"><h3>Contratação</h3><div class="campo">À vista <b>R$ 1.750</b></div><div class="campo">ou <b>12x R$ 145,83</b> sem juros</div><div class="campo">Carteira <b>conectada ✓</b></div><div class="botao">Contratar</div></div>
+        <div class="tela" data-de="t1+6" data-ate="t2"><h3>Vistoria</h3><div class="campo">Placa conferida <b>✓</b></div><div class="campo">Avaliadores <b>3/3 aprovaram</b></div><div class="campo">Cobertura <b>ativa</b></div><div class="botao">Tudo certo</div></div>
+        <div class="tela" data-de="t2" data-ate="t3"><h3>Sinistro</h3><div class="campo">📷 4 fotos <b>enviadas ao IPFS</b></div><div class="campo">Registro <b>on-chain</b></div><div class="botao">Enviar</div></div>
+        <div class="tela" data-de="t3" data-ate="t3+2.6"><h3>Votação</h3><div class="campo">Avaliador 1 <b>✓ aprova</b></div><div class="campo">Avaliador 2 <b>✓ aprova</b></div><div class="campo">Avaliador 3 <b>✓ aprova</b></div><div class="campo">Quórum <b>atingido</b></div></div>
+        <div class="tela" data-de="t3+2.6" data-ate="z9"><h3 class="verde">Indenização paga ✓</h3><div class="big" style="font-size:76px;margin-top:40px;white-space:nowrap">R$ 9.200</div><div class="campo">direto do cofre do contrato</div></div>
       </div>
       <div class="passos">
-        <div class="passo" data-on="a0.05"><i>1</i>Cota pela FIPE</div>
-        <div class="passo" data-on="a0.22"><i>2</i>Contrata em até 12x</div>
-        <div class="passo" data-on="a0.40"><i>3</i>Vistoria por avaliadores</div>
-        <div class="passo" data-on="a0.55"><i>4</i>Sinistro com fotos</div>
-        <div class="passo" data-on="a0.72"><i>5</i>Votação com quórum</div>
-        <div class="passo" data-on="a0.86"><i>6</i>O cofre paga na hora</div>
+        <div class="passo" data-on="t1"><i>1</i>Cota pela FIPE</div>
+        <div class="passo" data-on="t1+2.4"><i>2</i>Contrata em até 12x</div>
+        <div class="passo" data-on="t1+6"><i>3</i>Vistoria por avaliadores</div>
+        <div class="passo" data-on="t2"><i>4</i>Sinistro com fotos</div>
+        <div class="passo" data-on="t3"><i>5</i>Votação com quórum</div>
+        <div class="passo" data-on="t3+2.6"><i>6</i>O cofre paga na hora</div>
       </div>
     </div>
   </section>
@@ -218,9 +219,9 @@ h1,h2,.big{font-family:Jakarta,Inter,sans-serif;font-weight:800;letter-spacing:-
   <section class="cena" data-id="cashback">
     <div id="moedas"></div>
     <div class="cb">
-      <h2 class="a" data-in="a0.15" data-fx="up" style="font-size:80px">Não usou?</h2>
-      <div class="big cb-num a" data-in="a0.5" data-fx="pop"><span class="cnt" data-in="a0.5" data-dur="1.2" data-to="20" data-fmt="int">0</span>%</div>
-      <h2 class="a" data-in="a0.7" data-fx="up" style="font-size:64px">do prêmio <span class="ouro">de volta</span></h2>
+      <h2 class="a" data-in="t1" data-fx="up" style="font-size:80px">Não usou?</h2>
+      <div class="big cb-num a" data-in="t2+0.9" data-fx="pop"><span class="cnt" data-in="t2+0.9" data-dur="1.2" data-to="20" data-fmt="int">0</span>%</div>
+      <h2 class="a" data-in="t2+1.8" data-fx="up" style="font-size:64px">do prêmio <span class="ouro">de volta</span></h2>
     </div>
   </section>
 
@@ -229,11 +230,11 @@ h1,h2,.big{font-family:Jakarta,Inter,sans-serif;font-weight:800;letter-spacing:-
     <div>
       <div class="tag a" data-in="a0.0" data-fx="fade">Fórmula pública, calculada no contrato</div>
       <div class="preco a" data-in="a0.0" data-fx="up">
-        <div class="linha a" data-in="a0.02" data-fx="left"><span>Carro (FIPE)</span><b>R$ 50.000</b></div>
-        <div class="linha a" data-in="a0.15" data-fx="left"><span>Plano</span><b class="verde">Essencial</b></div>
-        <div class="linha a" data-in="a0.25" data-fx="left"><span>Por ano</span><b>R$ <span class="cnt" data-in="a0.25" data-dur="1" data-to="1750" data-fmt="mil">0</span></b></div>
-        <div class="linha a" data-in="a0.48" data-fx="left"><span>Ou parcelado</span><b>12x R$ 145,83</b></div>
-        <div class="linha a" data-in="a0.72" data-fx="left"><span>De volta sem sinistro</span><b class="ouro">R$ <span class="cnt" data-in="a0.72" data-dur="1" data-to="350" data-fmt="int">0</span></b></div>
+        <div class="linha a" data-in="t0+1" data-fx="left"><span>Carro (FIPE)</span><b>R$ 50.000</b></div>
+        <div class="linha a" data-in="t0+2.4" data-fx="left"><span>Plano</span><b class="verde">Essencial</b></div>
+        <div class="linha a" data-in="t1" data-fx="left"><span>Por ano</span><b>R$ <span class="cnt" data-in="t1" data-dur="1" data-to="1750" data-fmt="mil">0</span></b></div>
+        <div class="linha a" data-in="t1+2.3" data-fx="left"><span>Ou parcelado</span><b>12x R$ 145,83</b></div>
+        <div class="linha a" data-in="t2" data-fx="left"><span>De volta sem sinistro</span><b class="ouro">R$ <span class="cnt" data-in="t2+0.5" data-dur="1" data-to="350" data-fmt="int">0</span></b></div>
       </div>
     </div>
   </section>
@@ -243,9 +244,9 @@ h1,h2,.big{font-family:Jakarta,Inter,sans-serif;font-weight:800;letter-spacing:-
     <div class="sol-badge a" data-in="a0.0" data-fx="pop">◎ Solana</div>
     <div class="lista">
       <h2 class="a" data-in="a0.0" data-fx="up" style="font-size:76px;margin-bottom:20px">O contrato é o <span class="verde">cofre</span> e o <span class="verde">auditor</span>.</h2>
-      <div class="item a" data-in="a0.3" data-fx="left"><div class="ok">✓</div>Nenhuma chave privada move os fundos</div>
-      <div class="item a" data-in="a0.5" data-fx="left"><div class="ok">✓</div>Cada voto fica registrado na blockchain</div>
-      <div class="item a" data-in="a0.72" data-fx="left"><div class="ok">✓</div>Cada transação custa uma fração de centavo</div>
+      <div class="item a" data-in="t1" data-fx="left"><div class="ok">✓</div>Nenhuma chave privada move os fundos</div>
+      <div class="item a" data-in="t1+2" data-fx="left"><div class="ok">✓</div>Cada voto fica registrado na blockchain</div>
+      <div class="item a" data-in="t2" data-fx="left"><div class="ok">✓</div>Cada transação custa uma fração de centavo</div>
     </div>
   </section>
 
@@ -254,10 +255,10 @@ h1,h2,.big{font-family:Jakarta,Inter,sans-serif;font-weight:800;letter-spacing:-
     <div>
       <h2 class="a" data-in="a0.0" data-fx="up" style="font-size:76px;margin-bottom:60px;text-align:center">Não é só uma ideia. <span class="verde">Já funciona.</span></h2>
       <div class="kpis">
-        <div class="kpi a" data-in="a0.25" data-fx="up"><div class="big"><span class="cnt" data-in="a0.25" data-dur="1" data-to="26" data-fmt="int">0</span></div><p>instruções no smart contract</p></div>
-        <div class="kpi a" data-in="a0.42" data-fx="up"><div class="big"><span class="cnt" data-in="a0.42" data-dur="1" data-to="24" data-fmt="int">0</span></div><p>testes de integração</p></div>
-        <div class="kpi a" data-in="a0.6" data-fx="up"><div class="big">📱</div><p>app instalável no celular (PWA)</p></div>
-        <div class="kpi a" data-in="a0.75" data-fx="up"><div class="big">&lt;3<span style="font-size:60px">min</span></div><p>para contratar a proteção</p></div>
+        <div class="kpi a" data-in="t1+0.4" data-fx="up"><div class="big"><span class="cnt" data-in="t1+0.4" data-dur="1" data-to="26" data-fmt="int">0</span></div><p>instruções no smart contract</p></div>
+        <div class="kpi a" data-in="t1+2.3" data-fx="up"><div class="big"><span class="cnt" data-in="t1+2.3" data-dur="1" data-to="24" data-fmt="int">0</span></div><p>testes de integração</p></div>
+        <div class="kpi a" data-in="t2" data-fx="up"><div class="big">📱</div><p>app instalável no celular (PWA)</p></div>
+        <div class="kpi a" data-in="t2+2.4" data-fx="up"><div class="big">&lt;3<span style="font-size:60px">min</span></div><p>para contratar a proteção</p></div>
       </div>
     </div>
   </section>
@@ -266,8 +267,8 @@ h1,h2,.big{font-family:Jakarta,Inter,sans-serif;font-weight:800;letter-spacing:-
   <section class="cena" data-id="mercado">
     <div class="merc">
       <div class="tag a" data-in="a0.0" data-fx="fade">Seguro auto no Brasil · 2025</div>
-      <div class="big merc-num a" data-in="a0.05" data-fx="pop">R$ <span class="cnt" data-in="a0.05" data-dur="1.6" data-to="61.6" data-fmt="dec">0</span> bi</div>
-      <div><div class="lei a" data-in="a0.6" data-fx="up">⚖️ LC 213/2025 · proteção mutualista sob supervisão da SUSEP</div></div>
+      <div class="big merc-num a" data-in="t0+1.2" data-fx="pop">R$ <span class="cnt" data-in="t0+1.2" data-dur="1.6" data-to="61.6" data-fmt="dec">0</span> bi</div>
+      <div><div class="lei a" data-in="t1" data-fx="up">⚖️ LC 213/2025 · proteção mutualista sob supervisão da SUSEP</div></div>
     </div>
     <div class="fonte">Fontes: CNseg · LC 213/2025</div>
   </section>
@@ -276,24 +277,24 @@ h1,h2,.big{font-family:Jakarta,Inter,sans-serif;font-weight:800;letter-spacing:-
   <section class="cena" data-id="visao">
     <div>
       <div class="trilha">
-        <div class="barra"></div><div class="fill" data-in="a0.0" data-dur="3"></div>
-        <div class="marco a" data-in="a0.02" data-fx="up" style="left:12%"><div class="pt"></div><b>Piloto na Devnet</b><small>motoristas e motoboys</small></div>
-        <div class="marco a" data-in="a0.2" data-fx="up" style="left:50%"><div class="pt"></div><b>Governança multisig</b><small>timelock e quórum</small></div>
-        <div class="marco a" data-in="a0.35" data-fx="up" style="left:88%"><div class="pt"></div><b>Mainnet</b><small>auditoria, stablecoin e<br>parceria regulatória</small></div>
+        <div class="barra"></div><div class="fill" data-in="t0" data-dur="4"></div>
+        <div class="marco a" data-in="t0" data-fx="up" style="left:12%"><div class="pt"></div><b>Piloto na Devnet</b><small>motoristas e motoboys</small></div>
+        <div class="marco a" data-in="t0+1.4" data-fx="up" style="left:50%"><div class="pt"></div><b>Governança multisig</b><small>timelock e quórum</small></div>
+        <div class="marco a" data-in="t0+2.8" data-fx="up" style="left:88%"><div class="pt"></div><b>Mainnet</b><small>auditoria, stablecoin e<br>parceria regulatória</small></div>
       </div>
-      <div class="lema big a" data-in="a0.6" data-fx="up">Proteção para quem dirige.<br><span class="ouro">Dinheiro de volta</span> para quem não usa.</div>
+      <div class="lema big a" data-in="t1" data-fx="up">Proteção para quem dirige.<br><span class="ouro">Dinheiro de volta</span> para quem não usa.</div>
     </div>
   </section>
 
   <!-- 14 CTA -->
   <section class="cena" data-id="cta">
     <div class="cta">
-      <div class="qrbox a" data-in="a0.0" data-fx="zoom"><img src="../out/motion/qr.svg" alt="QR code"><div class="scan" id="scan"></div></div>
+      <div class="qrbox a" data-in="t2" data-fx="zoom"><img src="../out/motion/qr.svg" alt="QR code"><div class="scan" id="scan"></div></div>
       <div class="cta-txt">
         <img class="a" data-in="a0.1" data-fx="up" src="../../assets/brand/autoshieldfi-mark.svg" style="width:130px;margin-bottom:30px" alt="">
-        <h2 class="a" data-in="a0.15" data-fx="up">Teste agora<br><span class="verde">na Devnet.</span></h2>
-        <div class="url a" data-in="a0.35" data-fx="up">autoshieldfi.vercel.app</div>
-        <div class="sub a" data-in="a0.5" data-fx="up">github.com/bl4cks1d3/AutoShieldFI</div>
+        <h2 class="a" data-in="t1" data-fx="up">A gente se<br><span class="verde">protege junto.</span></h2>
+        <div class="url a" data-in="t2" data-fx="up">autoshieldfi.vercel.app</div>
+        <div class="sub a" data-in="t2+0.8" data-fx="up">Teste agora na Devnet · github.com/bl4cks1d3/AutoShieldFI</div>
       </div>
     </div>
   </section>
@@ -328,6 +329,7 @@ function quando(spec, c) { // "a0.5" = fração da fala; "s1.2" = segundos desde
   const k = spec[0], v = parseFloat(spec.slice(1));
   if (k === 'a') return (c.falaInicio - c.inicio) + v * c.audio;
   if (k === 'z') return 1e9;
+  if (k === 't') { const [i, x] = spec.slice(1).split('+'); return (c.falaInicio - c.inicio) + c.trechos[+i].ini + (parseFloat(x) || 0); }
   return v;
 }
 
@@ -390,20 +392,20 @@ window.seek = (t) => {
     sec.querySelectorAll('.passo').forEach((el) => el.classList.toggle('on', lt >= quando(el.dataset.on, c)));
 
     if (c.id === 'gancho') { // batida: flash + tremor
-      const hit = quando('a0.42', c), k = lt - hit;
+      const hit = quando('t1+1.9', c), k = lt - hit;
       document.getElementById('flash').style.opacity = k > 0 && k < 0.5 ? 0.55 * (1 - k / 0.5) : 0;
       const amp = k > 0 && k < 0.6 ? 18 * (1 - k / 0.6) : 0;
       sec.querySelector('.gancho-txt').style.transform = `translate(${amp * Math.sin(k * 90)}px, ${amp * Math.cos(k * 70)}px)`;
     }
     if (c.id === 'problema') {
-      const ini = quando('a0.05', c);
+      const ini = quando('t0', c);
       [...carros.children].forEach((el, i) => {
         const ap = clamp((lt - (ini - 0.3) - i * 0.06) / 0.5); el.style.opacity = ease(ap); el.style.transform = `scale(${0.5 + 0.5 * back(ap)})`;
         const red = i < 7 && lt > ini + 0.5 + i * 0.22; el.style.color = red ? 'var(--red)' : 'var(--ac)';
       });
     }
     if (c.id === 'cashback') {
-      const ini = quando('a0.5', c);
+      const ini = quando('t2+0.9', c);
       MOEDAS.forEach((m) => {
         const k = lt - ini - m.d;
         if (k < 0) { m.el.style.opacity = 0; return; }
@@ -415,9 +417,9 @@ window.seek = (t) => {
     if (c.id === 'cta') {
       const k = (lt % 2.4) / 2.4; document.getElementById('scan').style.top = `${30 + 490 * (0.5 - 0.5 * Math.cos(k * 2 * Math.PI))}px`;
     }
-    if (lt >= c.falaInicio - c.inicio - 0.1 && lt <= c.falaInicio - c.inicio + c.audio + 0.25) {
-      legenda = c.legenda;
-      legOp = Math.min(clamp((lt - (c.falaInicio - c.inicio) + 0.1) / 0.25), clamp((c.falaInicio - c.inicio + c.audio + 0.25 - lt) / 0.25));
+    for (const tr of c.trechos) {
+      const a0 = c.falaInicio - c.inicio + tr.ini, a1 = c.falaInicio - c.inicio + tr.fim;
+      if (lt >= a0 - 0.08 && lt <= a1 + 0.12) { legenda = tr.legenda; legOp = Math.min(clamp((lt - a0 + 0.08) / 0.12), clamp((a1 + 0.12 - lt) / 0.12)); }
     }
   }
   const leg = document.getElementById('leg');
