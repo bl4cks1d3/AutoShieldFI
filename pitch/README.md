@@ -36,3 +36,16 @@ Sem acesso ao Hugging Face, `node build-video.mjs --voz espeak --legendas-fixas`
 
 - Narração: edite `roteiro.json` e rode `npm run video` de novo.
 - Slides: edite `deck/slides/*.html`, rode `npm run slides` (com `CHROMIUM_PATH` se o Playwright não achar o navegador) e depois `npm run video`.
+
+## Vídeo motion (3 minutos, com QR code)
+
+Versão com cenas animadas e storytelling de startup: gancho, história, problema, solução, cashback, prova, mercado, visão e CTA com QR code para o app.
+A narração usa o Piper em Python, e as cenas são renderizadas quadro a quadro com o Playwright.
+
+```bash
+python -m venv .venv && .venv/bin/pip install piper-tts huggingface_hub qrcode
+.venv/bin/python motion/narrar.py --velocidade 1.08   # narração (baixa a voz para .voices/) + QR code
+node motion/render-motion.mjs                          # vídeo de 180 s (--teste gera só capturas)
+```
+
+Resultado: `out/autoshieldfi-motion-pitch.mp4` e `out/autoshieldfi-motion-pitch.srt`. Roteiro em `motion/roteiro-motion.json`, cenas em `motion/cenas.html`.

@@ -1,0 +1,77 @@
+{
+  "titulo": "AutoShieldFI — Vídeo motion pitch (pt-BR)",
+  "voz_piper": "pt_BR-faber-medium",
+  "url_qr": "https://autoshieldfi.vercel.app",
+  "cenas": [
+    {
+      "id": "gancho",
+      "legenda": "Imagine bater o carro… e descobrir que vai pagar tudo sozinho.",
+      "fala": "Imagine bater o carro... e descobrir que você vai pagar tudo sozinho."
+    },
+    {
+      "id": "historia",
+      "legenda": "Foi o que aconteceu com uma colega. O seguro era caro demais. E ela não é exceção.",
+      "fala": "Foi exatamente o que aconteceu com uma colega minha. O seguro era caro demais, então ela não tinha. E ela não é exceção."
+    },
+    {
+      "id": "problema",
+      "legenda": "7 em cada 10 carros no Brasil rodam sem seguro: 44 milhões de veículos expostos.",
+      "fala": "No Brasil, sete em cada dez carros rodam sem seguro. São quarenta e quatro milhões de veículos expostos a acidentes, roubos e enchentes."
+    },
+    {
+      "id": "vilao",
+      "legenda": "O seguro tradicional custa de 3% a 8% do valor do carro por ano. E ainda tem burocracia e falta de transparência.",
+      "fala": "O seguro tradicional custa de três a oito por cento do valor do carro por ano. E, quando você mais precisa, vem a burocracia e a falta de transparência."
+    },
+    {
+      "id": "revelacao",
+      "legenda": "Por isso nasceu o AutoShieldFI.",
+      "fala": "Foi por isso que nasceu o AutoShield F I."
+    },
+    {
+      "id": "solucao",
+      "legenda": "Proteção veicular mutualista em smart contracts na Solana: motoristas, investidores e avaliadores no mesmo pool, com regras públicas.",
+      "fala": "Uma proteção veicular mutualista, que roda em contratos inteligentes na blockchain Solana. Motoristas, investidores e avaliadores no mesmo fundo, com regras públicas."
+    },
+    {
+      "id": "como",
+      "legenda": "Cota pela FIPE, contrata em até 12x, faz a vistoria. Teve sinistro? Fotos, votação dos avaliadores e o cofre paga.",
+      "fala": "Tudo pelo celular. Você cota pela tabela Fipe, contrata à vista ou em até doze vezes, e passa pela vistoria. Se precisar, abre o sinistro com fotos, os avaliadores votam, e o cofre paga na hora."
+    },
+    {
+      "id": "cashback",
+      "legenda": "E a virada: não usou? Recebe 20% do prêmio de volta.",
+      "fala": "E aqui está a virada: se você não usar, recebe vinte por cento do prêmio de volta."
+    },
+    {
+      "id": "preco",
+      "legenda": "Carro de R$ 50 mil no plano Essencial: R$ 1.750 por ano, ou 12x de R$ 145. R$ 350 de volta sem sinistro.",
+      "fala": "Um carro de cinquenta mil reais, no plano Essencial, paga mil setecentos e cinquenta reais por ano, ou doze parcelas de cento e quarenta e cinco. E recebe trezentos e cinquenta reais de volta, se não tiver sinistro."
+    },
+    {
+      "id": "confianca",
+      "legenda": "Na Solana, o contrato é o cofre e o auditor: nenhuma chave privada move os fundos, cada voto fica registrado.",
+      "fala": "Na Solana, o contrato é o cofre e o auditor. Nenhuma chave privada move os fundos, cada voto fica registrado, e cada transação custa uma fração de centavo."
+    },
+    {
+      "id": "tracao",
+      "legenda": "Já funciona de ponta a ponta: 26 instruções, 24 testes de integração, app instalável e contratação em menos de 3 minutos.",
+      "fala": "E não é só uma ideia: já funciona de ponta a ponta. Vinte e seis instruções no contrato, vinte e quatro testes de integração, aplicativo instalável no celular e contratação em menos de três minutos."
+    },
+    {
+      "id": "mercado",
+      "legenda": "Seguro auto: R$ 61,6 bilhões em 2025. A LC 213/2025 abriu o caminho regulatório para a proteção mutualista.",
+      "fala": "O mercado é enorme: sessenta e um vírgula seis bilhões de reais em seguro auto, em dois mil e vinte e cinco. E a nova lei da proteção mutualista abriu o caminho regulatório."
+    },
+    {
+      "id": "visao",
+      "legenda": "Próximo passo: piloto com motoristas e motoboys. Proteção para quem dirige, dinheiro de volta para quem não usa.",
+      "fala": "O próximo passo é o piloto com motoristas e motoboys. Porque a nossa visão é simples: proteção para quem dirige, e dinheiro de volta para quem não usa."
+    },
+    {
+      "id": "cta",
+      "legenda": "Aponte a câmera para o QR code e teste agora: autoshieldfi.vercel.app",
+      "fala": "Aponte a câmera para o código e teste agora mesmo. AutoShield F I."
+    }
+  ]
+}

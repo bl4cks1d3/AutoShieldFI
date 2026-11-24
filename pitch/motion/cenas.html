@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>AutoShieldFI — motion pitch</title>
+<style>
+@font-face{font-family:Inter;font-weight:400;src:url(../node_modules/@fontsource/inter/files/inter-latin-400-normal.woff2)}
+@font-face{font-family:Inter;font-weight:600;src:url(../node_modules/@fontsource/inter/files/inter-latin-600-normal.woff2)}
+@font-face{font-family:Inter;font-weight:800;src:url(../node_modules/@fontsource/inter/files/inter-latin-800-normal.woff2)}
+@font-face{font-family:Jakarta;font-weight:700;src:url(../node_modules/@fontsource/plus-jakarta-sans/files/plus-jakarta-sans-latin-700-normal.woff2)}
+@font-face{font-family:Jakarta;font-weight:800;src:url(../node_modules/@fontsource/plus-jakarta-sans/files/plus-jakarta-sans-latin-800-normal.woff2)}
+:root{--bg:#0b1f19;--bg2:#0f2a22;--tx:#f2f8f5;--mu:#b9d3ca;--dim:#7fa497;--ac:#2fd29e;--ac2:#14a87a;--red:#ff5d5d;--gold:#f5c84b;--card:#12342a;--line:#1f4a3c}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1920px;height:1080px;overflow:hidden;background:var(--bg);color:var(--tx);font-family:Inter,Arial,sans-serif}
+#palco{position:absolute;inset:0;overflow:hidden}
+#fundo{position:absolute;inset:-200px;background:
+  radial-gradient(900px 600px at var(--o1x,20%) var(--o1y,30%),rgba(47,210,158,.16),transparent 70%),
+  radial-gradient(800px 700px at var(--o2x,80%) var(--o2y,75%),rgba(20,168,122,.13),transparent 70%),var(--bg)}
+#grade{position:absolute;inset:0;background-image:linear-gradient(rgba(127,164,151,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(127,164,151,.07) 1px,transparent 1px);background-size:80px 80px}
+#flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none}
+.cena{position:absolute;inset:0;opacity:0;display:flex;align-items:center;justify-content:center}
+.a{will-change:transform,opacity}
+h1,h2,.big{font-family:Jakarta,Inter,sans-serif;font-weight:800;letter-spacing:-.02em}
+.verde{color:var(--ac)}.vermelho{color:var(--red)}.ouro{color:var(--gold)}.mu{color:var(--mu)}
+.tag{display:inline-block;font-size:26px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ac);margin-bottom:28px}
+.fonte{position:absolute;right:96px;bottom:150px;font-size:20px;color:var(--dim)}
+/* legenda */
+#leg{position:absolute;left:50%;bottom:54px;transform:translateX(-50%);max-width:1500px;padding:16px 30px;border-radius:14px;background:rgba(5,16,12,.72);font-size:32px;line-height:1.35;text-align:center;color:#f2f8f5;opacity:0}
+/* barra de progresso */
+#prog{position:absolute;left:0;top:0;height:6px;background:linear-gradient(90deg,var(--ac2),var(--ac));width:0}
+#marca{position:absolute;left:64px;top:44px;display:flex;align-items:center;gap:14px;font-family:Jakarta;font-weight:800;font-size:30px;opacity:0}
+#marca img{width:52px;height:52px}
+/* cena: gancho */
+.gancho-txt{font-size:104px;line-height:1.12;text-align:center;width:1600px}
+.gancho-txt span{display:inline-block}
+/* historia */
+.hist{display:flex;gap:40px}
+.hcard{width:440px;height:300px;border-radius:28px;background:var(--card);border:2px solid var(--line);padding:44px;display:flex;flex-direction:column;justify-content:space-between}
+.hcard .ico{font-size:72px}
+.hcard p{font-size:38px;font-weight:600;line-height:1.2}
+.hfrase{position:absolute;bottom:250px;width:100%;text-align:center;font-size:64px}
+/* problema */
+.carros{display:grid;grid-template-columns:repeat(5,150px);gap:36px 46px}
+.carro{width:150px;height:110px;color:var(--ac)}
+.prob-num{font-size:200px;line-height:1}
+.prob-wrap{display:flex;align-items:center;gap:140px}
+/* vilão */
+.vil-num{font-size:220px;line-height:1}
+.chips{display:flex;gap:36px;margin-top:70px;justify-content:center}
+.chip{position:relative;font-size:46px;font-weight:700;padding:26px 52px;border-radius:999px;border:3px solid var(--red);color:var(--red)}
+/* revelação */
+.rev{display:flex;flex-direction:column;align-items:center;gap:40px}
+.rev img{width:360px;height:360px}
+.anel{position:absolute;width:520px;height:520px;border-radius:50%;border:4px solid var(--ac);top:50%;left:50%;margin:-330px 0 0 -260px}
+.wordmark{font-family:Jakarta;font-weight:800;font-size:120px;letter-spacing:-.02em}
+/* solução */
+.sol{position:relative;width:1500px;height:760px;margin-top:-150px}
+.sol svg.linhas{position:absolute;inset:0}
+.no{position:absolute;width:330px;padding:28px;border-radius:26px;background:var(--card);border:2px solid var(--line);text-align:center}
+.no .ico{font-size:64px}.no b{display:block;font-size:36px;margin-top:10px}.no small{display:block;font-size:24px;color:var(--mu);margin-top:6px}
+.cofre{position:absolute;left:600px;top:250px;width:300px;height:300px;display:flex;align-items:center;justify-content:center}
+.cofre img{width:240px}
+/* como funciona */
+.como{display:flex;align-items:center;gap:140px}
+.cel{width:460px;height:900px;border-radius:64px;background:#06130f;border:14px solid #1b3b31;position:relative;overflow:hidden;box-shadow:0 40px 120px rgba(0,0,0,.5)}
+.tela{position:absolute;inset:0;padding:70px 40px;display:flex;flex-direction:column;gap:26px;opacity:0}
+.tela h3{font-family:Jakarta;font-size:40px}
+.campo{background:var(--card);border-radius:18px;padding:22px 26px;font-size:28px;color:var(--mu)}
+.campo b{color:var(--tx)}
+.botao{margin-top:auto;background:var(--ac);color:#06130f;font-weight:800;font-size:32px;text-align:center;padding:26px;border-radius:20px}
+.passos{display:flex;flex-direction:column;gap:22px}
+.passo{display:flex;align-items:center;gap:26px;font-size:40px;font-weight:600;color:var(--dim)}
+.passo i{font-style:normal;width:70px;height:70px;border-radius:50%;border:3px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:30px}
+.passo.on{color:var(--tx)}.passo.on i{background:var(--ac);border-color:var(--ac);color:#06130f}
+/* cashback */
+.cb{text-align:center}
+.cb-num{font-size:360px;line-height:1;color:var(--gold)}
+.moeda{position:absolute;width:90px;height:90px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#ffe9a3,#f5c84b 55%,#c99a1d);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:44px;color:#7a5a07}
+/* preço */
+.preco{width:1100px;border-radius:36px;background:var(--card);border:2px solid var(--line);padding:56px 70px}
+.linha{display:flex;justify-content:space-between;align-items:baseline;padding:24px 0;border-bottom:2px solid var(--line);font-size:40px}
+.linha:last-child{border:0}
+.linha span{color:var(--mu)}.linha b{font-size:52px}
+/* confiança */
+.lista{display:flex;flex-direction:column;gap:34px;width:1300px}
+.item{display:flex;align-items:center;gap:34px;font-size:50px;font-weight:600}
+.item .ok{width:80px;height:80px;border-radius:22px;background:var(--ac);color:#06130f;display:flex;align-items:center;justify-content:center;font-size:48px;font-weight:800;flex:none}
+.sol-badge{position:absolute;right:120px;top:130px;font-size:30px;font-weight:700;padding:16px 30px;border-radius:999px;background:linear-gradient(90deg,#9945ff,#14f195);color:#08120f}
+/* tração */
+.kpis{display:grid;grid-template-columns:repeat(4,370px);gap:36px}
+.kpi{height:400px;border-radius:30px;background:var(--card);border:2px solid var(--line);padding:44px 36px;display:flex;flex-direction:column;justify-content:space-between}
+.kpi .big{font-size:120px;line-height:1;color:var(--ac)}
+.kpi p{font-size:34px;font-weight:600;line-height:1.2}
+/* mercado */
+.merc{text-align:center}
+.merc-num{font-size:210px;line-height:1}
+.lei{display:inline-block;margin-top:60px;font-size:40px;font-weight:600;padding:24px 44px;border-radius:22px;border:2px solid var(--ac);color:var(--tx)}
+/* visão */
+.trilha{position:relative;width:1500px;height:300px}
+.trilha .barra{position:absolute;left:60px;right:60px;top:60px;height:8px;background:var(--line);border-radius:4px}
+.trilha .fill{position:absolute;left:60px;top:60px;height:8px;background:var(--ac);border-radius:4px;width:0}
+.marco{position:absolute;top:30px;width:420px;margin-left:-210px;text-align:center}
+.marco .pt{width:68px;height:68px;border-radius:50%;background:var(--ac);margin:0 auto 26px;border:8px solid var(--bg)}
+.marco b{display:block;font-size:38px}.marco small{display:block;font-size:26px;color:var(--mu);margin-top:8px;line-height:1.3}
+.lema{font-size:76px;text-align:center;line-height:1.15;margin-top:70px}
+/* CTA */
+.cta{display:flex;align-items:center;gap:130px}
+.qrbox{position:relative;width:560px;height:560px;background:#fff;border-radius:40px;padding:50px;box-shadow:0 0 0 10px rgba(47,210,158,.25),0 40px 140px rgba(0,0,0,.5);overflow:hidden}
+.qrbox img{width:100%;height:100%;display:block}
+.scan{position:absolute;left:30px;right:30px;height:6px;background:var(--ac);box-shadow:0 0 30px 8px rgba(47,210,158,.6);border-radius:3px}
+.cta-txt h2{font-size:92px;line-height:1.05}
+.cta-txt .url{font-size:46px;font-weight:700;color:var(--ac);margin-top:36px}
+.cta-txt .sub{font-size:32px;color:var(--mu);margin-top:22px}
+</style>
+</head>
+<body>
+<div id="palco">
+  <div id="fundo"></div><div id="grade"></div>
+
+  <!-- 1 gancho -->
+  <section class="cena" data-id="gancho">
+    <div class="gancho-txt big">
+      <span class="a" data-in="a0.00" data-fx="up">Imagine</span> <span class="a" data-in="a0.08" data-fx="up">bater</span> <span class="a" data-in="a0.16" data-fx="up">o</span> <span class="a" data-in="a0.22" data-fx="up">carro…</span><br>
+      <span class="a vermelho" data-in="a0.48" data-fx="pop">e pagar tudo sozinho.</span>
+    </div>
+  </section>
+
+  <!-- 2 história -->
+  <section class="cena" data-id="historia">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:80px">
+      <div class="hist">
+        <div class="hcard a" data-in="a0.02" data-fx="up"><div class="ico">👩</div><p>Uma colega<br><span class="mu">dirigindo para o trabalho</span></p></div>
+        <div class="hcard a" data-in="a0.25" data-fx="up"><div class="ico">💥</div><p>Uma batida<br><span class="mu">sem seguro</span></p></div>
+        <div class="hcard a" data-in="a0.45" data-fx="up"><div class="ico">🧾</div><p class="vermelho">100% do prejuízo<br><span class="mu">no bolso dela</span></p></div>
+      </div>
+      <h2 class="a" data-in="a0.78" data-fx="pop" style="font-size:72px">E ela <span class="verde">não é exceção.</span></h2>
+    </div>
+  </section>
+
+  <!-- 3 problema -->
+  <section class="cena" data-id="problema">
+    <div class="prob-wrap">
+      <div class="carros" id="carros"></div>
+      <div>
+        <div class="tag a" data-in="a0.0" data-fx="fade">Brasil · frota de automóveis</div>
+        <div class="big prob-num a" data-in="a0.05" data-fx="up"><span class="vermelho">7</span><span class="mu" style="font-size:110px"> em 10</span></div>
+        <p class="a" data-in="a0.15" data-fx="up" style="font-size:44px;font-weight:600;margin-top:16px">carros rodam sem seguro</p>
+        <div class="big a" data-in="a0.45" data-fx="up" style="font-size:120px;margin-top:60px"><span class="cnt" data-in="a0.45" data-dur="1.6" data-to="44" data-fmt="int">0</span> milhões</div>
+        <p class="a mu" data-in="a0.55" data-fx="up" style="font-size:36px;margin-top:10px">expostos a acidentes, roubos e enchentes</p>
+      </div>
+    </div>
+    <div class="fonte">Fonte: CNseg + Senatran, jul/2026</div>
+  </section>
+
+  <!-- 4 vilão -->
+  <section class="cena" data-id="vilao">
+    <div style="text-align:center">
+      <div class="tag a" data-in="a0.0" data-fx="fade">Seguro tradicional</div>
+      <div class="big vil-num a" data-in="a0.02" data-fx="pop"><span class="cnt" data-in="a0.05" data-dur=".7" data-to="3" data-fmt="int">0</span>% a <span class="cnt" data-in="a0.18" data-dur=".9" data-to="8" data-fmt="int">0</span>%</div>
+      <p class="a mu" data-in="a0.2" data-fx="up" style="font-size:46px;margin-top:20px">do valor do carro, todo ano</p>
+      <div class="chips">
+        <div class="chip a" data-in="a0.55" data-fx="pop">💸 Caro</div>
+        <div class="chip a" data-in="a0.68" data-fx="pop">📑 Burocrático</div>
+        <div class="chip a" data-in="a0.8" data-fx="pop">🕶️ Pouco transparente</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5 revelação -->
+  <section class="cena" data-id="revelacao">
+    <div class="anel a" data-in="a0.1" data-fx="ring"></div>
+    <div class="rev">
+      <img class="a" data-in="a0.0" data-fx="zoom" src="../../assets/brand/autoshieldfi-mark.svg" alt="">
+      <div class="wordmark a" data-in="a0.55" data-fx="up">AutoShield<span class="verde">FI</span></div>
+      <p class="a mu" data-in="a1.0" data-fx="up" style="font-size:40px">Proteção veicular descentralizada, na Solana.</p>
+    </div>
+  </section>
+
+  <!-- 6 solução -->
+  <section class="cena" data-id="solucao">
+    <div class="sol">
+      <svg class="linhas" viewBox="0 0 1500 760">
+        <path class="traco" data-in="a0.35" data-dur="1" d="M330 150 L630 330" stroke="#2fd29e" stroke-width="5" fill="none" stroke-dasharray="6 14"/>
+        <path class="traco" data-in="a0.45" data-dur="1" d="M1170 150 L870 330" stroke="#2fd29e" stroke-width="5" fill="none" stroke-dasharray="6 14"/>
+        <path class="traco" data-in="a0.55" data-dur="1" d="M750 560 L750 620" stroke="#2fd29e" stroke-width="5" fill="none" stroke-dasharray="6 14"/>
+      </svg>
+      <div class="cofre a" data-in="a0.02" data-fx="zoom"><img src="../../assets/brand/autoshieldfi-mark.svg" alt=""></div>
+      <div class="no a" data-in="a0.35" data-fx="left" style="left:40px;top:40px"><div class="ico">🚗</div><b>Motoristas</b><small>pagam o prêmio</small></div>
+      <div class="no a" data-in="a0.45" data-fx="right" style="left:1130px;top:40px"><div class="ico">📈</div><b>Investidores</b><small>aportam capital</small></div>
+      <div class="no a" data-in="a0.55" data-fx="up" style="left:585px;top:590px;width:330px"><div class="ico">⚖️</div><b>Avaliadores</b><small>votam os sinistros</small></div>
+      <div class="a" data-in="a0.1" data-fx="fade" style="position:absolute;left:0;right:0;top:-110px;text-align:center"><span class="tag">Pool mutualista · smart contracts · regras públicas</span></div>
+    </div>
+  </section>
+
+  <!-- 7 como funciona -->
+  <section class="cena" data-id="como">
+    <div class="como">
+      <div class="cel a" data-in="a0.0" data-fx="up">
+        <div class="tela" data-de="a0.05" data-ate="a0.22"><h3>Cotação</h3><div class="campo">Placa <b>ABC1D23</b></div><div class="campo">Tabela FIPE <b>R$ 50.000</b></div><div class="campo">Plano <b>Essencial</b></div><div class="botao">Ver preço</div></div>
+        <div class="tela" data-de="a0.22" data-ate="a0.40"><h3>Contratação</h3><div class="campo">À vista <b>R$ 1.750</b></div><div class="campo">ou <b>12x R$ 145,83</b> sem juros</div><div class="campo">Carteira <b>conectada ✓</b></div><div class="botao">Contratar</div></div>
+        <div class="tela" data-de="a0.40" data-ate="a0.55"><h3>Vistoria</h3><div class="campo">Placa conferida <b>✓</b></div><div class="campo">Avaliadores <b>3/3 aprovaram</b></div><div class="campo">Cobertura <b>ativa</b></div><div class="botao">Tudo certo</div></div>
+        <div class="tela" data-de="a0.55" data-ate="a0.72"><h3>Sinistro</h3><div class="campo">📷 4 fotos <b>enviadas ao IPFS</b></div><div class="campo">Registro <b>on-chain</b></div><div class="botao">Enviar</div></div>
+        <div class="tela" data-de="a0.72" data-ate="a0.86"><h3>Votação</h3><div class="campo">Avaliador 1 <b>✓ aprova</b></div><div class="campo">Avaliador 2 <b>✓ aprova</b></div><div class="campo">Avaliador 3 <b>✓ aprova</b></div><div class="campo">Quórum <b>atingido</b></div></div>
+        <div class="tela" data-de="a0.86" data-ate="z9"><h3 class="verde">Indenização paga ✓</h3><div class="big" style="font-size:76px;margin-top:40px;white-space:nowrap">R$ 9.200</div><div class="campo">direto do cofre do contrato</div></div>
+      </div>
+      <div class="passos">
+        <div class="passo" data-on="a0.05"><i>1</i>Cota pela FIPE</div>
+        <div class="passo" data-on="a0.22"><i>2</i>Contrata em até 12x</div>
+        <div class="passo" data-on="a0.40"><i>3</i>Vistoria por avaliadores</div>
+        <div class="passo" data-on="a0.55"><i>4</i>Sinistro com fotos</div>
+        <div class="passo" data-on="a0.72"><i>5</i>Votação com quórum</div>
+        <div class="passo" data-on="a0.86"><i>6</i>O cofre paga na hora</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8 cashback -->
+  <section class="cena" data-id="cashback">
+    <div id="moedas"></div>
+    <div class="cb">
+      <h2 class="a" data-in="a0.15" data-fx="up" style="font-size:80px">Não usou?</h2>
+      <div class="big cb-num a" data-in="a0.5" data-fx="pop"><span class="cnt" data-in="a0.5" data-dur="1.2" data-to="20" data-fmt="int">0</span>%</div>
+      <h2 class="a" data-in="a0.7" data-fx="up" style="font-size:64px">do prêmio <span class="ouro">de volta</span></h2>
+    </div>
+  </section>
+
+  <!-- 9 preço -->
+  <section class="cena" data-id="preco">
+    <div>
+      <div class="tag a" data-in="a0.0" data-fx="fade">Fórmula pública, calculada no contrato</div>
+      <div class="preco a" data-in="a0.0" data-fx="up">
+        <div class="linha a" data-in="a0.02" data-fx="left"><span>Carro (FIPE)</span><b>R$ 50.000</b></div>
+        <div class="linha a" data-in="a0.15" data-fx="left"><span>Plano</span><b class="verde">Essencial</b></div>
+        <div class="linha a" data-in="a0.25" data-fx="left"><span>Por ano</span><b>R$ <span class="cnt" data-in="a0.25" data-dur="1" data-to="1750" data-fmt="mil">0</span></b></div>
+        <div class="linha a" data-in="a0.48" data-fx="left"><span>Ou parcelado</span><b>12x R$ 145,83</b></div>
+        <div class="linha a" data-in="a0.72" data-fx="left"><span>De volta sem sinistro</span><b class="ouro">R$ <span class="cnt" data-in="a0.72" data-dur="1" data-to="350" data-fmt="int">0</span></b></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 10 confiança -->
+  <section class="cena" data-id="confianca">
+    <div class="sol-badge a" data-in="a0.0" data-fx="pop">◎ Solana</div>
+    <div class="lista">
+      <h2 class="a" data-in="a0.0" data-fx="up" style="font-size:76px;margin-bottom:20px">O contrato é o <span class="verde">cofre</span> e o <span class="verde">auditor</span>.</h2>
+      <div class="item a" data-in="a0.3" data-fx="left"><div class="ok">✓</div>Nenhuma chave privada move os fundos</div>
+      <div class="item a" data-in="a0.5" data-fx="left"><div class="ok">✓</div>Cada voto fica registrado na blockchain</div>
+      <div class="item a" data-in="a0.72" data-fx="left"><div class="ok">✓</div>Cada transação custa uma fração de centavo</div>
+    </div>
+  </section>
+
+  <!-- 11 tração -->
+  <section class="cena" data-id="tracao">
+    <div>
+      <h2 class="a" data-in="a0.0" data-fx="up" style="font-size:76px;margin-bottom:60px;text-align:center">Não é só uma ideia. <span class="verde">Já funciona.</span></h2>
+      <div class="kpis">
+        <div class="kpi a" data-in="a0.25" data-fx="up"><div class="big"><span class="cnt" data-in="a0.25" data-dur="1" data-to="26" data-fmt="int">0</span></div><p>instruções no smart contract</p></div>
+        <div class="kpi a" data-in="a0.42" data-fx="up"><div class="big"><span class="cnt" data-in="a0.42" data-dur="1" data-to="24" data-fmt="int">0</span></div><p>testes de integração</p></div>
+        <div class="kpi a" data-in="a0.6" data-fx="up"><div class="big">📱</div><p>app instalável no celular (PWA)</p></div>
+        <div class="kpi a" data-in="a0.75" data-fx="up"><div class="big">&lt;3<span style="font-size:60px">min</span></div><p>para contratar a proteção</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 12 mercado -->
+  <section class="cena" data-id="mercado">
+    <div class="merc">
+      <div class="tag a" data-in="a0.0" data-fx="fade">Seguro auto no Brasil · 2025</div>
+      <div class="big merc-num a" data-in="a0.05" data-fx="pop">R$ <span class="cnt" data-in="a0.05" data-dur="1.6" data-to="61.6" data-fmt="dec">0</span> bi</div>
+      <div><div class="lei a" data-in="a0.6" data-fx="up">⚖️ LC 213/2025 · proteção mutualista sob supervisão da SUSEP</div></div>
+    </div>
+    <div class="fonte">Fontes: CNseg · LC 213/2025</div>
+  </section>
+
+  <!-- 13 visão -->
+  <section class="cena" data-id="visao">
+    <div>
+      <div class="trilha">
+        <div class="barra"></div><div class="fill" data-in="a0.0" data-dur="3"></div>
+        <div class="marco a" data-in="a0.02" data-fx="up" style="left:12%"><div class="pt"></div><b>Piloto na Devnet</b><small>motoristas e motoboys</small></div>
+        <div class="marco a" data-in="a0.2" data-fx="up" style="left:50%"><div class="pt"></div><b>Governança multisig</b><small>timelock e quórum</small></div>
+        <div class="marco a" data-in="a0.35" data-fx="up" style="left:88%"><div class="pt"></div><b>Mainnet</b><small>auditoria, stablecoin e<br>parceria regulatória</small></div>
+      </div>
+      <div class="lema big a" data-in="a0.6" data-fx="up">Proteção para quem dirige.<br><span class="ouro">Dinheiro de volta</span> para quem não usa.</div>
+    </div>
+  </section>
+
+  <!-- 14 CTA -->
+  <section class="cena" data-id="cta">
+    <div class="cta">
+      <div class="qrbox a" data-in="a0.0" data-fx="zoom"><img src="../out/motion/qr.svg" alt="QR code"><div class="scan" id="scan"></div></div>
+      <div class="cta-txt">
+        <img class="a" data-in="a0.1" data-fx="up" src="../../assets/brand/autoshieldfi-mark.svg" style="width:130px;margin-bottom:30px" alt="">
+        <h2 class="a" data-in="a0.15" data-fx="up">Teste agora<br><span class="verde">na Devnet.</span></h2>
+        <div class="url a" data-in="a0.35" data-fx="up">autoshieldfi.vercel.app</div>
+        <div class="sub a" data-in="a0.5" data-fx="up">github.com/bl4cks1d3/AutoShieldFI</div>
+      </div>
+    </div>
+  </section>
+
+  <div id="flash"></div>
+  <div id="marca"><img src="../../assets/brand/autoshieldfi-mark.svg" alt="">AutoShield<span class="verde">FI</span></div>
+  <div id="leg"></div>
+  <div id="prog"></div>
+</div>
+
+<script>
+const CARRO = '<svg viewBox="0 0 64 48" class="carro"><path fill="currentColor" d="M14 6c1-3 3-5 7-5h22c4 0 6 2 7 5l5 13c4 0 7 3 7 7v10c0 2-2 4-4 5v4c0 1-1 3-3 3h-6c-2 0-3-2-3-3v-3H18v3c0 1-1 3-3 3H9c-2 0-3-2-3-3v-4c-2-1-4-3-4-5V26c0-4 3-7 7-7zm7 3-3 10h28l-3-10zM13 26a4 4 0 1 0 0 8 4 4 0 0 0 0-8m38 0a4 4 0 1 0 0 8 4 4 0 0 0 0-8"/></svg>';
+const carros = document.getElementById('carros');
+for (let i = 0; i < 10; i++) carros.insertAdjacentHTML('beforeend', CARRO);
+const moedas = document.getElementById('moedas');
+const MOEDAS = [];
+for (let i = 0; i < 14; i++) {
+  const m = document.createElement('div'); m.className = 'moeda'; m.textContent = 'R$';
+  m.style.fontSize = '30px'; moedas.appendChild(m);
+  MOEDAS.push({ el: m, x: 120 + ((i * 137) % 1680), d: 0.05 * i + (i % 3) * 0.07, s: 0.7 + (i % 4) * 0.12, r: (i % 2 ? 1 : -1) * (90 + i * 13) });
+}
+
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const ease = (p) => 1 - Math.pow(1 - p, 3);
+const back = (p) => { const c = 1.7; return 1 + (c + 1) * Math.pow(p - 1, 3) + c * Math.pow(p - 1, 2); };
+
+let CENAS = [], TOTAL = 0;
+// tempos: [{id, inicio, fim, falaInicio, audio, legenda}]
+window.configurar = (tempos, total) => { CENAS = tempos; TOTAL = total; };
+
+function quando(spec, c) { // "a0.5" = fração da fala; "s1.2" = segundos desde o início da cena; "z9" = fim
+  const k = spec[0], v = parseFloat(spec.slice(1));
+  if (k === 'a') return (c.falaInicio - c.inicio) + v * c.audio;
+  if (k === 'z') return 1e9;
+  return v;
+}
+
+function fx(el, tipo, p) {
+  const e = ease(p);
+  let o = e, tr = '';
+  if (tipo === 'up') tr = `translateY(${(1 - e) * 60}px)`;
+  else if (tipo === 'left') tr = `translateX(${(1 - e) * -80}px)`;
+  else if (tipo === 'right') tr = `translateX(${(1 - e) * 80}px)`;
+  else if (tipo === 'pop') tr = `scale(${0.6 + 0.4 * back(p)})`;
+  else if (tipo === 'zoom') tr = `scale(${0.3 + 0.7 * back(p)}) rotate(${(1 - e) * -12}deg)`;
+  else if (tipo === 'ring') { const q = (p * 0.6) % 1; o = p <= 0 ? 0 : (1 - q) * 0.8; tr = `scale(${0.5 + q * 1.2})`; }
+  el.style.opacity = o; el.style.transform = tr;
+}
+
+function fmt(v, f) {
+  if (f === 'dec') return v.toFixed(1).replace('.', ',');
+  if (f === 'mil') return Math.round(v).toLocaleString('pt-BR');
+  return String(Math.round(v));
+}
+
+window.seek = (t) => {
+  // fundo vivo
+  const s = document.documentElement.style;
+  s.setProperty('--o1x', `${20 + 10 * Math.sin(t / 7)}%`); s.setProperty('--o1y', `${30 + 12 * Math.cos(t / 9)}%`);
+  s.setProperty('--o2x', `${80 + 8 * Math.cos(t / 8)}%`); s.setProperty('--o2y', `${72 + 10 * Math.sin(t / 6)}%`);
+  document.getElementById('grade').style.transform = `translate(${(t * 12) % 80}px, ${(t * 6) % 80}px)`;
+  document.getElementById('prog').style.width = `${(t / TOTAL) * 100}%`;
+
+  let legenda = '', legOp = 0;
+  for (const c of CENAS) {
+    const sec = document.querySelector(`.cena[data-id="${c.id}"]`);
+    const lt = t - c.inicio, dur = c.fim - c.inicio;
+    if (lt < -0.1 || lt > dur + 0.1) { sec.style.opacity = 0; continue; }
+    const fi = clamp(lt / 0.45), fo = clamp((dur - lt) / 0.45);
+    sec.style.opacity = Math.min(fi, fo);
+    sec.style.transform = `scale(${1 + 0.02 * (1 - ease(fi)) - 0.015 * (1 - fo)})`;
+
+    sec.querySelectorAll('.a').forEach((el) => {
+      const ini = quando(el.dataset.in || 's0', c);
+      fx(el, el.dataset.fx || 'fade', clamp((lt - ini) / (el.dataset.fx === 'ring' ? 4 : 0.7)));
+    });
+    sec.querySelectorAll('.cnt').forEach((el) => {
+      const ini = quando(el.dataset.in, c), d = parseFloat(el.dataset.dur);
+      el.textContent = fmt(parseFloat(el.dataset.to) * ease(clamp((lt - ini) / d)), el.dataset.fmt);
+    });
+    sec.querySelectorAll('.traco').forEach((el) => {
+      const ini = quando(el.dataset.in, c);
+      el.style.opacity = clamp((lt - ini) / 0.6); el.style.strokeDashoffset = -lt * 40;
+    });
+    sec.querySelectorAll('.fill').forEach((el) => {
+      const ini = quando(el.dataset.in, c);
+      el.style.width = `${clamp((lt - ini) / parseFloat(el.dataset.dur)) * 1380}px`;
+    });
+    sec.querySelectorAll('.tela').forEach((el) => {
+      const de = quando(el.dataset.de, c), ate = quando(el.dataset.ate, c);
+      const p = Math.min(clamp((lt - de) / 0.35), clamp((ate - lt) / 0.35));
+      el.style.opacity = p; el.style.transform = `translateX(${(1 - clamp((lt - de) / 0.35)) * 60}px)`;
+    });
+    sec.querySelectorAll('.passo').forEach((el) => el.classList.toggle('on', lt >= quando(el.dataset.on, c)));
+
+    if (c.id === 'gancho') { // batida: flash + tremor
+      const hit = quando('a0.42', c), k = lt - hit;
+      document.getElementById('flash').style.opacity = k > 0 && k < 0.5 ? 0.55 * (1 - k / 0.5) : 0;
+      const amp = k > 0 && k < 0.6 ? 18 * (1 - k / 0.6) : 0;
+      sec.querySelector('.gancho-txt').style.transform = `translate(${amp * Math.sin(k * 90)}px, ${amp * Math.cos(k * 70)}px)`;
+    }
+    if (c.id === 'problema') {
+      const ini = quando('a0.05', c);
+      [...carros.children].forEach((el, i) => {
+        const ap = clamp((lt - (ini - 0.3) - i * 0.06) / 0.5); el.style.opacity = ease(ap); el.style.transform = `scale(${0.5 + 0.5 * back(ap)})`;
+        const red = i < 7 && lt > ini + 0.5 + i * 0.22; el.style.color = red ? 'var(--red)' : 'var(--ac)';
+      });
+    }
+    if (c.id === 'cashback') {
+      const ini = quando('a0.5', c);
+      MOEDAS.forEach((m) => {
+        const k = lt - ini - m.d;
+        if (k < 0) { m.el.style.opacity = 0; return; }
+        const y = -120 + k * 520 * m.s;
+        m.el.style.opacity = clamp(1.4 - k / 2.2);
+        m.el.style.transform = `translate(${m.x}px, ${y}px) rotate(${k * m.r}deg)`;
+      });
+    }
+    if (c.id === 'cta') {
+      const k = (lt % 2.4) / 2.4; document.getElementById('scan').style.top = `${30 + 490 * (0.5 - 0.5 * Math.cos(k * 2 * Math.PI))}px`;
+    }
+    if (lt >= c.falaInicio - c.inicio - 0.1 && lt <= c.falaInicio - c.inicio + c.audio + 0.25) {
+      legenda = c.legenda;
+      legOp = Math.min(clamp((lt - (c.falaInicio - c.inicio) + 0.1) / 0.25), clamp((c.falaInicio - c.inicio + c.audio + 0.25 - lt) / 0.25));
+    }
+  }
+  const leg = document.getElementById('leg');
+  if (leg.textContent !== legenda) leg.textContent = legenda;
+  leg.style.opacity = legenda ? legOp : 0;
+  const marca = document.getElementById('marca');
+  const rev = CENAS.find((c) => c.id === 'revelacao');
+  const cta = CENAS.find((c) => c.id === 'cta');
+  marca.style.opacity = rev ? clamp((t - rev.fim) / 0.6) * clamp((cta.inicio - t) / 0.4) : 0;
+};
+</script>
+</body>
+</html>
