@@ -20,8 +20,10 @@ const ROOT = dirname(fileURLToPath(import.meta.url));
 const OUT = join(ROOT, "out");
 const WORK = join(OUT, "build");
 const VOICES = join(ROOT, ".voices");
-const VOICE = "pt_BR-faber-medium";
-const HF = "https://huggingface.co/rhasspy/piper-voices/resolve/main/pt/pt_BR/faber/medium";
+// Voz Piper pt-BR (ex.: pt_BR-faber-medium, pt_BR-cadu-medium, pt_BR-jeff-medium): PIPER_VOICE=...
+const VOICE = process.env.PIPER_VOICE || "pt_BR-faber-medium";
+const [, speaker, quality] = VOICE.split("-");
+const HF = `https://huggingface.co/rhasspy/piper-voices/resolve/main/pt/pt_BR/${speaker}/${quality}`;
 
 const LEAD_IN = 0.45; // silêncio antes da fala em cada cena (s)
 const TAIL = 0.55; // silêncio depois da fala (s)
@@ -114,7 +116,7 @@ async function piperVoice() {
       const feeds = {
         input: new ort.Tensor("int64", BigInt64Array.from(ids, BigInt), [1, ids.length]),
         input_lengths: new ort.Tensor("int64", BigInt64Array.from([BigInt(ids.length)]), [1]),
-        scales: new ort.Tensor("float32", Float32Array.from([noise_scale, length_scale * 0.95, noise_w]), [3]),
+        scales: new ort.Tensor("float32", Float32Array.from([noise_scale, length_scale, noise_w]), [3]),
       };
       const out = await session.run(feeds);
       parts.push(out[session.outputNames[0]].data, new Float32Array(Math.round(SENTENCE_GAP * rate)));
