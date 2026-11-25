@@ -24,6 +24,8 @@ npm run video
 ```
 
 Na primeira execução, o script baixa a voz `pt_BR-faber-medium` do Hugging Face para `pitch/.voices/` (cerca de 63 MB).
+**Duração:** o edital aceita no máximo 3 minutos. O script mede a narração e, se o vídeo passar de 2min55s, acelera a fala (até 15%, sem mudar o tom) para caber; se nem assim couber, para com erro pedindo um roteiro mais curto. No fim, confere a duração real do MP4.
+
 O resultado fica em `pitch/out/autoshieldfi-pitch.mp4` (legendas na imagem) e `pitch/out/autoshieldfi-pitch.srt`.
 Para deixar as legendas como faixa opcional dentro do MP4: `node build-video.mjs`.
 
@@ -45,7 +47,7 @@ A narração usa o Piper em Python, e as cenas são renderizadas quadro a quadro
 ```bash
 python -m venv .venv && .venv/bin/pip install piper-tts huggingface_hub qrcode
 .venv/bin/python motion/narrar.py --velocidade 1.08   # narração (baixa a voz para .voices/) + QR code
-node motion/render-motion.mjs                          # vídeo de 180 s (--teste gera só capturas)
+node motion/render-motion.mjs                          # vídeo de 175 s, nunca acima de 178 s (--teste gera só capturas)
 ```
 
 Resultado: `out/autoshieldfi-motion-pitch.mp4` e `out/autoshieldfi-motion-pitch.srt`. Roteiro em `motion/roteiro-motion.json`, cenas em `motion/cenas.html`.

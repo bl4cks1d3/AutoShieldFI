@@ -1,6 +1,7 @@
 // Renderiza o vídeo motion pitch: cenas animadas (cenas.html) quadro a quadro + narração Piper + trilha.
 // Pré-requisito: python narrar.py (gera out/motion/audio/*.wav, tempos.json e qr.svg)
-// Uso: node motion/render-motion.mjs [--total 180] [--fps 30] [--workers 4] [--teste]
+// Uso: node motion/render-motion.mjs [--total 175] [--fps 30] [--workers 4] [--teste]
+// O vídeo nunca passa de 178 s (o edital aceita no máximo 3 minutos).
 import { chromium } from "playwright-core";
 import { spawn, execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
@@ -10,7 +11,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const AQUI = dirname(fileURLToPath(import.meta.url));
 const OUT = join(AQUI, "..", "out", "motion");
 const arg = (n, d) => { const i = process.argv.indexOf(`--${n}`); return i > 0 ? process.argv[i + 1] : d; };
-const TOTAL = parseFloat(arg("total", "180"));
+const LIMITE = 178; // margem abaixo dos 3 minutos do edital
+const TOTAL = Math.min(parseFloat(arg("total", "175")), LIMITE);
 const FPS = parseInt(arg("fps", "30"), 10);
 const WORKERS = parseInt(arg("workers", "4"), 10);
 const TESTE = process.argv.includes("--teste");
@@ -34,6 +36,12 @@ const cenas = tempos.map((c) => {
 });
 const DUR = t;
 console.log(`duração: ${DUR.toFixed(1)}s · fala ${fala.toFixed(1)}s · ${cenas.length} cenas`);
+// Regra do hackathon: no máximo 3 minutos. Nunca gera um vídeo acima do limite.
+if (DUR > LIMITE) {
+  console.error(`A narração ocupa ${DUR.toFixed(1)}s, acima do limite de ${LIMITE}s.` +
+    " Rode de novo narrar.py com --velocidade menor (ex.: 0.95) ou encurte o roteiro.");
+  process.exit(1);
+}
 
 // ---------- legendas SRT ----------
 const ts = (s) => { const ms = Math.round(s * 1000); const p = (n, l = 2) => String(n).padStart(l, "0");

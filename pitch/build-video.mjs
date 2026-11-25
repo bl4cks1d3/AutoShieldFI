@@ -9,7 +9,7 @@
 //   node build-video.mjs --voz espeak      # prévia com espeak-ng do sistema (sem Hugging Face)
 //
 // Saída: out/autoshieldfi-pitch.mp4 e out/autoshieldfi-pitch.srt
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
@@ -27,6 +27,8 @@ const LEAD_IN = 0.45; // silêncio antes da fala em cada cena (s)
 const TAIL = 0.55; // silêncio depois da fala (s)
 const FADE = 0.35; // fade de vídeo na entrada e na saída (s)
 const SENTENCE_GAP = 0.22; // pausa entre frases (s)
+const MAX_TOTAL = 175; // duração máxima do vídeo (s): o edital aceita até 3 minutos
+const MAX_TEMPO = 1.15; // aceleração máxima da fala antes de exigir um roteiro mais curto
 
 const args = process.argv.slice(2);
 const voz = args.includes("--voz") ? args[args.indexOf("--voz") + 1] : "piper";
@@ -158,21 +160,46 @@ rmSync(WORK, { recursive: true, force: true });
 mkdirSync(WORK, { recursive: true });
 
 const speak = voz === "piper" ? await piperVoice() : null;
+
+// 1) Narração de todas as cenas.
+const falas = [];
+for (const [i, cena] of roteiro.cenas.entries()) {
+  const wav = join(WORK, `fala-${String(i).padStart(2, "0")}.wav`);
+  if (speak) {
+    const { audio, rate } = await speak(cena.fala);
+    falas.push({ wav, speech: writeWav(wav, audio, rate) });
+  } else {
+    const espeakVoice = existsSync("/usr/share/mbrola/br4") ? "mb-br4" : "pt-br";
+    execFileSync("espeak-ng", ["-v", espeakVoice, "-s", "155", "-w", wav, cena.fala], { stdio: "ignore" });
+    falas.push({ wav, speech: wavDuration(wav) });
+  }
+}
+
+// 2) Limite de 3 minutos do edital: se passar de MAX_TOTAL, acelera a fala (sem mudar o tom).
+const pausas = roteiro.cenas.length * (LEAD_IN + TAIL);
+const falaTotal = falas.reduce((s, f) => s + f.speech, 0);
+const tempo = Math.max(1, falaTotal / (MAX_TOTAL - pausas));
+if (tempo > MAX_TEMPO) {
+  console.error(`A narração tem ${(falaTotal + pausas).toFixed(1)}s; caberia só ${(tempo * 100 - 100).toFixed(0)}% mais rápida. Encurte o roteiro.`);
+  process.exit(1);
+}
+if (tempo > 1) {
+  console.log(`narração de ${(falaTotal + pausas).toFixed(1)}s: acelerando ${((tempo - 1) * 100).toFixed(1)}% para caber em ${MAX_TOTAL}s`);
+  for (const f of falas) {
+    const rapido = f.wav.replace(".wav", "-rapido.wav");
+    ff("-i", f.wav, "-af", `atempo=${tempo.toFixed(4)}`, rapido);
+    f.wav = rapido;
+    f.speech = wavDuration(rapido);
+  }
+}
+
+// 3) Uma cena de vídeo por slide.
 const clips = [];
 const srt = [];
 let t = 0;
 
 for (const [i, cena] of roteiro.cenas.entries()) {
-  const wav = join(WORK, `fala-${String(i).padStart(2, "0")}.wav`);
-  let speech;
-  if (speak) {
-    const { audio, rate } = await speak(cena.fala);
-    speech = writeWav(wav, audio, rate);
-  } else {
-    const espeakVoice = existsSync("/usr/share/mbrola/br4") ? "mb-br4" : "pt-br";
-    execFileSync("espeak-ng", ["-v", espeakVoice, "-s", "155", "-w", wav, cena.fala], { stdio: "ignore" });
-    speech = wavDuration(wav);
-  }
+  const { wav, speech } = falas[i];
   const dur = LEAD_IN + speech + TAIL;
   const delay = Math.round(LEAD_IN * 1000);
   const clip = join(WORK, `cena-${String(i).padStart(2, "0")}.mp4`);
@@ -206,4 +233,11 @@ if (legendasFixas) {
 } else {
   ff("-i", joined, "-i", srtPath, "-map", "0", "-map", "1", "-c:v", "copy", "-c:s", "mov_text", "-metadata:s:s:0", "language=por", ...loud, "-movflags", "+faststart", final);
 }
-console.log(`\nduração total: ${Math.floor(t / 60)}min ${(t % 60).toFixed(1)}s\nvídeo: ${final}\nlegendas: ${srtPath}`);
+const info = spawnSync(FFMPEG, ["-hide_banner", "-i", final], { encoding: "utf8" }).stderr;
+const [, hh, mm, ss] = info.match(/Duration: (\d+):(\d+):([\d.]+)/);
+const real = Number(hh) * 3600 + Number(mm) * 60 + Number(ss);
+console.log(`\nduração total: ${Math.floor(real / 60)}min ${(real % 60).toFixed(1)}s (limite: 3min)\nvídeo: ${final}\nlegendas: ${srtPath}`);
+if (real > 180) {
+  console.error("ERRO: o vídeo passou de 3 minutos.");
+  process.exit(1);
+}
